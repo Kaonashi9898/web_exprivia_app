@@ -1,0 +1,217 @@
+.picker-panel {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(220px, 0.7fr) minmax(220px, 0.7fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.floor-grid {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.locked-panel {
+  margin-bottom: 1rem;
+  color: var(--color-text-muted);
+}
+
+.tools-panel {
+  align-self: start;
+  display: grid;
+  gap: 1rem;
+}
+
+.upload-row {
+  display: grid;
+  gap: 0.55rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.step-row {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+}
+
+.step-row.active {
+  border-color: var(--color-primary);
+  background: rgba(0, 65, 102, 0.07);
+}
+
+.step-row.done {
+  border-color: #bce9de;
+  background: #e5f6f1;
+}
+
+.step-number {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  color: #ffffff;
+  background: var(--color-primary);
+  border-radius: 50%;
+  font-weight: 800;
+}
+
+.step-row p {
+  margin: 0.15rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+}
+
+.upload-row input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.wide {
+  width: 100%;
+}
+
+.editor-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  text-align: center;
+}
+
+.meta-box {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.45rem 0.8rem;
+  padding: 1rem;
+  background: rgba(0, 65, 102, 0.07);
+  border-radius: var(--radius-sm);
+}
+
+.meta-box span {
+  color: var(--color-text-muted);
+}
+
+.meta-box strong {
+  color: var(--color-primary-dark);
+  overflow-wrap: anywhere;
+}
+
+.preview-panel {
+  min-height: 620px;
+}
+
+.plan-preview {
+  position: relative;
+  width: 100%;
+  min-height: 560px;
+  overflow: auto;
+  background: #f8fbfc;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.reset-zoom-button {
+  position: sticky;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 3;
+  min-height: 38px;
+  padding: 0.55rem 0.8rem;
+  color: #ffffff;
+  background: var(--color-primary);
+  border: 0;
+  border-radius: var(--radius-sm);
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+}
+
+.reset-zoom-button:hover {
+  background: var(--color-primary-light);
+}
+
+.plan-stage {
+  position: relative;
+  min-width: 100%;
+  transition: transform 220ms ease, transform-origin 220ms ease;
+}
+
+.plan-stage img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.room-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  max-width: 92px;
+  padding: 0.22rem 0.38rem;
+  overflow: hidden;
+  color: #ffffff;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary-dark);
+  border-radius: 5px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.1;
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(0, 49, 77, 0.14);
+}
+
+.room-pin:hover {
+  background: var(--color-secondary);
+  border-color: var(--color-secondary-dark);
+}
+
+.station-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  max-width: 68px;
+  padding: 0.1rem 0.2rem;
+  overflow: hidden;
+  color: #ffffff;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: #08715f;
+  border: 1px solid #0d5d50;
+  border-radius: 4px;
+  font-size: 0.48rem;
+  font-weight: 700;
+  line-height: 1.1;
+  box-shadow: 0 6px 14px rgba(0, 49, 77, 0.14);
+}
+
+.plan-stage.zoomed .station-pin {
+  transform: translate(-50%, -50%) scale(0.5);
+}
+
+.muted {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.empty-preview {
+  display: grid;
+  place-items: center;
+  min-height: 560px;
+  color: var(--color-text-muted);
+  background: #f8fbfc;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+@media (max-width: 980px) {
+  .picker-panel,
+  .floor-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,39 @@
+# Configurazione del microservizio utenti
+# Le variabili ${...} vengono sostituite con i valori del file .env o delle variabili d'ambiente
+
+# Porta su cui il servizio è in ascolto (diversa dagli altri microservizi per evitare conflitti)
+server:
+  port: 8081
+
+# Configurazione del token JWT
+jwt:
+  secret: ${JWT_SECRET}           # Chiave segreta per firmare/verificare i token (deve essere lunga almeno 256 bit)
+  expiration: ${JWT_EXPIRATION}   # Durata del token in millisecondi (es. 86400000 = 24 ore)
+
+spring:
+  application:
+    name: utenti-service           # Nome del servizio (visibile in log e service discovery)
+  datasource:
+    url: ${DB_URL}                 # URL di connessione a PostgreSQL (es. jdbc:postgresql://localhost:5432/utenti)
+    username: ${DB_USERNAME}       # Utente del database
+    password: ${DB_PASSWORD}       # Password del database
+    driver-class-name: org.postgresql.Driver
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost} # Host RabbitMQ (default: localhost, in Docker usa il nome del container)
+    port: 5672                      # Porta AMQP standard di RabbitMQ
+    username: guest                 # Utente RabbitMQ (default per sviluppo)
+    password: guest                 # Password RabbitMQ (default per sviluppo)
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate            # validate = controlla che lo schema DB corrisponda alle entità, senza modificarlo
+    show-sql: false                 # Mettere true in sviluppo per vedere le query SQL generate
+    properties:
+      hibernate:
+        format_sql: true            # Formatta le query SQL nei log per maggiore leggibilità
+
+admin-bootstrap:
+  enabled: ${ADMIN_BOOTSTRAP_ENABLED:false}
+  full-name: ${ADMIN_BOOTSTRAP_FULL_NAME:}
+  email: ${ADMIN_BOOTSTRAP_EMAIL:}
+  password: ${ADMIN_BOOTSTRAP_PASSWORD:}

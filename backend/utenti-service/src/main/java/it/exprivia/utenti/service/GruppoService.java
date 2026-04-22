@@ -1,0 +1,130 @@
+package it.exprivia.utenti.service;
+
+import it.exprivia.utenti.dto.UtenteDTO;
+import it.exprivia.utenti.entity.Gruppo;
+import it.exprivia.utenti.entity.GruppoUtente;
+import it.exprivia.utenti.messaging.GruppoEventPublisher;
+import it.exprivia.utenti.repository.GruppoRepository;
+import it.exprivia.utenti.repository.GruppoUtenteRepository;
+import it.exprivia.utenti.repository.UtenteRepository;
+import jakarta.persistence.EntityNotFoundException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+/**
+ * Service che contiene la logica di business per la gestione dei gruppi.
+ *
+ * Si occupa di: creare gruppi, aggiungere/rimuovere utenti dai gruppi,
+ * elencare gruppi e pubblicare eventi RabbitMQ quando un gruppo viene eliminato.
+ */
+@Service
+@RequiredArgsConstructor
+public class GruppoService {
+
+    private final GruppoRepository gruppoRepository;
+    private final GruppoUtenteRepository gruppoUtenteRepository;
+    private final UtenteRepository utenteRepository;
+    private final GruppoEventPublisher gruppoEventPublisher;
+
+    /**
+     * Restituisce i gruppi a cui appartiene l'utente identificato dall'email.
+     * Funzionamento:
+     * 1. Cerca l'utente per email
+     * 2. Trova tutte le sue associazioni nella tabella gruppi_utente
+     * 3. Per ogni associazione, carica il gruppo corrispondente
+     */
+    public List<Gruppo> getMiei(String email) {
+        var utente = utenteRepository.findByEmail(email)
+                .orElseThrow(() -> new EntityNotFoundException("Utente non trovato con email: " + email));
+        return gruppoUtenteRepository.findByIdUtente(utente.getId())
+                .stream()
+                .map(gu -> gruppoRepository.findById(gu.getIdGruppo()).orElse(null))
+                .filter(g -> g != null)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Crea un nuovo gruppo con il nome fornito e lo persiste nel database.
+     */
+    public Gruppo crea(String nome) {
+        Gruppo gruppo = new Gruppo();
+        gruppo.setNome(nome);
+        return gruppoRepository.save(gruppo);
+    }
+
+    /**
+     * Restituisce tutti i gruppi presenti nel database.
+     */
+    public List<Gruppo> findAll() {
+        return gruppoRepository.findAll();
+    }
+
+    /**
+     * Elimina un gruppo e notifica gli altri microservizi tramite RabbitMQ.
+     * L'evento viene pubblicato DOPO l'eliminazione, così gli altri servizi
+     * possono liberare le risorse collegate (es. postazioni assegnate al gruppo).
+     */
+    public Gruppo elimina(Long id) {
+        Gruppo gruppo = gruppoRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Gruppo non trovato con id: " + id));
+        gruppoRepository.delete(gruppo);
+        // Notifica il location-service che il gruppo è stato eliminato
+        gruppoEventPublisher.pubblicaEliminazione(id);
+        return gruppo;
+    }
+
+    /**
+     * Aggiunge un utente a un gruppo creando una nuova riga nella tabella gruppi_utente.
+     * Verifica che: il gruppo esista, l'utente esista e l'utente non sia già nel gruppo.
+     */
+    public void aggiungiUtente(Long idGruppo, Long idUtente) {
+        if (!gruppoRepository.existsById(idGruppo)) {
+            throw new EntityNotFoundException("Gruppo non trovato con id: " + idGruppo);
+        }
+        if (!utenteRepository.existsById(idUtente)) {
+            throw new EntityNotFoundException("Utente non trovato con id: " + idUtente);
+        }
+        if (gruppoUtenteRepository.existsByIdGruppoAndIdUtente(idGruppo, idUtente)) {
+            throw new IllegalArgumentException("L'utente è già nel gruppo");
+        }
+
+        // Crea la riga di associazione nella tabella di join
+        GruppoUtente gu = new GruppoUtente();
+        gu.setIdGruppo(idGruppo);
+        gu.setIdUtente(idUtente);
+        gruppoUtenteRepository.save(gu);
+    }
+
+    /**
+     * Rimuove un utente da un gruppo eliminando la riga corrispondente
+     * nella tabella di join gruppi_utente.
+     */
+    public void rimuoviUtente(Long idGruppo, Long idUtente) {
+        GruppoUtente gu = gruppoUtenteRepository.findByIdGruppoAndIdUtente(idGruppo, idUtente)
+                .orElseThrow(() -> new EntityNotFoundException("L'utente non appartiene a questo gruppo"));
+        gruppoUtenteRepository.delete(gu);
+    }
+
+    /**
+     * Restituisce la lista degli utenti (come DTO) appartenenti a un gruppo.
+     * Funzionamento:
+     * 1. Controlla che il gruppo esista
+     * 2. Carica tutte le associazioni del gruppo
+     * 3. Per ogni associazione, recupera l'utente e lo converte in DTO
+     */
+    public List<UtenteDTO> getUtentiDelGruppo(Long idGruppo) {
+        if (!gruppoRepository.existsById(idGruppo)) {
+            throw new EntityNotFoundException("Gruppo non trovato con id: " + idGruppo);
+        }
+
+        return gruppoUtenteRepository.findByIdGruppo(idGruppo)
+                .stream()
+                .map(gu -> utenteRepository.findById(gu.getIdUtente()).orElse(null))
+                .filter(u -> u != null)
+                .map(u -> new UtenteDTO(u.getId(), u.getFullName(), u.getEmail(), u.getRuolo()))
+                .collect(Collectors.toList());
+    }
+}

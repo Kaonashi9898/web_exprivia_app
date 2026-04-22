@@ -1,0 +1,165 @@
+<section class="page-hero compact">
+  <div>
+    <p class="eyebrow">Prenotazioni</p>
+    <h1>Prenota dalla planimetria</h1>
+    <p class="hero-copy">
+      Seleziona sede, edificio e piano. Se la planimetria e disponibile compare la mappa,
+      altrimenti viene mostrato un messaggio di non disponibilita.
+    </p>
+  </div>
+</section>
+
+@if (message) {
+  <div class="notice success">{{ message }}</div>
+}
+@if (error) {
+  <div class="notice error">{{ error }}</div>
+}
+
+<section class="panel picker-panel">
+  <label>
+    Sede
+    <select name="sede" [(ngModel)]="selectedSedeId" (ngModelChange)="onSedeChange()">
+      <option [ngValue]="null">Seleziona la sede</option>
+      @for (sede of sedi; track sede.id) {
+        <option [ngValue]="sede.id">{{ sede.nome }} - {{ sede.citta }}</option>
+      }
+    </select>
+  </label>
+
+  <label>
+    Edificio
+    <select name="edificio" [(ngModel)]="selectedEdificioId" (ngModelChange)="onEdificioChange()" [disabled]="!edifici.length">
+      <option [ngValue]="null">{{ edifici.length ? 'Seleziona edificio' : 'Nessun edificio disponibile' }}</option>
+      @for (edificio of edifici; track edificio.id) {
+        <option [ngValue]="edificio.id">{{ edificio.nome }}</option>
+      }
+    </select>
+  </label>
+
+  <label>
+    Piano
+    <select name="piano" [(ngModel)]="selectedPianoId" (ngModelChange)="onPianoChange()" [disabled]="!selectedEdificioId || !piani.length">
+      <option [ngValue]="null">{{ piani.length ? 'Seleziona il piano' : 'Nessun piano creato' }}</option>
+      @for (piano of piani; track piano.id) {
+        <option [ngValue]="piano.id">{{ getPianoDisplayName(piano) }}</option>
+      }
+    </select>
+  </label>
+</section>
+
+@if (unavailableMessage && !imageSrc) {
+  <section class="panel empty-plan">
+    <strong>{{ unavailableMessage }}</strong>
+  </section>
+}
+
+@if (imageSrc || layout) {
+  <section class="plan-layout">
+    <div class="panel plan-panel">
+      <div class="panel-header">
+        <h2>Planimetria</h2>
+      </div>
+
+      @if (imageSrc) {
+        <div class="plan-preview">
+          @if (selectedRoomId) {
+            <button class="reset-zoom-button" type="button" (click)="resetZoom()">
+              Vista completa
+            </button>
+          }
+          <div class="plan-stage" [class.zoomed]="selectedRoomId" [ngStyle]="selectedRoomStyle()">
+            <img [src]="imageSrc" alt="Planimetria sede" />
+
+            @if (!selectedRoomId) {
+              @for (room of visibleRooms(); track room.id) {
+                <button
+                  type="button"
+                  class="room-pin"
+                  [style.left.%]="room.position.xPct"
+                  [style.top.%]="room.position.yPct"
+                  (click)="selectRoom(room)"
+                  [title]="room.label"
+                >
+                  {{ room.label }}
+                </button>
+              }
+            }
+
+            @for (station of visibleStations(); track station.id) {
+              <button
+                type="button"
+                class="station-pin"
+                [class.active]="selectedStation?.id === station.id"
+                [class.booked]="stationIsBooked(station)"
+                [class.unavailable]="!stationIsAvailable(station)"
+                [attr.aria-disabled]="!stationIsAvailable(station)"
+                [style.left.%]="station.position.xPct"
+                [style.top.%]="station.position.yPct"
+                (click)="selectStation(station)"
+                [title]="stationTooltip(station)"
+              >
+                {{ station.label }}
+              </button>
+            }
+          </div>
+        </div>
+      } @else {
+        <div class="empty-plan inline">
+          <strong>Planimetria tecnica caricata. Per visualizzarla qui serve una versione SVG, PNG o JPG.</strong>
+        </div>
+      }
+    </div>
+
+    <aside class="panel side-panel">
+      <div class="panel-header">
+        <h2>Prenotazione</h2>
+      </div>
+
+      <form class="booking-box" (ngSubmit)="createBooking()">
+        <div class="selected-seat">
+          <span>Stanza selezionata</span>
+          <strong>{{ selectedRoomLabel() }}</strong>
+        </div>
+
+        <div class="selected-seat">
+          <span>Postazione selezionata</span>
+          <strong>{{ selectedPostazione?.codice || selectedStation?.label || 'Nessuna' }}</strong>
+        </div>
+
+        <label>
+          Data
+          <input type="date" name="bookingDate" [(ngModel)]="bookingDate" (change)="loadBookingsForCurrentPlan()" required />
+        </label>
+
+        <div class="time-grid">
+          <label>
+            Inizio
+            <input type="time" name="startTime" [(ngModel)]="startTime" required />
+          </label>
+          <label>
+            Fine
+            <input type="time" name="endTime" [(ngModel)]="endTime" required />
+          </label>
+        </div>
+
+        <button class="btn btn-primary" type="submit" [disabled]="!selectedPostazione">
+          Prenota postazione
+        </button>
+
+        @if (message) {
+          <div class="notice success inline-booking-message">{{ message }}</div>
+        }
+        @if (error) {
+          <div class="notice error inline-booking-message">{{ error }}</div>
+        }
+
+        @if (!selectedRoomId) {
+          <p class="muted">Clicca il nome di una stanza sulla planimetria, poi seleziona una postazione.</p>
+        } @else if (!selectedPostazione) {
+          <p class="muted">Seleziona una postazione disponibile direttamente sulla planimetria.</p>
+        }
+      </form>
+    </aside>
+  </section>
+}

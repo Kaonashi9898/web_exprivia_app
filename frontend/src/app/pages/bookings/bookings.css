@@ -1,0 +1,146 @@
+.picker-panel {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(220px, 0.8fr) minmax(220px, 0.7fr) minmax(180px, 0.6fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.management-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.management-actions button {
+  min-height: 38px;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.82rem;
+}
+
+.empty-state {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.stat-card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1.1rem;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.stat-card span {
+  color: var(--color-text-muted);
+  font-weight: 650;
+}
+
+.stat-card strong {
+  color: var(--color-primary-dark);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.stat-card.free strong {
+  color: #08715f;
+}
+
+.stat-card.occupied strong {
+  color: var(--color-secondary-dark);
+}
+
+.stat-card.blocked strong {
+  color: #8a2d18;
+}
+
+.report-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.room-list,
+.booking-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.room-card,
+.booking-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.room-card div:first-child,
+.booking-row div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.room-card span,
+.booking-row span,
+.muted {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.room-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.metric {
+  padding: 0.34rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.metric.free {
+  color: #08715f;
+  background: #e5f6f1;
+}
+
+.metric.occupied {
+  color: var(--color-secondary-dark);
+  background: #fff0eb;
+}
+
+.metric.blocked {
+  color: #8a2d18;
+  background: #fff5f1;
+}
+
+@media (max-width: 1050px) {
+  .picker-panel,
+  .summary-grid,
+  .report-grid,
+  .room-card,
+  .booking-row {
+    grid-template-columns: 1fr;
+  }
+
+  .room-metrics {
+    justify-content: flex-start;
+  }
+}

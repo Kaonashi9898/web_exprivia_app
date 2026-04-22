@@ -1,0 +1,78 @@
+<!-- Drop zone -->
+@if (!fps.image()) {
+  <div
+    class="drop-zone"
+    (click)="fileInput.click()"
+    (dragover)="$event.preventDefault()"
+    (drop)="$event.preventDefault(); onDrop($event)"
+  >
+    <img src="/images/plan.png" alt="floor plan" width="32" height="32">
+    <p>Drop floor plan here</p>
+    <small>PNG, SVG, DXF - Click to browse</small>
+  </div>
+}
+
+<input
+  #fileInput
+  type="file"
+  accept="image/png,application/dxf,image/x-dxf,image/vnd.dxf,image/svg+xml,.dxf"
+  style="display:none"
+  (change)="onFileSelected($event); fileInput.value = ''"
+>
+
+@if (fps.image(); as img) {
+  <!-- Scene: solo immagine, nessun marker -->
+  <div #sceneEl class="scene">
+    <div
+      class="image-frame"
+      [style.left.px]="fps.zoom() * imageFrame.left"
+      [style.top.px]="fps.zoom() * imageFrame.top"
+      [style.width.px]="fps.zoom() * imageFrame.width"
+      [style.height.px]="fps.zoom() * imageFrame.height"
+    >
+      <img class="floor-img" [src]="img.dataUrl" draggable="false" alt="Floor plan">
+    </div>
+  </div>
+
+  <!-- Overlay marker: non trasformato, posizioni calcolate in pixel schermo -->
+  <div class="markers-overlay" #markersOverlayEl>
+    @for (room of fps.rooms(); track room.id) {
+      <app-room-marker
+        [room]="room"
+        variant="room"
+        [showAddStation]="true"
+        [style.left.px]="toScreenX(room.xPct)"
+        [style.top.px]="toScreenY(room.yPct)"
+        (dragStart)="onRoomDragStart($event)"
+        (addStation)="onAddStation($event)"
+        (delete)="fps.deleteRoom($event)"
+        (labelChange)="fps.updateRoom($event.id, { label: $event.label })"
+      />
+    }
+
+    @for (meeting of fps.meetings(); track meeting.id) {
+      <app-room-marker
+        [meeting]="meeting"
+        variant="meeting"
+        [showAddStation]="false"
+        [style.left.px]="toScreenX(meeting.xPct)"
+        [style.top.px]="toScreenY(meeting.yPct)"
+        (dragStart)="onMeetingDragStart($event)"
+        (delete)="fps.deleteMeeting($event)"
+        (labelChange)="fps.updateMeeting($event.id, { label: $event.label })"
+      />
+    }
+
+    @for (station of fps.stations(); track station.id) {
+      <app-station-marker
+        [station]="station"
+        [roomLabel]="fps.roomMap()[station.roomId]?.label ?? ''"
+        [style.left.px]="toScreenX(station.xPct)"
+        [style.top.px]="toScreenY(station.yPct)"
+        (dragStart)="onStationDragStart($event)"
+        (delete)="fps.deleteStation($event)"
+        (labelChange)="fps.updateStation($event.id, { label: $event.label })"
+      />
+    }
+  </div>
+}

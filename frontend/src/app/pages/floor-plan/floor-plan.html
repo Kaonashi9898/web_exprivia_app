@@ -1,0 +1,193 @@
+<section class="page-hero compact">
+  <div>
+    <p class="eyebrow">Planimetrie</p>
+    <h1>Editor planimetria</h1>
+    <p class="hero-copy">
+      Se hai gia i file della planimetria e il JSON, seleziona sede e piano e importali in ordine.
+      Se devi crearli, apri l'editor interattivo e poi rientra qui per caricare i file esportati.
+    </p>
+  </div>
+</section>
+
+@if (message) {
+  <div class="notice success">{{ message }}</div>
+}
+@if (error) {
+  <div class="notice error">{{ error }}</div>
+}
+
+<section class="panel picker-panel">
+  <label>
+    Scegli la sede per cui vuoi caricare la planimetria
+    <select name="sede" [(ngModel)]="selectedSedeId" (ngModelChange)="onSedeChange()">
+      <option [ngValue]="null">Seleziona la sede</option>
+      @for (sede of sedi; track sede.id) {
+        <option [ngValue]="sede.id">{{ sede.nome }} - {{ sede.citta }}</option>
+      }
+    </select>
+  </label>
+
+  <label>
+    Edificio
+    <select name="edificio" [(ngModel)]="selectedEdificioId" (ngModelChange)="onEdificioChange()" [disabled]="!selectedSedeId || !edifici.length">
+      <option [ngValue]="null">{{ edifici.length ? 'Seleziona edificio' : 'Nessun edificio disponibile' }}</option>
+      @for (edificio of edifici; track edificio.id) {
+        <option [ngValue]="edificio.id">{{ edificio.nome }}</option>
+      }
+    </select>
+  </label>
+
+  <label>
+    Piano
+    <select name="piano" [(ngModel)]="selectedPianoId" (ngModelChange)="onPianoChange()" [disabled]="!selectedEdificioId || pianiLoading || !piani.length">
+      <option [ngValue]="null">
+        {{ pianiLoading ? 'Caricamento piani...' : (piani.length ? 'Seleziona il piano' : 'Nessun piano creato') }}
+      </option>
+      @for (piano of piani; track piano.id) {
+        <option [ngValue]="piano.id">{{ getPianoOptionLabel(piano) }}</option>
+      }
+    </select>
+  </label>
+</section>
+
+@if (!canUseEditor()) {
+  <section class="panel locked-panel">
+    <strong>Seleziona prima la sede e l'edificio, poi apri l'editor o carica una nuova planimetria.</strong>
+  </section>
+}
+
+@if (canUseEditor()) {
+<section class="floor-grid">
+  <div class="panel tools-panel">
+    <div class="panel-header"><h2>Import guidato</h2></div>
+
+    <div class="step-row done">
+      <span class="step-number">1</span>
+      <div>
+        <strong>Apri editor interattivo</strong>
+        <p>Se non hai ancora i file, crea la planimetria e scarica gli export.</p>
+      </div>
+    </div>
+
+    <a class="ghost-button editor-link" [href]="editorUrl" target="_blank" rel="noreferrer">
+      Apri editor interattivo
+    </a>
+
+    <div class="step-row" [class.active]="currentStep() === 2" [class.done]="!!planimetria">
+      <span class="step-number">2</span>
+      <div>
+        <strong>Carica planimetria</strong>
+        <p>SVG, PNG, JPG, DXF o DWG del piano selezionato.</p>
+      </div>
+    </div>
+
+    <div class="upload-row">
+      <input type="file" accept="image/png,image/jpeg,image/svg+xml,.dxf,.dwg" (change)="setImageFile($event)" />
+      <label>
+        Rinomina file
+        <input
+          name="planFileName"
+          placeholder="es. piano-1"
+          [(ngModel)]="planFileName"
+          [disabled]="!imageFile"
+        />
+      </label>
+      <button class="ghost-button wide" type="button" [disabled]="!imageFile || !planFileName.trim()" (click)="renameImageFile()">
+        Rinomina file
+      </button>
+      <button class="btn btn-primary" type="button" [disabled]="!canUseEditor() || !imageFile || !imageFileRenamed" (click)="uploadImage()">
+        Carica planimetria
+      </button>
+    </div>
+
+    <div class="step-row" [class.active]="currentStep() === 3" [class.done]="!!layout">
+      <span class="step-number">3</span>
+      <div>
+        <strong>Importa layout JSON</strong>
+        <p>JSON esportato dall'editor con stanze, meeting room e postazioni.</p>
+      </div>
+    </div>
+
+    <div class="upload-row">
+      <input type="file" accept="application/json,.json" [disabled]="!canImportJson()" (change)="setJsonFile($event)" />
+      <button class="btn btn-secondary" type="button" [disabled]="!canImportJson() || !jsonFile" (click)="importJson()">
+        Importa JSON
+      </button>
+    </div>
+
+    <button class="ghost-button wide" type="button" [disabled]="!canPreviewPlan()" (click)="viewPreview()">
+      Visualizza anteprima
+    </button>
+
+    <button class="btn btn-secondary wide" type="button" [disabled]="!canPreviewPlan()" (click)="savePlan()">
+      Salva planimetria
+    </button>
+
+    <button class="danger-button wide" type="button" [disabled]="!canUseEditor() || !planimetria" (click)="deletePlan()">
+      Elimina planimetria
+    </button>
+
+    <div class="meta-box">
+      <span>File</span>
+      <strong>{{ planimetria?.imageName || 'Nessuna immagine' }}</strong>
+      <span>Stanze</span>
+      <strong>{{ roomsForDisplay().length }}</strong>
+      <span>Postazioni</span>
+      <strong>{{ layout?.stations?.length || 0 }}</strong>
+    </div>
+  </div>
+
+  <div class="panel preview-panel">
+    <div class="panel-header"><h2>Anteprima</h2></div>
+
+    @if (canPreviewPlan() && imageSrc) {
+      <div class="plan-preview">
+        @if (selectedRoomId) {
+          <button class="reset-zoom-button" type="button" (click)="resetZoom()">
+            Vista completa
+          </button>
+        }
+        <div class="plan-stage" [class.zoomed]="selectedRoomId" [ngStyle]="selectedRoomStyle()">
+          <img [src]="imageSrc" alt="Planimetria del piano" />
+
+          @if (!selectedRoomId) {
+            @for (room of visibleRooms(); track room.id) {
+              <button
+                type="button"
+                class="room-pin"
+                [style.left.%]="room.position.xPct"
+                [style.top.%]="room.position.yPct"
+                (click)="selectRoom(room)"
+                [title]="room.label"
+              >
+                {{ room.label }}
+              </button>
+            }
+          }
+
+            @for (station of visibleStations(); track station.id) {
+              <span
+                class="station-pin"
+                [style.left.%]="station.position.xPct"
+                [style.top.%]="station.position.yPct"
+                [title]="station.label"
+            >
+              {{ station.label }}
+            </span>
+          }
+          </div>
+        </div>
+    } @else if (planimetria && !layout) {
+      <div class="empty-preview">
+        Planimetria caricata. Ora importa il file JSON per visualizzare stanze, meeting room e postazioni.
+      </div>
+    } @else if (canPreviewPlan() && (planimetria?.formatoOriginale === 'DXF' || planimetria?.formatoOriginale === 'DWG')) {
+      <div class="empty-preview">
+        File tecnico caricato. Per l'anteprima web carica anche una versione PNG, JPG o SVG.
+      </div>
+    } @else {
+      <div class="empty-preview">Nessuna planimetria caricata.</div>
+    }
+  </div>
+</section>
+}

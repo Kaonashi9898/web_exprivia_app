@@ -1,0 +1,101 @@
+<section class="page-hero">
+  <div>
+    <p class="eyebrow">{{ roleLabel() }}</p>
+    <h1>Ciao, {{ user()?.fullName }}</h1>
+    <p class="hero-copy">Gestione prenotazioni e postazioni Exprivia.</p>
+  </div>
+</section>
+
+@if (bookings.length) {
+  <section class="panel dashboard-bookings">
+    <div class="panel-header">
+      <h2>Le tue prenotazioni</h2>
+    </div>
+
+    <div class="booking-cards">
+      @for (booking of bookings; track booking.id) {
+        <article class="booking-card">
+          <div>
+            <strong>{{ booking.stanzaNome }}</strong>
+            <span>{{ booking.pianoLabel }}</span>
+            <span>{{ booking.postazioneCodice }}</span>
+          </div>
+          <div>
+            <span>Sede</span>
+            <strong>{{ booking.sedeLabel }}</strong>
+          </div>
+          <div>
+            <span>Quando</span>
+            <strong>{{ formatDate(booking.dataPrenotazione) }}</strong>
+          </div>
+          <div>
+            <span>Orario</span>
+            <strong>{{ booking.oraInizio }} - {{ booking.oraFine }}</strong>
+          </div>
+          <button
+            class="danger-button"
+            type="button"
+            [disabled]="deletingBookingId === booking.id"
+            (click)="cancelBooking(booking)"
+          >
+            {{ deletingBookingId === booking.id ? 'Eliminazione...' : 'Elimina' }}
+          </button>
+        </article>
+      }
+    </div>
+  </section>
+} @else if (bookingsError) {
+  <div class="notice error">{{ bookingsError }}</div>
+}
+
+<section class="quick-grid">
+  @if (canBook()) {
+    <a routerLink="/prenotazioni" class="action-card">
+      <span class="card-icon">
+        <svg viewBox="0 0 24 24"><path d="M7 3v3M17 3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v12H4V7a2 2 0 0 1 2-2z" /></svg>
+      </span>
+      <strong>Prenota postazione</strong>
+      <span>Scrivanie, sale e storico personale.</span>
+    </a>
+  }
+
+  @if (isAdmin()) {
+    <a routerLink="/utenti" class="action-card">
+      <span class="card-icon orange">
+        <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6" /></svg>
+      </span>
+      <strong>Gestisci utenze</strong>
+      <span>Crea account e assegna ruoli.</span>
+    </a>
+  }
+
+  @if (isAdmin()) {
+    <a routerLink="/sedi-postazioni" class="action-card">
+      <span class="card-icon teal">
+        <svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l8-4 6 4v14M9 21v-7h4v7M9 9h.01M13 9h.01M17 9h.01M17 13h.01" /></svg>
+      </span>
+      <strong>Sedi e postazioni</strong>
+      <span>Consultazione planimetrie e desk.</span>
+    </a>
+  }
+
+  @if (isBuildingManager()) {
+    <a routerLink="/planimetria" class="action-card">
+      <span class="card-icon blue">
+        <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 5v14M16 5v14M4 12h16" /></svg>
+      </span>
+      <strong>Editor planimetria</strong>
+      <span>Import immagine e layout del piano.</span>
+    </a>
+  }
+
+  @if (isReception()) {
+    <a routerLink="/prenotazioni" class="action-card">
+      <span class="card-icon orange">
+        <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14M4 4h16v16H4z" /></svg>
+      </span>
+      <strong>Presidio reception</strong>
+      <span>Vista operativa sulle prenotazioni.</span>
+    </a>
+  }
+</section>

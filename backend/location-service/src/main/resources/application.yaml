@@ -1,0 +1,43 @@
+# Configurazione del microservizio location
+# Le variabili ${VAR:default} usano il valore di default se la variabile d'ambiente non è impostata
+
+# Porta diversa da utenti-service (8081) per evitare conflitti in sviluppo locale
+server:
+  port: 8082
+  tomcat:
+    max-swallow-size: 100MB
+    max-http-form-post-size: 100MB
+
+# Configurazione JWT — usata SOLO per verificare i token, non per generarli
+jwt:
+  secret: ${JWT_SECRET}               # Stessa chiave segreta di utenti-service (indispensabile)
+  expiration: ${JWT_EXPIRATION:86400000}  # Non usato qui (solo per compatibilità), default 24h
+
+spring:
+  application:
+    name: location-service             # Nome del servizio nei log
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/postgres}  # Porta 5433 per non confliggere con utenti-service (5432)
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}  # In Docker usa il nome del container, default localhost
+    port: 5672                        # Porta AMQP standard di RabbitMQ
+    username: guest
+    password: guest
+  jpa:
+    hibernate:
+      ddl-auto: validate              # validate = verifica lo schema senza modificarlo
+    show-sql: false                   # Mettere true in sviluppo per vedere le query SQL
+    properties:
+      hibernate:
+        format_sql: true              # Formatta le query SQL nei log per leggibilità
+
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+planimetria:
+  storage-dir: ${PLANIMETRIA_STORAGE_DIR:storage/planimetrie}

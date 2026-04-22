@@ -1,0 +1,40 @@
+<div class="app-shell">
+  <header class="topbar">
+    <a routerLink="/dashboard" class="logo-link" aria-label="Dashboard Exprivia">
+      <img src="/assets/logo-exprivia.svg" alt="Exprivia" class="topbar-logo" />
+    </a>
+
+    <nav class="main-nav" aria-label="Navigazione principale">
+      <a routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+      @if (showBookings()) {
+        <a routerLink="/prenotazioni" routerLinkActive="active">Prenotazioni</a>
+      }
+      @if (showUsers()) {
+        <a routerLink="/utenti" routerLinkActive="active">Utenti</a>
+      }
+      @if (showLocations()) {
+        <a routerLink="/sedi-postazioni" routerLinkActive="active">Sedi e postazioni</a>
+      }
+      @if (showPlan()) {
+        <a routerLink="/planimetria" routerLinkActive="active">Planimetria</a>
+      }
+    </nav>
+
+    <div class="user-menu">
+      <div class="user-copy">
+        <strong>{{ user()?.fullName }}</strong>
+        <span>{{ user()?.ruolo }}</span>
+      </div>
+      <button type="button" class="icon-button" title="Esci" (click)="logout()" aria-label="Esci">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M15 17l5-5-5-5M20 12H9" />
+          <path d="M11 20H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h6" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="app-content">
+    <router-outlet></router-outlet>
+  </main>
+</div>

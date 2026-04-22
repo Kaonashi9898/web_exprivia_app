@@ -1,0 +1,46 @@
+server:
+  port: 8083
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:86400000}
+
+spring:
+  application:
+    name: prenotazioni-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5434/postgres}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: 5672
+    username: guest
+    password: guest
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+services:
+  utenti:
+    base-url: ${UTENTI_SERVICE_URL:http://localhost:8081}
+  location:
+    base-url: ${LOCATION_SERVICE_URL:http://localhost:8082}
+
+springdoc:
+  swagger-ui:
+    disable-swagger-default-url: true
+    display-request-duration: true
+    filter: true
+    urls:
+      - name: utenti-service
+        url: http://localhost:8081/v3/api-docs
+      - name: location-service
+        url: http://localhost:8082/v3/api-docs
+      - name: prenotazioni-service
+        url: /v3/api-docs

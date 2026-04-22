@@ -1,0 +1,77 @@
+<div class="split-screen-container">
+  <div class="info-side" aria-labelledby="home-title">
+    <div class="info-content">
+      <div class="brand">
+        <img src="/assets/logo-exprivia.svg" alt="Exprivia" class="exprivia-logo" />
+      </div>
+
+      <div class="welcome-text">
+        <h1 id="home-title" class="title">Gestisci la tua <br />postazione aziendale.</h1>
+        <p class="subtitle">
+          Prenota il tuo desk direttamente dalla planimetria dell'ufficio. Un sistema semplice e
+          immediato per organizzare la tua giornata di lavoro in sede.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="login-side">
+    <div class="login-card">
+      <h2>Accedi</h2>
+      <p class="login-subtitle">Inserisci le tue credenziali aziendali</p>
+
+      <form class="login-form" autocomplete="off" (ngSubmit)="login()">
+        <div class="form-group">
+          <label for="email">Email aziendale</label>
+          <input
+            type="email"
+            id="email"
+            name="login-email-field"
+            class="form-control"
+            placeholder="nome.cognome@exprivia.com"
+            autocomplete="off"
+            [(ngModel)]="email"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <span class="password-field">
+            <input
+              [type]="showPassword ? 'text' : 'password'"
+              id="password"
+              name="login-password-field"
+              class="form-control"
+              placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;"
+              autocomplete="new-password"
+              [(ngModel)]="password"
+              required
+            />
+            <button
+              class="password-toggle"
+              type="button"
+              (click)="togglePasswordVisibility()"
+              [attr.aria-label]="showPassword ? 'Nascondi password' : 'Mostra password'"
+              [title]="showPassword ? 'Nascondi password' : 'Mostra password'"
+            >
+              &#128065;
+            </button>
+          </span>
+        </div>
+
+        @if (error) {
+          <div class="login-error" role="alert">{{ error }}</div>
+        }
+
+        <button type="submit" class="btn btn-primary btn-block" [disabled]="loading">
+          {{ loading ? 'Accesso in corso...' : 'Accedi alla piattaforma' }}
+        </button>
+
+        <div class="forgot-password-container">
+          <span class="forgot-pwd">Password gestita dall'amministratore</span>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

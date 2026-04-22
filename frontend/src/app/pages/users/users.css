@@ -1,0 +1,38 @@
+.form-panel {
+  align-self: start;
+}
+
+.actions-cell {
+  text-align: right;
+}
+
+.compact-select {
+  min-width: 150px;
+}
+
+.password-field {
+  position: relative;
+  display: block;
+}
+
+.password-field input {
+  padding-right: 3rem;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.45rem;
+  width: 2.2rem;
+  height: 2.2rem;
+  color: var(--color-primary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.password-toggle:hover {
+  background: rgba(0, 65, 102, 0.08);
+}

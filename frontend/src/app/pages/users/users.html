@@ -1,0 +1,136 @@
+<section class="page-hero compact">
+  <div>
+    <p class="eyebrow">Admin</p>
+    <h1>Gestione utenti</h1>
+    <p class="hero-copy">Creazione credenziali e ruoli applicativi.</p>
+  </div>
+</section>
+
+<section class="two-column">
+  <form class="panel form-panel" autocomplete="off" (ngSubmit)="createUser()">
+    <div class="panel-header">
+      <h2>Nuova utenza</h2>
+    </div>
+
+    <label>
+      Nome completo
+      <input
+        name="new-user-full-name"
+        autocomplete="off"
+        placeholder="Nome e Cognome"
+        [(ngModel)]="form.fullName"
+        maxlength="50"
+        required
+      />
+    </label>
+
+    <label>
+      Email
+      <input
+        type="email"
+        name="new-user-email-field"
+        autocomplete="off"
+        placeholder="nome.cognome@exprivia.com"
+        [(ngModel)]="form.email"
+        required
+      />
+    </label>
+
+    <label>
+      Password
+      <span class="password-field">
+        <input
+          [type]="showPassword ? 'text' : 'password'"
+          name="new-user-password-field"
+          autocomplete="new-password"
+          placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;"
+          [(ngModel)]="form.password"
+          minlength="8"
+          required
+        />
+        <button
+          class="password-toggle"
+          type="button"
+          (click)="togglePasswordVisibility()"
+          [attr.aria-label]="showPassword ? 'Nascondi password' : 'Mostra password'"
+          [title]="showPassword ? 'Nascondi password' : 'Mostra password'"
+        >
+          &#128065;
+        </button>
+      </span>
+    </label>
+
+    <label>
+      Ruolo
+      <select name="role" [(ngModel)]="form.ruolo" required>
+        @for (role of roles; track role) {
+          <option [ngValue]="role">{{ role }}</option>
+        }
+      </select>
+    </label>
+
+    <button class="btn btn-primary" type="submit" [disabled]="saving">
+      {{ saving ? 'Creazione...' : 'Crea utenza' }}
+    </button>
+  </form>
+
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Utenti</h2>
+      <button class="ghost-button" type="button" (click)="loadUsers()">Aggiorna</button>
+    </div>
+
+    @if (message) {
+      <div class="notice success">{{ message }}</div>
+    }
+    @if (error) {
+      <div class="notice error">{{ error }}</div>
+    }
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>Email</th>
+            <th>Ruolo</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (user of users; track user.id) {
+            <tr>
+              <td>{{ user.fullName }}</td>
+              <td>{{ user.email }}</td>
+              <td>
+                <select
+                  class="compact-select"
+                  [ngModel]="user.ruolo"
+                  (ngModelChange)="updateRole(user, $event)"
+                  [name]="'role-' + user.id"
+                >
+                  @for (role of roles; track role) {
+                    <option [ngValue]="role">{{ role }}</option>
+                  }
+                </select>
+              </td>
+              <td class="actions-cell">
+                <button class="danger-button" type="button" (click)="deleteUser(user)">Elimina</button>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="4">
+                {{
+                  loading
+                    ? 'Caricamento utenti registrati...'
+                    : 'Nessun utente registrato alla piattaforma.'
+                }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

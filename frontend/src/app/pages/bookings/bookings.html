@@ -1,0 +1,127 @@
+<section class="page-hero compact">
+  <div>
+    <p class="eyebrow">Sedi e postazioni</p>
+    <h1>Riepilogo sedi</h1>
+    <p class="hero-copy">Vista informativa su disponibilita, occupazione e prenotazioni per sede.</p>
+  </div>
+</section>
+
+@if (error) {
+  <div class="notice error">{{ error }}</div>
+}
+
+<section class="panel picker-panel">
+  <label>
+    Sede
+    <select name="sede" [(ngModel)]="selectedSedeId" (ngModelChange)="onSedeChange()">
+      <option [ngValue]="null">Seleziona la sede</option>
+      @for (sede of sedi; track sede.id) {
+        <option [ngValue]="sede.id">{{ sede.nome }} - {{ sede.citta }}</option>
+      }
+    </select>
+    <div class="management-actions">
+      <button class="ghost-button" type="button" (click)="createSede()">Aggiungi sede</button>
+      <button class="danger-button" type="button" [disabled]="!selectedSedeId" (click)="deleteSelectedSede()">Elimina sede</button>
+    </div>
+  </label>
+
+  <label>
+    Edificio
+    <select name="edificio" [(ngModel)]="selectedEdificioId" (ngModelChange)="onEdificioChange()" [disabled]="!edifici.length">
+      <option [ngValue]="null">{{ edifici.length ? 'Seleziona edificio' : 'Nessun edificio disponibile' }}</option>
+      @for (edificio of edifici; track edificio.id) {
+        <option [ngValue]="edificio.id">{{ edificio.nome }}</option>
+      }
+    </select>
+    <div class="management-actions">
+      <button class="ghost-button" type="button" [disabled]="!selectedSedeId" (click)="createEdificio()">Aggiungi edificio</button>
+      <button class="danger-button" type="button" [disabled]="!selectedEdificioId" (click)="deleteSelectedEdificio()">Elimina edificio</button>
+    </div>
+  </label>
+
+  <label>
+    Piano
+    <select name="piano" [(ngModel)]="selectedPianoId" (ngModelChange)="onPianoChange()" [disabled]="!piani.length">
+      <option [ngValue]="null">{{ piani.length ? 'Seleziona piano' : 'Nessun piano creato' }}</option>
+      @for (piano of piani; track piano.id) {
+        <option [ngValue]="piano.id">{{ getPianoDisplayName(piano) }}</option>
+      }
+    </select>
+  </label>
+
+  <label>
+    Giorno
+    <input type="date" name="reportDate" [(ngModel)]="reportDate" (change)="loadReport()" />
+  </label>
+</section>
+
+@if (!selectedPianoId) {
+  <section class="panel empty-state">
+    <strong>Seleziona sede, edificio e piano per visualizzare il riepilogo delle postazioni.</strong>
+  </section>
+} @else {
+  <section class="summary-grid">
+    <article class="stat-card">
+      <span>Postazioni totali</span>
+      <strong>{{ totalSeats }}</strong>
+    </article>
+    <article class="stat-card free">
+      <span>Libere oggi</span>
+      <strong>{{ freeSeats }}</strong>
+    </article>
+    <article class="stat-card occupied">
+      <span>Occupate oggi</span>
+      <strong>{{ occupiedSeats }}</strong>
+    </article>
+    <article class="stat-card blocked">
+      <span>Non prenotabili</span>
+      <strong>{{ blockedSeats }}</strong>
+    </article>
+  </section>
+
+  <section class="report-grid">
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Stanze</h2>
+      </div>
+
+      <div class="room-list">
+        @for (room of roomStats; track room.stanza.id) {
+          <article class="room-card">
+            <div>
+              <strong>{{ room.stanza.nome }}</strong>
+              <span>{{ room.total }} postazioni</span>
+            </div>
+            <div class="room-metrics">
+              <span class="metric free">{{ room.free }} libere</span>
+              <span class="metric occupied">{{ room.occupied }} occupate</span>
+              <span class="metric blocked">{{ room.unavailable + room.maintenance }} bloccate</span>
+            </div>
+          </article>
+        } @empty {
+          <p class="muted">{{ loading ? 'Caricamento riepilogo...' : 'Nessuna stanza configurata.' }}</p>
+        }
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Prenotazioni del giorno</h2>
+      </div>
+
+      <div class="booking-list">
+        @for (booking of bookings; track booking.id) {
+          <article class="booking-row">
+            <div>
+              <strong>{{ booking.utenteFullName }}</strong>
+              <span>{{ booking.postazioneCodice }} · {{ booking.stanzaNome }}</span>
+            </div>
+            <span>{{ booking.oraInizio }}-{{ booking.oraFine }}</span>
+          </article>
+        } @empty {
+          <p class="muted">{{ loading ? 'Caricamento prenotazioni...' : 'Nessuna prenotazione per il giorno selezionato.' }}</p>
+        }
+      </div>
+    </div>
+  </section>
+}

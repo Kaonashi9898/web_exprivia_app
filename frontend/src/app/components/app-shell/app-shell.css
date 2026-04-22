@@ -1,0 +1,130 @@
+:host {
+  display: block;
+  min-height: 100vh;
+  background: var(--color-bg-main);
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.25rem;
+  min-height: 76px;
+  padding: 0.8rem clamp(1rem, 4vw, 2.5rem);
+  background: rgba(255, 255, 255, 0.94);
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: 0 10px 30px rgba(0, 49, 77, 0.06);
+  backdrop-filter: blur(14px);
+}
+
+.logo-link {
+  display: inline-flex;
+  align-items: center;
+}
+
+.topbar-logo {
+  width: 142px;
+  height: auto;
+  display: block;
+}
+
+.main-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow-x: auto;
+}
+
+.main-nav a {
+  color: var(--color-text-main);
+  font-size: 0.92rem;
+  font-weight: 600;
+  padding: 0.62rem 0.8rem;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.main-nav a:hover,
+.main-nav a.active {
+  color: var(--color-primary);
+  background: rgba(0, 65, 102, 0.08);
+}
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.user-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+}
+
+.user-copy strong {
+  font-size: 0.9rem;
+  color: var(--color-primary-dark);
+}
+
+.user-copy span {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  color: var(--color-primary);
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  color: #ffffff;
+  background: var(--color-primary);
+}
+
+.icon-button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.app-content {
+  width: min(1440px, 100%);
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+@media (max-width: 880px) {
+  .topbar {
+    grid-template-columns: 1fr auto;
+  }
+
+  .main-nav {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+
+  .user-copy {
+    display: none;
+  }
+}

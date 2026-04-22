@@ -1,0 +1,215 @@
+# Docker Compose per l'avvio dell'intero stack applicativo.
+#
+# Architettura dei servizi:
+#   postgres-utenti  → DB PostgreSQL per utenti-service (porta 5432)
+#   postgres-location → DB PostgreSQL per location-service (porta 5433)
+#   postgres-prenotazioni → DB PostgreSQL per prenotazioni-service (porta 5434)
+#   rabbitmq         → Message broker per la comunicazione asincrona tra servizi
+#   utenti-service   → Microservizio Java Spring Boot (porta 8081)
+#   location-service → Microservizio Java Spring Boot (porta 8082)
+#   prenotazioni-service → Microservizio Java Spring Boot (porta 8083)
+#
+# Tutti i servizi comunicano sulla rete Docker interna "backend".
+# Le variabili ${DB_USERNAME}, ${DB_PASSWORD}, ${JWT_SECRET} e ${JWT_EXPIRATION}
+# vengono lette da un file .env nella stessa directory di questo file.
+
+services:
+  # ─── DATABASE UTENTI ────────────────────────────────────────────────
+  # Database dedicato esclusivamente al microservizio utenti.
+  # Ogni microservizio ha il suo DB separato (pattern "database per servizio").
+  postgres-utenti:
+    image: postgres:16-alpine
+    container_name: db_utenti
+    restart: always  # Si riavvia automaticamente se crasha
+    environment:
+      POSTGRES_USER: ${DB_USERNAME_UTENTI}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: postgres
+    healthcheck:
+      # Verifica che il DB sia pronto ad accettare connessioni prima di avviare i servizi dipendenti
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME_UTENTI} -d postgres"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"  # Espone la porta 5432 sull'host per connessioni dirette in sviluppo
+    networks:
+      - backend
+    volumes:
+      - postgresql_utenti_data:/var/lib/postgresql/data       # Dati persistenti
+      - ./backend/utenti-service/init.sql:/docker-entrypoint-initdb.d/init.sql  # Script SQL eseguito alla prima creazione del DB
+
+  # ─── DATABASE LOCATION ──────────────────────────────────────────────
+  # Database dedicato esclusivamente al microservizio location.
+  # Usa la porta 5433 sull'host per non confliggere con postgres-utenti (5432).
+  postgres-location:
+    image: postgres:16-alpine
+    container_name: db_location
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USERNAME_LOCATION}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME_LOCATION} -d postgres"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5433:5432"  # Porta 5433 sull'host → 5432 nel container
+    networks:
+      - backend
+    volumes:
+      - postgresql_location_data:/var/lib/postgresql/data
+      - ./backend/location-service/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # ─── DATABASE PRENOTAZIONI ────────────────────────────────────────────────
+  # Database dedicato esclusivamente al microservizio prenotazioni.
+  # Usa la porta 5434 sull'host per non confliggere con gli altri PostgreSQL.
+  postgres-prenotazioni:
+    image: postgres:16-alpine
+    container_name: db_prenotazioni
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USERNAME_PRENOTAZIONI}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME_PRENOTAZIONI} -d postgres"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5434:5432"
+    networks:
+      - backend
+    volumes:
+      - postgresql_prenotazioni_data:/var/lib/postgresql/data
+      - ./backend/prenotazioni-service/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # ─── MESSAGE BROKER ─────────────────────────────────────────────────
+  # RabbitMQ gestisce la comunicazione asincrona tra i microservizi.
+  # Quando utenti-service elimina un utente o un gruppo, pubblica un messaggio
+  # su RabbitMQ che location-service riceve e usa per pulire i propri dati.
+  rabbitmq:
+    image: rabbitmq:3-management-alpine  # "management" include la UI web di amministrazione
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"    # Porta AMQP (usata dai microservizi per connettersi)
+      - "15672:15672"  # Porta UI web di gestione (accessibile su http://localhost:15672)
+    environment:
+      RABBITMQ_DEFAULT_USER: guest  # Credenziali di accesso (solo per sviluppo)
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+    networks:
+      - backend
+
+  # ─── UTENTI SERVICE ─────────────────────────────────────────────────
+  # Microservizio Java Spring Boot per la gestione di utenti, autenticazione e gruppi.
+  # Si avvia SOLO dopo che postgres-utenti e rabbitmq sono "healthy".
+  utenti-service:
+    build:
+      context: ./backend/utenti-service  # Cartella contenente il Dockerfile
+      dockerfile: Dockerfile
+    container_name: utenti_service
+    restart: always
+    environment:
+      # Indirizzo DB: usa il nome del container Docker (postgres-utenti) come hostname
+      DB_URL: jdbc:postgresql://postgres-utenti:5432/postgres
+      DB_USERNAME: ${DB_USERNAME_UTENTI}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}              # Letto dal file .env — NON committare questo valore
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}  # Default: 86400000 ms = 24 ore
+      RABBITMQ_HOST: rabbitmq                # Nome del container RabbitMQ nella rete Docker
+      ADMIN_BOOTSTRAP_ENABLED: ${ADMIN_BOOTSTRAP_ENABLED:-false}
+      ADMIN_BOOTSTRAP_FULL_NAME: ${ADMIN_BOOTSTRAP_FULL_NAME:-}
+      ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-}
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres-utenti:
+        condition: service_healthy  # Aspetta che il DB sia pronto (non solo avviato)
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - backend
+
+  # ─── LOCATION SERVICE ───────────────────────────────────────────────
+  # Microservizio Java Spring Boot per la gestione della gerarchia fisica
+  # (sedi, edifici, piani, stanze, postazioni) e delle planimetrie.
+  location-service:
+    build:
+      context: ./backend/location-service
+      dockerfile: Dockerfile
+    container_name: location_service
+    restart: always
+    environment:
+      DB_URL: jdbc:postgresql://postgres-location:5432/postgres
+      DB_USERNAME: ${DB_USERNAME_LOCATION}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}              # Deve essere la STESSA chiave di utenti-service
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      RABBITMQ_HOST: rabbitmq
+      SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 100MB
+      SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 100MB
+      SERVER_TOMCAT_MAX_SWALLOW_SIZE: 100MB
+      SERVER_TOMCAT_MAX_HTTP_FORM_POST_SIZE: 100MB
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres-location:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - backend
+
+  # ─── PRENOTAZIONI SERVICE ────────────────────────────────────────────────
+  # Microservizio Java Spring Boot per la gestione delle prenotazioni orarie.
+  # Chiama utenti-service e location-service per validare utente, gruppi e postazioni.
+  prenotazioni-service:
+    build:
+      context: ./backend/prenotazioni-service
+      dockerfile: Dockerfile
+    container_name: prenotazioni_service
+    restart: always
+    environment:
+      DB_URL: jdbc:postgresql://postgres-prenotazioni:5432/postgres
+      DB_USERNAME: ${DB_USERNAME_PRENOTAZIONI}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      RABBITMQ_HOST: rabbitmq
+      UTENTI_SERVICE_URL: http://utenti-service:8081
+      LOCATION_SERVICE_URL: http://location-service:8082
+    ports:
+      - "8083:8083"
+    depends_on:
+      postgres-prenotazioni:
+        condition: service_healthy
+      utenti-service:
+        condition: service_started
+      location-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - backend
+
+# Rete interna condivisa da tutti i servizi.
+# I container comunicano usando i nomi dei servizi come hostname (es. "rabbitmq", "postgres-utenti").
+networks:
+  backend:
+
+# Volumi Docker per la persistenza dei dati PostgreSQL.
+# I dati sopravvivono ai riavvii dei container ma vengono cancellati con "docker volume rm".
+volumes:
+  postgresql_utenti_data:
+  postgresql_location_data:
+  postgresql_prenotazioni_data:
