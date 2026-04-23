@@ -21,8 +21,8 @@ spring:
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost} # Host RabbitMQ (default: localhost, in Docker usa il nome del container)
     port: 5672                      # Porta AMQP standard di RabbitMQ
-    username: guest                 # Utente RabbitMQ (default per sviluppo)
-    password: guest                 # Password RabbitMQ (default per sviluppo)
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:

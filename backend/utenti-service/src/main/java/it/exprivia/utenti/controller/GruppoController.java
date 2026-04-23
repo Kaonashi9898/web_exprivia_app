@@ -64,8 +64,9 @@ public class GruppoController {
      * Pubblica un evento RabbitMQ per notificare gli altri servizi dell'eliminazione.
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Gruppo> elimina(@PathVariable Long id) {
-        return ResponseEntity.ok(gruppoService.elimina(id));
+    public ResponseEntity<Void> elimina(@PathVariable Long id) {
+        gruppoService.elimina(id);
+        return ResponseEntity.noContent().build();
     }
 
     /**

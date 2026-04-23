@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Service che contiene la logica di business per la gestione dei gruppi.
@@ -39,11 +38,11 @@ public class GruppoService {
     public List<Gruppo> getMiei(String email) {
         var utente = utenteRepository.findByEmail(email)
                 .orElseThrow(() -> new EntityNotFoundException("Utente non trovato con email: " + email));
-        return gruppoUtenteRepository.findByIdUtente(utente.getId())
+        List<Long> gruppoIds = gruppoUtenteRepository.findByIdUtente(utente.getId())
                 .stream()
-                .map(gu -> gruppoRepository.findById(gu.getIdGruppo()).orElse(null))
-                .filter(g -> g != null)
-                .collect(Collectors.toList());
+                .map(GruppoUtente::getIdGruppo)
+                .toList();
+        return gruppoRepository.findAllById(gruppoIds);
     }
 
     /**
@@ -120,11 +119,13 @@ public class GruppoService {
             throw new EntityNotFoundException("Gruppo non trovato con id: " + idGruppo);
         }
 
-        return gruppoUtenteRepository.findByIdGruppo(idGruppo)
+        List<Long> utenteIds = gruppoUtenteRepository.findByIdGruppo(idGruppo)
                 .stream()
-                .map(gu -> utenteRepository.findById(gu.getIdUtente()).orElse(null))
-                .filter(u -> u != null)
+                .map(GruppoUtente::getIdUtente)
+                .toList();
+        return utenteRepository.findAllById(utenteIds)
+                .stream()
                 .map(u -> new UtenteDTO(u.getId(), u.getFullName(), u.getEmail(), u.getRuolo()))
-                .collect(Collectors.toList());
+                .toList();
     }
 }

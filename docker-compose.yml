@@ -117,7 +117,7 @@ services:
       context: ./backend/utenti-service  # Cartella contenente il Dockerfile
       dockerfile: Dockerfile
     container_name: utenti_service
-    restart: always
+    restart: on-failure:2
     environment:
       # Indirizzo DB: usa il nome del container Docker (postgres-utenti) come hostname
       DB_URL: jdbc:postgresql://postgres-utenti:5432/postgres
@@ -148,7 +148,7 @@ services:
       context: ./backend/location-service
       dockerfile: Dockerfile
     container_name: location_service
-    restart: always
+    restart: on-failure:2
     environment:
       DB_URL: jdbc:postgresql://postgres-location:5432/postgres
       DB_USERNAME: ${DB_USERNAME_LOCATION}
@@ -178,7 +178,7 @@ services:
       context: ./backend/prenotazioni-service
       dockerfile: Dockerfile
     container_name: prenotazioni_service
-    restart: always
+    restart: on-failure:2
     environment:
       DB_URL: jdbc:postgresql://postgres-prenotazioni:5432/postgres
       DB_USERNAME: ${DB_USERNAME_PRENOTAZIONI}
