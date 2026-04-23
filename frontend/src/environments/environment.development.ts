@@ -6,5 +6,5 @@ export const environment: RuntimeConfig = {
   utentiApiBaseUrl: runtimeConfig?.utentiApiBaseUrl ?? 'http://localhost:8081',
   locationApiBaseUrl: runtimeConfig?.locationApiBaseUrl ?? 'http://localhost:8082',
   prenotazioniApiBaseUrl: runtimeConfig?.prenotazioniApiBaseUrl ?? 'http://localhost:8083',
-  floorPlanEditorUrl: runtimeConfig?.floorPlanEditorUrl ?? 'http://localhost:4202/editor',
+  floorPlanEditorUrl: runtimeConfig?.floorPlanEditorUrl ?? 'http://localhost:4201/editor',
 };
