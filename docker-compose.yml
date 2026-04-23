@@ -209,7 +209,7 @@ services:
     container_name: frontend_app
     restart: always
     ports:
-      - "4201:4201"
+      - "4200:4200"
     depends_on:
       utenti-service:
         condition: service_started
