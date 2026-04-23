@@ -24,8 +24,8 @@ spring:
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}  # In Docker usa il nome del container, default localhost
     port: 5672                        # Porta AMQP standard di RabbitMQ
-    username: guest
-    password: guest
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
   jpa:
     hibernate:
       ddl-auto: validate              # validate = verifica lo schema senza modificarlo

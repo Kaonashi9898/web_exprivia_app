@@ -12,6 +12,7 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -59,6 +60,9 @@ public class UtenteService {
     public UtenteDTO update(Long id, UtenteDTO dto) {
         Utente utente = utenteRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Utente non trovato con id: " + id));
+        if (!utente.getEmail().equals(dto.getEmail()) && utenteRepository.existsByEmail(dto.getEmail())) {
+            throw new IllegalArgumentException("Email già registrata: " + dto.getEmail());
+        }
         utente.setFullName(dto.getFullName());
         utente.setEmail(dto.getEmail());
         return toDTO(utenteRepository.save(utente));
@@ -71,6 +75,7 @@ public class UtenteService {
         return toDTO(utenteRepository.save(utente));
     }
 
+    @Transactional
     public void delete(Long id) {
         if (!utenteRepository.existsById(id)) {
             throw new EntityNotFoundException("Utente non trovato con id: " + id);

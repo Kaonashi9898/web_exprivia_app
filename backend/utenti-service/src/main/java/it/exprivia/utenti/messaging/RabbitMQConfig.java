@@ -1,5 +1,6 @@
 package it.exprivia.utenti.messaging;
 
+import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
@@ -34,6 +35,11 @@ public class RabbitMQConfig {
     // Routing key per l'evento "un utente è stato eliminato"
     // Usata da location-service per rimuovere le assegnazioni dell'utente
     public static final String ROUTING_KEY_UTENTE_ELIMINATO = "utente.eliminato";
+
+    @Bean
+    public TopicExchange utentiExchange() {
+        return new TopicExchange(EXCHANGE);
+    }
 
     /**
      * Configura il convertitore di messaggi Jackson.

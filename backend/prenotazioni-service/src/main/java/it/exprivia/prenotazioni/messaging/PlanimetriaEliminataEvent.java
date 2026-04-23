@@ -1,4 +1,4 @@
-package it.exprivia.prenotazioni;
+package it.exprivia.prenotazioni.messaging;
 
 import java.util.List;
 

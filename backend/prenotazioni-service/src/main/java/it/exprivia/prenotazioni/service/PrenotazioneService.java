@@ -207,7 +207,11 @@ public class PrenotazioneService {
         }
 
         List<Prenotazione> prenotazioni = prenotazioneRepository.findByPostazioneIdIn(postazioneIds);
-        prenotazioneRepository.deleteAllInBatch(prenotazioni);
+        for (Prenotazione prenotazione : prenotazioni) {
+            PrenotazioneResponse response = toResponse(prenotazione);
+            prenotazioneRepository.delete(prenotazione);
+            prenotazioneEventPublisher.pubblicaAnnullamento(response);
+        }
     }
 
     private void ensureRuoloPuoPrenotare(ExternalUtenteResponse utente) {

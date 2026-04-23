@@ -1,5 +1,7 @@
-package it.exprivia.prenotazioni;
+package it.exprivia.prenotazioni.messaging;
 
+import it.exprivia.prenotazioni.config.RabbitMQConfig;
+import it.exprivia.prenotazioni.service.PrenotazioneService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
