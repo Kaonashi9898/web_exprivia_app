@@ -220,6 +220,20 @@ services:
     networks:
       - backend
 
+  planimetria-editor:
+    build:
+      context: ./PlanimetriaEditor-main
+      dockerfile: Dockerfile
+    container_name: planimetria_editor_app
+    restart: always
+    ports:
+      - "4201:4201"
+    depends_on:
+      location-service:
+        condition: service_started
+    networks:
+      - backend
+
 # Rete interna condivisa da tutti i servizi.
 # I container comunicano usando i nomi dei servizi come hostname (es. "rabbitmq", "postgres-utenti").
 networks:

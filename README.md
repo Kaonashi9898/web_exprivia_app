@@ -9,7 +9,7 @@ Guida completa per avviare il progetto:
 
 Servizi principali:
 - `frontend` (Angular): `http://localhost:4200`
-- `PlanimetriaEditor` (Angular separato): `http://localhost:4201/editor`
+- `PlanimetriaEditor` (Angular): `http://localhost:4201/editor`
 - `utenti-service`: `http://localhost:8081`
 - `location-service`: `http://localhost:8082`
 - `prenotazioni-service`: `http://localhost:8083`
@@ -21,8 +21,7 @@ Database PostgreSQL:
 - prenotazioni DB: `localhost:5434`
 
 Nota importante:
-- `docker compose` della root avvia backend + frontend (`4200`).
-- `PlanimetriaEditor-main` e un progetto separato e va avviato a parte su `4201`.
+- `docker compose` della root avvia backend + frontend + editor planimetria.
 
 ## 2) Credenziali di accesso alla piattaforma
 
@@ -67,15 +66,6 @@ docker --version
 docker compose version
 ```
 
-Installa anche Node.js (consigliato LTS 20+) per il `PlanimetriaEditor-main`.
-
-Verifica:
-
-```powershell
-node -v
-npm -v
-```
-
 ### 3.2 Configurazione progetto
 
 Dalla root del repository:
@@ -101,7 +91,7 @@ ADMIN_BOOTSTRAP_EMAIL=mario.rossi@exprivia.com
 ADMIN_BOOTSTRAP_PASSWORD=Password123!
 ```
 
-### 3.3 Primo avvio completo (backend + frontend)
+### 3.3 Primo avvio completo (backend + frontend + editor)
 
 Da root:
 
@@ -118,18 +108,10 @@ docker compose ps
 Log in tempo reale (opzionale):
 
 ```powershell
-docker compose logs -f utenti-service location-service prenotazioni-service frontend
+docker compose logs -f utenti-service location-service prenotazioni-service frontend planimetria-editor
 ```
 
-### 3.4 Avvio PlanimetriaEditor (separato)
-
-Apri un secondo terminale:
-
-```powershell
-cd .\PlanimetriaEditor-main
-npm ci
-npm start
-```
+### 3.4 Verifica accesso UI
 
 Editor disponibile su:
 - `http://localhost:4201/editor`
@@ -169,15 +151,6 @@ Se hai modificato Dockerfile o dipendenze:
 docker compose up --build -d
 ```
 
-### 4.2 Avvia PlanimetriaEditor
-
-In terminale separato:
-
-```powershell
-cd .\PlanimetriaEditor-main
-npm start
-```
-
 ## 5) Spegnimento, riavvio e reset
 
 Spegnere senza eliminare container:
@@ -208,10 +181,9 @@ docker compose up -d
 
 Per lavorare:
 1. `docker compose up -d` (root)
-2. `cd .\PlanimetriaEditor-main`
-3. `npm start`
-4. Apri `http://localhost:4200`
-5. Login con credenziali admin del tuo `.env`
+2. Apri `http://localhost:4200`
+3. (opzionale) Apri anche `http://localhost:4201/editor`
+4. Login con credenziali admin del tuo `.env`
 
 ## 7) Troubleshooting veloce
 
@@ -237,9 +209,9 @@ docker compose logs -f utenti-service
 
 ### Frontend su ma editor non raggiungibile
 
-Controlla che `PlanimetriaEditor-main` sia davvero avviato:
+Controlla che il servizio sia in esecuzione:
 
 ```powershell
-cd .\PlanimetriaEditor-main
-npm start
+docker compose ps
+docker compose logs -f planimetria-editor
 ```
