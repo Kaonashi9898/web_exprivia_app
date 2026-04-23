@@ -26,6 +26,11 @@ interface CreateSedeForm {
   longitudine: string;
 }
 
+interface CreatePianoForm {
+  nome: string;
+  numero: string;
+}
+
 @Component({
   selector: 'app-bookings',
   imports: [FormsModule],
@@ -59,12 +64,16 @@ export class BookingsComponent implements OnInit, OnDestroy {
   error = '';
   showCreateSedeModal = false;
   showCreateEdificioModal = false;
+  showCreatePianoModal = false;
   creatingSede = false;
   creatingEdificio = false;
+  creatingPiano = false;
   createSedeError = '';
   createEdificioError = '';
+  createPianoError = '';
   createSedeForm: CreateSedeForm = this.buildEmptySedeForm();
   createEdificioNome = '';
+  createPianoForm: CreatePianoForm = this.buildEmptyPianoForm();
 
   ngOnInit(): void {
     this.loadSedi();
@@ -286,29 +295,74 @@ export class BookingsComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const nome = prompt('Nome del nuovo piano');
-    if (!nome?.trim()) {
+    this.openCreatePianoModal();
+  }
+
+  openCreatePianoModal(): void {
+    if (!this.selectedEdificioId) {
       return;
     }
 
-    const nextNumero = this.piani.length
-      ? Math.max(...this.piani.map((piano) => piano.numero)) + 1
-      : 0;
+    this.createPianoForm = {
+      nome: '',
+      numero: String(this.getNextPianoNumero()),
+    };
+    this.createPianoError = '';
+    this.showCreatePianoModal = true;
+    this.refreshView();
+  }
+
+  closeCreatePianoModal(): void {
+    if (this.creatingPiano) {
+      return;
+    }
+
+    this.showCreatePianoModal = false;
+    this.createPianoError = '';
+    this.refreshView();
+  }
+
+  submitCreatePiano(): void {
+    if (this.creatingPiano || !this.isAdmin() || !this.selectedEdificioId) {
+      return;
+    }
+
+    const nome = this.createPianoForm.nome.trim();
+    if (!nome) {
+      this.createPianoError = 'Inserisci il nome del nuovo piano.';
+      this.refreshView();
+      return;
+    }
+
+    const numeroText = this.createPianoForm.numero.trim();
+    const numero = numeroText ? Number(numeroText) : this.getNextPianoNumero();
+
+    if (!Number.isInteger(numero)) {
+      this.createPianoError = 'Numero piano non valido. Inserisci un numero intero.';
+      this.refreshView();
+      return;
+    }
+
+    this.creatingPiano = true;
+    this.createPianoError = '';
 
     this.api
       .createPiano({
-        numero: nextNumero,
-        nome: nome.trim(),
+        numero,
+        nome,
         edificioId: this.selectedEdificioId,
       })
       .subscribe({
         next: (piano) => {
+          this.creatingPiano = false;
+          this.showCreatePianoModal = false;
           this.piani = [...this.piani, piano].sort((a, b) => a.numero - b.numero);
           this.selectedPianoId = piano.id;
           this.onPianoChange();
         },
         error: (err) => {
-          this.error = err?.error?.message ?? 'Creazione piano non riuscita.';
+          this.creatingPiano = false;
+          this.createPianoError = err?.error?.message ?? 'Creazione piano non riuscita.';
           this.refreshView();
         },
       });
@@ -507,6 +561,19 @@ export class BookingsComponent implements OnInit, OnDestroy {
       latitudine: '',
       longitudine: '',
     };
+  }
+
+  private buildEmptyPianoForm(): CreatePianoForm {
+    return {
+      nome: '',
+      numero: '',
+    };
+  }
+
+  private getNextPianoNumero(): number {
+    return this.piani.length
+      ? Math.max(...this.piani.map((piano) => piano.numero)) + 1
+      : 0;
   }
 
   private withExpriviaPrefix(value: string): string {

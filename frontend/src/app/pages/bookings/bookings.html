@@ -221,3 +221,37 @@
     </section>
   </div>
 }
+
+@if (showCreatePianoModal) {
+  <div class="modal-backdrop" (click)="closeCreatePianoModal()">
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="createPianoTitle" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <h2 id="createPianoTitle">Nuovo piano</h2>
+      </header>
+
+      @if (createPianoError) {
+        <div class="notice error modal-notice">{{ createPianoError }}</div>
+      }
+
+      <form class="modal-form" (ngSubmit)="submitCreatePiano()">
+        <label>
+          Nome piano
+          <input type="text" name="createPianoNome" [(ngModel)]="createPianoForm.nome" [disabled]="creatingPiano" required />
+        </label>
+
+        <label>
+          Numero piano
+          <input type="number" name="createPianoNumero" [(ngModel)]="createPianoForm.numero" [disabled]="creatingPiano" />
+          <span class="modal-help">Valore proposto automatico: progressivo dei piani esistenti.</span>
+        </label>
+
+        <footer class="modal-actions">
+          <button class="ghost-button" type="button" (click)="closeCreatePianoModal()" [disabled]="creatingPiano">Annulla</button>
+          <button class="primary-button" type="submit" [disabled]="creatingPiano">
+            {{ creatingPiano ? 'Creazione...' : 'Crea piano' }}
+          </button>
+        </footer>
+      </form>
+    </section>
+  </div>
+}
