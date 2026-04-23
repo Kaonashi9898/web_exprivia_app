@@ -95,7 +95,7 @@
       <button class="ghost-button wide" type="button" [disabled]="!imageFile || !planFileName.trim()" (click)="renameImageFile()">
         Rinomina file
       </button>
-      <button class="btn btn-primary" type="button" [disabled]="!canUseEditor() || !imageFile || !imageFileRenamed" (click)="uploadImage()">
+      <button class="btn btn-primary" type="button" [disabled]="!selectedPianoId || !imageFile" (click)="uploadImage()">
         Carica planimetria
       </button>
     </div>
@@ -119,7 +119,7 @@
       Visualizza anteprima
     </button>
 
-    <button class="btn btn-secondary wide" type="button" [disabled]="!canPreviewPlan()" (click)="savePlan()">
+    <button class="btn btn-secondary wide" type="button" [disabled]="!canSavePlan()" (click)="savePlan()">
       Salva planimetria
     </button>
 

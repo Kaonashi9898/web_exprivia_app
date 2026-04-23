@@ -19,10 +19,12 @@
         <option [ngValue]="sede.id">{{ sede.nome }} - {{ sede.citta }}</option>
       }
     </select>
-    <div class="management-actions">
-      <button class="ghost-button" type="button" (click)="createSede()">Aggiungi sede</button>
-      <button class="danger-button" type="button" [disabled]="!selectedSedeId" (click)="deleteSelectedSede()">Elimina sede</button>
-    </div>
+    @if (isAdmin()) {
+      <div class="management-actions">
+        <button class="ghost-button" type="button" (click)="createSede()">Aggiungi sede</button>
+        <button class="danger-button" type="button" [disabled]="!selectedSedeId" (click)="deleteSelectedSede()">Elimina sede</button>
+      </div>
+    }
   </label>
 
   <label>
@@ -33,10 +35,12 @@
         <option [ngValue]="edificio.id">{{ edificio.nome }}</option>
       }
     </select>
-    <div class="management-actions">
-      <button class="ghost-button" type="button" [disabled]="!selectedSedeId" (click)="createEdificio()">Aggiungi edificio</button>
-      <button class="danger-button" type="button" [disabled]="!selectedEdificioId" (click)="deleteSelectedEdificio()">Elimina edificio</button>
-    </div>
+    @if (isAdmin()) {
+      <div class="management-actions">
+        <button class="ghost-button" type="button" [disabled]="!selectedSedeId" (click)="createEdificio()">Aggiungi edificio</button>
+        <button class="danger-button" type="button" [disabled]="!selectedEdificioId" (click)="deleteSelectedEdificio()">Elimina edificio</button>
+      </div>
+    }
   </label>
 
   <label>
@@ -47,6 +51,12 @@
         <option [ngValue]="piano.id">{{ getPianoDisplayName(piano) }}</option>
       }
     </select>
+    @if (isAdmin()) {
+      <div class="management-actions">
+        <button class="ghost-button" type="button" [disabled]="!selectedEdificioId" (click)="createPiano()">Aggiungi piano</button>
+        <button class="danger-button" type="button" [disabled]="!selectedPianoId" (click)="deleteSelectedPiano()">Elimina piano</button>
+      </div>
+    }
   </label>
 
   <label>

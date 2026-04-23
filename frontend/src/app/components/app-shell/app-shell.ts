@@ -15,9 +15,7 @@ export class AppShellComponent {
     this.auth.hasAnyRole(['ADMIN', 'RECEPTION', 'USER']),
   );
   protected readonly showUsers = computed(() => this.auth.hasAnyRole(['ADMIN']));
-  protected readonly showLocations = computed(() =>
-    this.auth.hasAnyRole(['ADMIN', 'RECEPTION', 'USER']),
-  );
+  protected readonly showLocations = computed(() => this.auth.hasAnyRole(['ADMIN']));
   protected readonly showPlan = computed(() => this.auth.hasAnyRole(['ADMIN', 'BUILDING_MANAGER']));
 
   logout(): void {

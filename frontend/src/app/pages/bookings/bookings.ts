@@ -1,21 +1,10 @@
-import { ChangeDetectorRef, Component, computed, inject, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, computed, inject, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { forkJoin, of, switchMap } from 'rxjs';
+import { forkJoin, of, Subscription, switchMap } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { Edificio, Piano, Postazione, Prenotazione, Sede, Stanza, StatoPostazione } from '../../core/app.models';
 import { AuthService } from '../../core/auth.service';
-
-const EXPRIVIA_ITALIA_SEDI: Sede[] = [
-  { id: 1, nome: 'Exprivia - Roma Bufalotta', indirizzo: 'Via della Bufalotta 378', citta: 'Roma' },
-  { id: 2, nome: 'Exprivia - Molfetta Headquarter', indirizzo: 'Via A. Olivetti 11', citta: 'Molfetta' },
-  { id: 3, nome: 'Exprivia - Molfetta Agnelli', indirizzo: 'Via Giovanni Agnelli 5', citta: 'Molfetta' },
-  { id: 4, nome: 'Exprivia - Milano', indirizzo: 'Via dei Valtorta 43', citta: 'Milano' },
-  { id: 5, nome: 'Exprivia - Lecce', indirizzo: 'Campus Ecotekne, Via Monteroni 165', citta: 'Lecce' },
-  { id: 6, nome: 'Exprivia - Matera', indirizzo: 'Via Giovanni Agnelli snc', citta: 'Matera' },
-  { id: 7, nome: 'Exprivia - Palermo', indirizzo: 'Viale Regione Siciliana Nord-Ovest 7275', citta: 'Palermo' },
-  { id: 8, nome: 'Exprivia - Trento', indirizzo: 'Via Alcide De Gasperi 77', citta: 'Trento' },
-  { id: 9, nome: 'Exprivia - Vicenza', indirizzo: 'Via L. Lazzaro Zamenhof 817', citta: 'Vicenza' },
-];
+import { todayLocalIsoDate } from '../../core/date.utils';
 
 interface RoomStats {
   stanza: Stanza;
@@ -35,14 +24,18 @@ interface RoomStats {
   templateUrl: './bookings.html',
   styleUrl: './bookings.css',
 })
-export class BookingsComponent implements OnInit {
+export class BookingsComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private sediSubscription: Subscription | null = null;
+  private edificiSubscription: Subscription | null = null;
+  private pianiSubscription: Subscription | null = null;
+  private reportSubscription: Subscription | null = null;
 
   protected readonly isAdmin = computed(() => this.auth.hasAnyRole(['ADMIN']));
 
-  sedi: Sede[] = EXPRIVIA_ITALIA_SEDI;
+  sedi: Sede[] = [];
   edifici: Edificio[] = [];
   piani: Piano[] = [];
   stanze: Stanza[] = [];
@@ -53,7 +46,7 @@ export class BookingsComponent implements OnInit {
   selectedSedeId: number | null = null;
   selectedEdificioId: number | null = null;
   selectedPianoId: number | null = null;
-  reportDate = new Date().toISOString().slice(0, 10);
+  reportDate = todayLocalIsoDate();
   loading = false;
   error = '';
 
@@ -61,10 +54,18 @@ export class BookingsComponent implements OnInit {
     this.loadSedi();
   }
 
+  ngOnDestroy(): void {
+    this.sediSubscription?.unsubscribe();
+    this.edificiSubscription?.unsubscribe();
+    this.pianiSubscription?.unsubscribe();
+    this.reportSubscription?.unsubscribe();
+  }
+
   loadSedi(): void {
-    this.api.listSedi().subscribe({
+    this.sediSubscription?.unsubscribe();
+    this.sediSubscription = this.api.listSedi().subscribe({
       next: (sedi) => {
-        this.sedi = sedi.length ? sedi : EXPRIVIA_ITALIA_SEDI;
+        this.sedi = sedi;
         this.refreshView();
       },
       error: (err) => {
@@ -75,6 +76,10 @@ export class BookingsComponent implements OnInit {
   }
 
   createSede(): void {
+    if (!this.isAdmin()) {
+      return;
+    }
+
     const nome = prompt('Nome della nuova sede');
     if (!nome?.trim()) return;
     const citta = prompt('Citta della nuova sede');
@@ -102,6 +107,10 @@ export class BookingsComponent implements OnInit {
   }
 
   deleteSelectedSede(): void {
+    if (!this.isAdmin()) {
+      return;
+    }
+
     if (!this.selectedSedeId) return;
     const sede = this.sedi.find((item) => item.id === this.selectedSedeId);
     if (!confirm(`Eliminare la sede ${sede?.nome ?? ''}? Verranno rimossi anche edifici, piani e postazioni collegati.`)) {
@@ -123,6 +132,10 @@ export class BookingsComponent implements OnInit {
   }
 
   createEdificio(): void {
+    if (!this.isAdmin()) {
+      return;
+    }
+
     if (!this.selectedSedeId) return;
     const nome = prompt('Nome del nuovo edificio');
     if (!nome?.trim()) return;
@@ -141,6 +154,10 @@ export class BookingsComponent implements OnInit {
   }
 
   deleteSelectedEdificio(): void {
+    if (!this.isAdmin()) {
+      return;
+    }
+
     if (!this.selectedEdificioId) return;
     const edificio = this.edifici.find((item) => item.id === this.selectedEdificioId);
     if (!confirm(`Eliminare l'edificio ${edificio?.nome ?? ''}? Verranno rimossi anche piani e postazioni collegati.`)) {
@@ -161,11 +178,71 @@ export class BookingsComponent implements OnInit {
     });
   }
 
+  createPiano(): void {
+    if (!this.isAdmin() || !this.selectedEdificioId) {
+      return;
+    }
+
+    const nome = prompt('Nome del nuovo piano');
+    if (!nome?.trim()) {
+      return;
+    }
+
+    const nextNumero = this.piani.length
+      ? Math.max(...this.piani.map((piano) => piano.numero)) + 1
+      : 0;
+
+    this.api
+      .createPiano({
+        numero: nextNumero,
+        nome: nome.trim(),
+        edificioId: this.selectedEdificioId,
+      })
+      .subscribe({
+        next: (piano) => {
+          this.piani = [...this.piani, piano].sort((a, b) => a.numero - b.numero);
+          this.selectedPianoId = piano.id;
+          this.onPianoChange();
+        },
+        error: (err) => {
+          this.error = err?.error?.message ?? 'Creazione piano non riuscita.';
+          this.refreshView();
+        },
+      });
+  }
+
+  deleteSelectedPiano(): void {
+    if (!this.isAdmin() || !this.selectedPianoId) {
+      return;
+    }
+
+    const piano = this.piani.find((item) => item.id === this.selectedPianoId);
+    const pianoLabel = piano ? this.getPianoDisplayName(piano) : 'il piano selezionato';
+
+    if (!confirm(`Eliminare ${pianoLabel}? Verranno rimosse anche stanza, postazioni e planimetria collegate.`)) {
+      return;
+    }
+
+    const deletedId = this.selectedPianoId;
+    this.api.deletePiano(deletedId).subscribe({
+      next: () => {
+        this.piani = this.piani.filter((item) => item.id !== deletedId);
+        this.selectedPianoId = null;
+        this.resetSelection('piano');
+      },
+      error: (err) => {
+        this.error = err?.error?.message ?? 'Eliminazione piano non riuscita.';
+        this.refreshView();
+      },
+    });
+  }
+
   onSedeChange(): void {
     this.resetSelection('sede');
     if (!this.selectedSedeId) return;
 
-    this.api.listEdifici(this.selectedSedeId).subscribe({
+    this.edificiSubscription?.unsubscribe();
+    this.edificiSubscription = this.api.listEdifici(this.selectedSedeId).subscribe({
       next: (edifici) => {
         this.edifici = edifici;
         this.refreshView();
@@ -181,9 +258,10 @@ export class BookingsComponent implements OnInit {
     this.resetSelection('edificio');
     if (!this.selectedEdificioId) return;
 
-    this.api.listPiani(this.selectedEdificioId).subscribe({
+    this.pianiSubscription?.unsubscribe();
+    this.pianiSubscription = this.api.listPiani(this.selectedEdificioId).subscribe({
       next: (piani) => {
-        this.piani = piani.filter((piano) => this.hasPianoName(piano));
+        this.piani = piani;
         this.refreshView();
       },
       error: (err) => {
@@ -203,7 +281,8 @@ export class BookingsComponent implements OnInit {
     this.loading = true;
     this.error = '';
 
-    this.api
+    this.reportSubscription?.unsubscribe();
+    this.reportSubscription = this.api
       .listStanze(this.selectedPianoId)
       .pipe(
         switchMap((stanze) => {
@@ -260,10 +339,6 @@ export class BookingsComponent implements OnInit {
     return piano.nome?.trim() || this.getPianoLabel(piano.numero);
   }
 
-  hasPianoName(piano: Piano): boolean {
-    return !!piano.nome?.trim();
-  }
-
   stateCount(stato: StatoPostazione): number {
     return this.postazioni.filter((seat) => seat.stato === stato).length;
   }
@@ -273,11 +348,14 @@ export class BookingsComponent implements OnInit {
     if (level === 'sede') {
       this.edifici = [];
       this.selectedEdificioId = null;
+      this.edificiSubscription?.unsubscribe();
     }
     if (level === 'sede' || level === 'edificio') {
       this.piani = [];
       this.selectedPianoId = null;
+      this.pianiSubscription?.unsubscribe();
     }
+    this.reportSubscription?.unsubscribe();
     this.stanze = [];
     this.postazioni = [];
     this.bookings = [];

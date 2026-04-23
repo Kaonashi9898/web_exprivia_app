@@ -1,21 +1,12 @@
 import { ChangeDetectorRef, Component, inject, OnDestroy, OnInit } from '@angular/core';
 import { NgStyle } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { catchError, forkJoin, map, of, switchMap } from 'rxjs';
+import { catchError, forkJoin, map, of, Subscription } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { Edificio, Piano, PlanimetriaLayout, PlanimetriaResponse, Sede } from '../../core/app.models';
+import { environment } from '../../../environments/environment';
 
-const EXPRIVIA_ITALIA_SEDI: Sede[] = [
-  { id: 1, nome: 'Exprivia - Roma Bufalotta', indirizzo: 'Via della Bufalotta 378', citta: 'Roma' },
-  { id: 2, nome: 'Exprivia - Molfetta Headquarter', indirizzo: 'Via A. Olivetti 11', citta: 'Molfetta' },
-  { id: 3, nome: 'Exprivia - Molfetta Agnelli', indirizzo: 'Via Giovanni Agnelli 5', citta: 'Molfetta' },
-  { id: 4, nome: 'Exprivia - Milano', indirizzo: 'Via dei Valtorta 43', citta: 'Milano' },
-  { id: 5, nome: 'Exprivia - Lecce', indirizzo: 'Campus Ecotekne, Via Monteroni 165', citta: 'Lecce' },
-  { id: 6, nome: 'Exprivia - Matera', indirizzo: 'Via Giovanni Agnelli snc', citta: 'Matera' },
-  { id: 7, nome: 'Exprivia - Palermo', indirizzo: 'Viale Regione Siciliana Nord-Ovest 7275', citta: 'Palermo' },
-  { id: 8, nome: 'Exprivia - Trento', indirizzo: 'Via Alcide De Gasperi 77', citta: 'Trento' },
-  { id: 9, nome: 'Exprivia - Vicenza', indirizzo: 'Via L. Lazzaro Zamenhof 817', citta: 'Vicenza' },
-];
+const EXPRIVIA_ITALIA_SEDI: Sede[] = [];
 
 type LayoutRoom = NonNullable<PlanimetriaLayout['rooms']>[number];
 type LayoutMeeting = NonNullable<PlanimetriaLayout['meetings']>[number];
@@ -33,6 +24,18 @@ type PositionedStation = LayoutStation & { position: { xPct: number; yPct: numbe
 export class FloorPlanComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private sediSubscription: Subscription | null = null;
+  private edificiSubscription: Subscription | null = null;
+  private pianiSubscription: Subscription | null = null;
+  private uploadSubscription: Subscription | null = null;
+  private importSubscription: Subscription | null = null;
+  private deleteSubscription: Subscription | null = null;
+  private saveSubscription: Subscription | null = null;
+  private planimetriaSubscription: Subscription | null = null;
+  private imageSubscription: Subscription | null = null;
+  private layoutSubscription: Subscription | null = null;
+  private planStatusSubscription: Subscription | null = null;
+  private currentPlanRequestId = 0;
 
   sedi: Sede[] = EXPRIVIA_ITALIA_SEDI;
   edifici: Edificio[] = [];
@@ -55,11 +58,12 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
   error = '';
   sediLoading = false;
   pianiLoading = false;
-  readonly editorUrl = 'http://localhost:4202/editor';
+  readonly editorUrl = environment.floorPlanEditorUrl;
 
   ngOnInit(): void {
     this.sediLoading = true;
-    this.api.listSedi().subscribe({
+    this.sediSubscription?.unsubscribe();
+    this.sediSubscription = this.api.listSedi().subscribe({
       next: (sedi) => {
         this.sedi = sedi.length ? sedi : EXPRIVIA_ITALIA_SEDI;
         this.sediLoading = false;
@@ -74,6 +78,17 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.sediSubscription?.unsubscribe();
+    this.edificiSubscription?.unsubscribe();
+    this.pianiSubscription?.unsubscribe();
+    this.uploadSubscription?.unsubscribe();
+    this.importSubscription?.unsubscribe();
+    this.deleteSubscription?.unsubscribe();
+    this.saveSubscription?.unsubscribe();
+    this.planimetriaSubscription?.unsubscribe();
+    this.imageSubscription?.unsubscribe();
+    this.layoutSubscription?.unsubscribe();
+    this.planStatusSubscription?.unsubscribe();
     this.revokeImageUrl();
   }
 
@@ -85,7 +100,8 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
     this.selectedPianoId = null;
     this.clearPlan();
     if (!this.selectedSedeId) return;
-    this.api.listEdifici(this.selectedSedeId).subscribe({
+    this.edificiSubscription?.unsubscribe();
+    this.edificiSubscription = this.api.listEdifici(this.selectedSedeId).subscribe({
       next: (edifici) => {
         this.edifici = edifici;
         this.pianiLoading = false;
@@ -109,10 +125,11 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
       return;
     }
     this.pianiLoading = true;
-    this.api.listPiani(this.selectedEdificioId).subscribe({
+    this.pianiSubscription?.unsubscribe();
+    this.pianiSubscription = this.api.listPiani(this.selectedEdificioId).subscribe({
       next: (piani) => {
         this.allPiani = piani;
-        this.piani = piani.filter((piano) => this.hasPianoName(piano));
+        this.piani = piani;
         this.pianiLoading = false;
         this.syncPlanStatus(this.piani);
       },
@@ -143,23 +160,17 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
   }
 
   uploadImage(): void {
-    if (!this.selectedEdificioId || !this.imageFile || !this.imageFileRenamed) return;
+    if (!this.selectedPianoId || !this.imageFile) {
+      return;
+    }
+
     this.clearMessages();
-    this.ensureUploadPiano().pipe(
-      switchMap((piano) => {
-        this.selectedPianoId = piano.id;
-        return this.api.uploadPlanimetriaImage(piano.id, this.imageFile!);
-      }),
-    ).subscribe({
+    this.uploadSubscription?.unsubscribe();
+    this.uploadSubscription = this.api.uploadPlanimetriaImage(this.selectedPianoId, this.imageFile).subscribe({
       next: () => {
         this.message = 'Planimetria caricata.';
-        const renamedPlanName = this.planFileName.trim();
-        this.allPiani = this.allPiani.map((piano) =>
-          piano.id === this.selectedPianoId ? { ...piano, nome: renamedPlanName || piano.nome } : piano,
-        );
-        this.piani = this.piani.map((piano) =>
-          piano.id === this.selectedPianoId ? { ...piano, nome: renamedPlanName || piano.nome } : piano,
-        );
+        this.planFileName = '';
+        this.imageFileRenamed = false;
         this.imageFile = null;
         this.pianiConPlanimetria.set(this.selectedPianoId!, true);
         this.refreshView();
@@ -187,9 +198,20 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
   }
 
   importJson(): void {
-    if (!this.selectedPianoId || !this.planimetria || !this.jsonFile) return;
+    if (!this.selectedPianoId || !this.jsonFile) {
+      return;
+    }
+
+    if (!this.planimetria) {
+      this.error = "Carica prima l'immagine della planimetria per il piano selezionato.";
+      this.message = '';
+      this.refreshView();
+      return;
+    }
+
     this.clearMessages();
-    this.api.importPlanimetriaJson(this.selectedPianoId, this.jsonFile).subscribe({
+    this.importSubscription?.unsubscribe();
+    this.importSubscription = this.api.importPlanimetriaJson(this.selectedPianoId, this.jsonFile).subscribe({
       next: () => {
         this.message = 'Layout importato e sincronizzato.';
         this.jsonFile = null;
@@ -203,19 +225,60 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
     });
   }
 
+  savePlan(): void {
+    if (!this.selectedPianoId) {
+      this.error = 'Seleziona un piano prima di salvare.';
+      this.message = '';
+      this.refreshView();
+      return;
+    }
+
+    if (!this.imageFile && !this.jsonFile) {
+      this.error = 'Seleziona almeno un file da salvare (planimetria e/o JSON).';
+      this.message = '';
+      this.refreshView();
+      return;
+    }
+
+    this.clearMessages();
+    this.saveSubscription?.unsubscribe();
+
+    if (this.imageFile) {
+      this.saveSubscription = this.api.uploadPlanimetriaImage(this.selectedPianoId, this.imageFile).subscribe({
+        next: () => {
+          this.pianiConPlanimetria.set(this.selectedPianoId!, true);
+          this.planFileName = '';
+          this.imageFileRenamed = false;
+          this.imageFile = null;
+
+          if (this.jsonFile) {
+            this.saveLayoutAfterImageUpload(this.selectedPianoId!);
+            return;
+          }
+
+          this.message = 'Planimetria salvata correttamente.';
+          this.refreshView();
+          this.loadPlan(false);
+        },
+        error: (err) => {
+          this.error = err?.error?.message ?? 'Salvataggio planimetria non riuscito.';
+          this.refreshView();
+        },
+      });
+      return;
+    }
+
+    this.saveLayoutOnly();
+  }
+
   deletePlan(): void {
     if (!this.selectedPianoId || !confirm('Eliminare la planimetria del piano selezionato?')) return;
     this.clearMessages();
-    this.api.deletePlanimetria(this.selectedPianoId).subscribe({
+    this.deleteSubscription?.unsubscribe();
+    this.deleteSubscription = this.api.deletePlanimetria(this.selectedPianoId).subscribe({
       next: () => {
         this.message = 'Planimetria eliminata.';
         this.pianiConPlanimetria.set(this.selectedPianoId!, false);
-        this.allPiani = this.allPiani.map((piano) =>
-          piano.id === this.selectedPianoId ? { ...piano, nome: null } : piano,
-        );
-        this.piani = this.piani.map((piano) =>
-          piano.id === this.selectedPianoId ? { ...piano, nome: null } : piano,
-        ).filter((piano) => this.hasPianoName(piano));
         this.clearPlan();
         this.refreshView();
       },
@@ -224,16 +287,6 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
         this.refreshView();
       },
     });
-  }
-
-  savePlan(): void {
-    if (!this.canPreviewPlan()) {
-      return;
-    }
-
-    this.message = 'Planimetria salvata nel database.';
-    this.error = '';
-    this.refreshView();
   }
 
   viewPreview(): void {
@@ -252,8 +305,17 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
       this.clearMessages();
     }
 
-    this.api.getPlanimetria(this.selectedPianoId).subscribe({
+    const pianoId = this.selectedPianoId;
+    const requestId = ++this.currentPlanRequestId;
+    this.planimetriaSubscription?.unsubscribe();
+    this.imageSubscription?.unsubscribe();
+    this.layoutSubscription?.unsubscribe();
+
+    this.planimetriaSubscription = this.api.getPlanimetria(pianoId).subscribe({
       next: (planimetria) => {
+        if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
+          return;
+        }
         if (!planimetria) {
           this.planimetria = null;
           this.layout = null;
@@ -263,14 +325,17 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
         }
         this.planimetria = planimetria;
         if (planimetria.formatoOriginale !== 'DXF' && planimetria.formatoOriginale !== 'DWG') {
-          this.loadImage(this.selectedPianoId!);
+          this.loadImage(pianoId, requestId);
         } else {
           this.revokeImageUrl();
         }
-        this.loadLayout(this.selectedPianoId!);
+        this.loadLayout(pianoId, requestId);
         this.refreshView();
       },
       error: () => {
+        if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
+          return;
+        }
         this.planimetria = null;
         this.layout = null;
         this.revokeImageUrl();
@@ -290,16 +355,16 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
     return piano.nome?.trim() || this.getPianoLabel(piano.numero);
   }
 
-  hasPianoName(piano: Piano): boolean {
-    return !!piano.nome?.trim();
-  }
-
   canUseEditor(): boolean {
     return !!this.selectedSedeId && !!this.selectedEdificioId;
   }
 
   canImportJson(): boolean {
-    return this.canUseEditor() && !!this.selectedPianoId && !!this.planimetria;
+    return this.canUseEditor() && !!this.selectedPianoId && (!!this.planimetria || !!this.imageFile);
+  }
+
+  canSavePlan(): boolean {
+    return !!this.selectedPianoId && (!!this.imageFile || !!this.jsonFile);
   }
 
   canPreviewPlan(): boolean {
@@ -372,28 +437,42 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
     return `${this.getPianoDisplayName(piano)} - ${state}`;
   }
 
-  private loadImage(pianoId: number): void {
-    this.api.getPlanimetriaImage(pianoId).subscribe({
+  private loadImage(pianoId: number, requestId: number): void {
+    this.imageSubscription?.unsubscribe();
+    this.imageSubscription = this.api.getPlanimetriaImage(pianoId).subscribe({
       next: (blob) => {
+        if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
+          return;
+        }
         this.revokeImageUrl();
         this.imageSrc = URL.createObjectURL(blob);
         this.refreshView();
       },
       error: () => {
+        if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
+          return;
+        }
         this.revokeImageUrl();
         this.refreshView();
       },
     });
   }
 
-  private loadLayout(pianoId: number): void {
-    this.api.getPlanimetriaLayout(pianoId).subscribe({
+  private loadLayout(pianoId: number, requestId: number): void {
+    this.layoutSubscription?.unsubscribe();
+    this.layoutSubscription = this.api.getPlanimetriaLayout(pianoId).subscribe({
       next: (layout) => {
+        if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
+          return;
+        }
         this.layout = layout;
         this.selectedRoomId = null;
         this.refreshView();
       },
       error: () => {
+        if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
+          return;
+        }
         this.layout = null;
         this.refreshView();
       },
@@ -406,6 +485,10 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
   }
 
   private clearPlan(): void {
+    this.currentPlanRequestId += 1;
+    this.planimetriaSubscription?.unsubscribe();
+    this.imageSubscription?.unsubscribe();
+    this.layoutSubscription?.unsubscribe();
     this.planimetria = null;
     this.layout = null;
     this.selectedRoomId = null;
@@ -427,13 +510,16 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
   }
 
   private syncPlanStatus(piani: Piano[]): void {
+    const selectedEdificioId = this.selectedEdificioId;
+    this.planStatusSubscription?.unsubscribe();
+
     if (!piani.length) {
       this.pianiConPlanimetria = new Map();
       this.refreshView();
       return;
     }
 
-    forkJoin(
+    this.planStatusSubscription = forkJoin(
       piani.map((piano) =>
         this.api.getPlanimetria(piano.id).pipe(
           map((planimetria) => ({ pianoId: piano.id, hasPlan: !!planimetria })),
@@ -442,35 +528,69 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
       ),
     ).subscribe({
       next: (statuses) => {
+        if (this.selectedEdificioId !== selectedEdificioId) {
+          return;
+        }
+
         this.pianiConPlanimetria = new Map(statuses.map((status) => [status.pianoId, status.hasPlan]));
-        this.selectedPianoId = null;
+        if (this.selectedPianoId && !this.piani.some((piano) => piano.id === this.selectedPianoId)) {
+          this.selectedPianoId = null;
+        }
         this.refreshView();
       },
       error: () => this.refreshView(),
     });
   }
 
-  private ensureUploadPiano() {
-    const selected = this.piani.find((piano) => piano.id === this.selectedPianoId);
-    if (selected) {
-      return of(selected);
+  private saveLayoutAfterImageUpload(pianoId: number): void {
+    if (!this.jsonFile) {
+      this.message = 'Planimetria salvata correttamente.';
+      this.refreshView();
+      this.loadPlan(false);
+      return;
     }
 
-    const nextNumero = this.allPiani.length
-      ? Math.max(...this.allPiani.map((piano) => piano.numero)) + 1
-      : 0;
+    this.importSubscription?.unsubscribe();
+    this.importSubscription = this.api.importPlanimetriaJson(pianoId, this.jsonFile).subscribe({
+      next: () => {
+        this.jsonFile = null;
+        this.message = 'Planimetria e layout salvati correttamente.';
+        this.refreshView();
+        this.loadPlan(false);
+      },
+      error: (err) => {
+        this.error = err?.error?.message ?? 'Salvataggio layout non riuscito.';
+        this.refreshView();
+      },
+    });
+  }
 
-    return this.api.createPiano({
-      numero: nextNumero,
-      nome: this.planFileName.trim(),
-      edificioId: this.selectedEdificioId!,
-    }).pipe(
-      map((piano) => {
-        this.allPiani = [...this.allPiani, piano];
-        this.piani = [...this.piani, piano];
-        return piano;
-      }),
-    );
+  private saveLayoutOnly(): void {
+    if (!this.selectedPianoId || !this.jsonFile) {
+      this.error = 'Seleziona un file JSON da salvare.';
+      this.refreshView();
+      return;
+    }
+
+    if (!this.planimetria) {
+      this.error = "Carica prima l'immagine della planimetria per il piano selezionato.";
+      this.refreshView();
+      return;
+    }
+
+    this.importSubscription?.unsubscribe();
+    this.importSubscription = this.api.importPlanimetriaJson(this.selectedPianoId, this.jsonFile).subscribe({
+      next: () => {
+        this.jsonFile = null;
+        this.message = 'Planimetria salvata correttamente.';
+        this.refreshView();
+        this.loadPlan(false);
+      },
+      error: (err) => {
+        this.error = err?.error?.message ?? 'Salvataggio layout non riuscito.';
+        this.refreshView();
+      },
+    });
   }
 
   private revokeImageUrl(): void {

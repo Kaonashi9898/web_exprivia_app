@@ -1,21 +1,10 @@
 import { ChangeDetectorRef, Component, inject, OnDestroy, OnInit } from '@angular/core';
 import { NgStyle } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { forkJoin, of, switchMap } from 'rxjs';
+import { forkJoin, of, Subscription, switchMap } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { Edificio, Piano, PlanimetriaLayout, PlanimetriaResponse, Postazione, Prenotazione, Sede } from '../../core/app.models';
-
-const EXPRIVIA_ITALIA_SEDI: Sede[] = [
-  { id: 1, nome: 'Exprivia - Roma Bufalotta', indirizzo: 'Via della Bufalotta 378', citta: 'Roma' },
-  { id: 2, nome: 'Exprivia - Molfetta Headquarter', indirizzo: 'Via A. Olivetti 11', citta: 'Molfetta' },
-  { id: 3, nome: 'Exprivia - Molfetta Agnelli', indirizzo: 'Via Giovanni Agnelli 5', citta: 'Molfetta' },
-  { id: 4, nome: 'Exprivia - Milano', indirizzo: 'Via dei Valtorta 43', citta: 'Milano' },
-  { id: 5, nome: 'Exprivia - Lecce', indirizzo: 'Campus Ecotekne, Via Monteroni 165', citta: 'Lecce' },
-  { id: 6, nome: 'Exprivia - Matera', indirizzo: 'Via Giovanni Agnelli snc', citta: 'Matera' },
-  { id: 7, nome: 'Exprivia - Palermo', indirizzo: 'Viale Regione Siciliana Nord-Ovest 7275', citta: 'Palermo' },
-  { id: 8, nome: 'Exprivia - Trento', indirizzo: 'Via Alcide De Gasperi 77', citta: 'Trento' },
-  { id: 9, nome: 'Exprivia - Vicenza', indirizzo: 'Via L. Lazzaro Zamenhof 817', citta: 'Vicenza' },
-];
+import { todayLocalIsoDate } from '../../core/date.utils';
 
 type LayoutRoom = NonNullable<PlanimetriaLayout['rooms']>[number];
 type LayoutMeeting = NonNullable<PlanimetriaLayout['meetings']>[number];
@@ -33,8 +22,18 @@ type PositionedStation = LayoutStation & { position: { xPct: number; yPct: numbe
 export class LocationsComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private sediSubscription: Subscription | null = null;
+  private edificiSubscription: Subscription | null = null;
+  private pianiSubscription: Subscription | null = null;
+  private planimetriaSubscription: Subscription | null = null;
+  private imageSubscription: Subscription | null = null;
+  private layoutSubscription: Subscription | null = null;
+  private seatsSubscription: Subscription | null = null;
+  private bookingsSubscription: Subscription | null = null;
+  private createBookingSubscription: Subscription | null = null;
+  private currentPlanRequestId = 0;
 
-  sedi: Sede[] = EXPRIVIA_ITALIA_SEDI;
+  sedi: Sede[] = [];
   edifici: Edificio[] = [];
   piani: Piano[] = [];
   postazioni: Postazione[] = [];
@@ -54,15 +53,16 @@ export class LocationsComponent implements OnInit, OnDestroy {
   error = '';
   sediLoading = false;
 
-  bookingDate = new Date().toISOString().slice(0, 10);
+  bookingDate = todayLocalIsoDate();
   startTime = '09:00';
   endTime = '18:00';
 
   ngOnInit(): void {
     this.sediLoading = true;
-    this.api.listSedi().subscribe({
+    this.sediSubscription?.unsubscribe();
+    this.sediSubscription = this.api.listSedi().subscribe({
       next: (sedi) => {
-        this.sedi = sedi.length ? sedi : EXPRIVIA_ITALIA_SEDI;
+        this.sedi = sedi;
         this.sediLoading = false;
         this.refreshView();
       },
@@ -75,6 +75,15 @@ export class LocationsComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.sediSubscription?.unsubscribe();
+    this.edificiSubscription?.unsubscribe();
+    this.pianiSubscription?.unsubscribe();
+    this.planimetriaSubscription?.unsubscribe();
+    this.imageSubscription?.unsubscribe();
+    this.layoutSubscription?.unsubscribe();
+    this.seatsSubscription?.unsubscribe();
+    this.bookingsSubscription?.unsubscribe();
+    this.createBookingSubscription?.unsubscribe();
     this.revokeImageUrl();
   }
 
@@ -89,7 +98,8 @@ export class LocationsComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.api.listEdifici(this.selectedSedeId).subscribe({
+    this.edificiSubscription?.unsubscribe();
+    this.edificiSubscription = this.api.listEdifici(this.selectedSedeId).subscribe({
         next: (edifici) => {
           this.edifici = edifici;
           if (!edifici.length) {
@@ -113,9 +123,10 @@ export class LocationsComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.api.listPiani(this.selectedEdificioId).subscribe({
+    this.pianiSubscription?.unsubscribe();
+    this.pianiSubscription = this.api.listPiani(this.selectedEdificioId).subscribe({
       next: (piani) => {
-        this.piani = piani.filter((piano) => this.hasPianoName(piano));
+        this.piani = piani;
         if (!this.piani.length) {
           this.unavailableMessage = 'Per questo edificio non sono ancora stati creati piani.';
         }
@@ -166,7 +177,8 @@ export class LocationsComponent implements OnInit, OnDestroy {
     }
 
     this.clearMessages();
-    this.api
+    this.createBookingSubscription?.unsubscribe();
+    this.createBookingSubscription = this.api
       .createBooking({
         postazioneId: this.selectedPostazione.id,
         dataPrenotazione: this.bookingDate,
@@ -276,14 +288,20 @@ export class LocationsComponent implements OnInit, OnDestroy {
     return piano.nome?.trim() || this.getPianoLabel(piano.numero);
   }
 
-  hasPianoName(piano: Piano): boolean {
-    return !!piano.nome?.trim();
-  }
-
   private loadPlan(pianoId: number): void {
+    const requestId = ++this.currentPlanRequestId;
+    this.planimetriaSubscription?.unsubscribe();
+    this.imageSubscription?.unsubscribe();
+    this.layoutSubscription?.unsubscribe();
+    this.seatsSubscription?.unsubscribe();
+    this.bookingsSubscription?.unsubscribe();
     this.unavailableMessage = '';
-    this.api.getPlanimetria(pianoId).subscribe({
+    this.planimetriaSubscription = this.api.getPlanimetria(pianoId).subscribe({
         next: (planimetria) => {
+          if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
+            return;
+          }
+
           if (!planimetria) {
             this.unavailableMessage = this.noPlanMessage();
             this.refreshView();
@@ -295,46 +313,64 @@ export class LocationsComponent implements OnInit, OnDestroy {
           this.unavailableMessage =
             'Planimetria tecnica caricata. Per visualizzarla qui serve anche una versione PNG, JPG o SVG.';
         } else {
-          this.loadImage(pianoId);
+          this.loadImage(pianoId, requestId);
         }
-        this.loadLayoutAndSeats(pianoId);
+        this.loadLayoutAndSeats(pianoId, requestId);
         this.refreshView();
       },
       error: () => {
+        if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
+          return;
+        }
         this.unavailableMessage = this.noPlanMessage();
         this.refreshView();
       },
     });
   }
 
-  private loadImage(pianoId: number): void {
-    this.api.getPlanimetriaImage(pianoId).subscribe({
+  private loadImage(pianoId: number, requestId: number): void {
+    this.imageSubscription?.unsubscribe();
+    this.imageSubscription = this.api.getPlanimetriaImage(pianoId).subscribe({
       next: (blob) => {
+        if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
+          return;
+        }
         this.revokeImageUrl();
         this.imageSrc = URL.createObjectURL(blob);
         this.refreshView();
       },
       error: () => {
+        if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
+          return;
+        }
         this.revokeImageUrl();
         this.refreshView();
       },
     });
   }
 
-  private loadLayoutAndSeats(pianoId: number): void {
-    this.api.getPlanimetriaLayout(pianoId).subscribe({
+  private loadLayoutAndSeats(pianoId: number, requestId: number): void {
+    this.layoutSubscription?.unsubscribe();
+    this.layoutSubscription = this.api.getPlanimetriaLayout(pianoId).subscribe({
       next: (layout) => {
+        if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
+          return;
+        }
         this.layout = layout;
         this.selectedRoomId = null;
         this.refreshView();
       },
       error: () => {
+        if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
+          return;
+        }
         this.layout = null;
         this.refreshView();
       },
     });
 
-    this.api
+    this.seatsSubscription?.unsubscribe();
+    this.seatsSubscription = this.api
       .listStanze(pianoId)
       .pipe(
         switchMap((stanze) =>
@@ -343,11 +379,17 @@ export class LocationsComponent implements OnInit, OnDestroy {
       )
       .subscribe({
         next: (groups) => {
+          if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
+            return;
+          }
           this.postazioni = groups.flat();
           this.loadBookingsForCurrentPlan();
           this.refreshView();
         },
         error: () => {
+          if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
+            return;
+          }
           this.postazioni = [];
           this.refreshView();
         },
@@ -363,6 +405,12 @@ export class LocationsComponent implements OnInit, OnDestroy {
   }
 
   private resetPlan(): void {
+    this.currentPlanRequestId += 1;
+    this.planimetriaSubscription?.unsubscribe();
+    this.imageSubscription?.unsubscribe();
+    this.layoutSubscription?.unsubscribe();
+    this.seatsSubscription?.unsubscribe();
+    this.bookingsSubscription?.unsubscribe();
     this.clearMessages();
     this.planimetria = null;
     this.layout = null;
@@ -398,13 +446,22 @@ export class LocationsComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.api.listBookings(this.bookingDate || undefined).subscribe({
+    const selectedPianoId = this.selectedPianoId;
+    const postazioneIds = new Set(this.postazioni.map((postazione) => postazione.id));
+
+    this.bookingsSubscription?.unsubscribe();
+    this.bookingsSubscription = this.api.listBookings(this.bookingDate || undefined).subscribe({
       next: (bookings) => {
-        const postazioneIds = new Set(this.postazioni.map((postazione) => postazione.id));
+        if (this.selectedPianoId !== selectedPianoId) {
+          return;
+        }
         this.bookings = bookings.filter((booking) => postazioneIds.has(booking.postazioneId));
         this.refreshView();
       },
       error: () => {
+        if (this.selectedPianoId !== selectedPianoId) {
+          return;
+        }
         this.bookings = [];
         this.refreshView();
       },

@@ -30,7 +30,7 @@ export const routes: Routes = [
         path: 'sedi-postazioni',
         loadComponent: () => import('./pages/bookings/bookings').then((m) => m.BookingsComponent),
         canActivate: [roleGuard],
-        data: { roles: ['ADMIN', 'RECEPTION', 'USER'] }
+        data: { roles: ['ADMIN'] }
       },
       {
         path: 'planimetria',

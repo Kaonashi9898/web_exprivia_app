@@ -15,10 +15,11 @@ import {
   Stanza,
   Utente,
 } from './app.models';
+import { environment } from '../../environments/environment';
 
-const UTENTI_API = 'http://localhost:8081';
-const LOCATION_API = 'http://localhost:8082';
-const PRENOTAZIONI_API = 'http://localhost:8083';
+const UTENTI_API = environment.utentiApiBaseUrl;
+const LOCATION_API = environment.locationApiBaseUrl;
+const PRENOTAZIONI_API = environment.prenotazioniApiBaseUrl;
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -70,6 +71,10 @@ export class ApiService {
 
   createPiano(request: { numero: number; nome?: string | null; edificioId: number }) {
     return this.http.post<Piano>(`${LOCATION_API}/api/piani`, request);
+  }
+
+  deletePiano(id: number) {
+    return this.http.delete<void>(`${LOCATION_API}/api/piani/${id}`);
   }
 
   listStanze(pianoId: number) {
