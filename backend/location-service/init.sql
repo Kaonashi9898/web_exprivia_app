@@ -74,7 +74,3 @@ INSERT INTO sede (nome, indirizzo, citta) VALUES
 ('Exprivia - Palermo', 'Viale Regione Siciliana Nord-Ovest 7275', 'Palermo'),
 ('Exprivia - Trento', 'Palazzo Stella, Via Alcide De Gasperi 77', 'Trento'),
 ('Exprivia - Vicenza', 'Via L. Lazzaro Zamenhof 817', 'Vicenza');
-
-INSERT INTO edificio (nome, sede_id)
-SELECT 'Edificio principale', id
-FROM sede;
