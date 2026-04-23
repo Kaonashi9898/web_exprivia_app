@@ -18,6 +18,14 @@ interface RoomStats {
   blockedCodes: string[];
 }
 
+interface CreateSedeForm {
+  nome: string;
+  citta: string;
+  indirizzo: string;
+  latitudine: string;
+  longitudine: string;
+}
+
 @Component({
   selector: 'app-bookings',
   imports: [FormsModule],
@@ -49,6 +57,14 @@ export class BookingsComponent implements OnInit, OnDestroy {
   reportDate = todayLocalIsoDate();
   loading = false;
   error = '';
+  showCreateSedeModal = false;
+  showCreateEdificioModal = false;
+  creatingSede = false;
+  creatingEdificio = false;
+  createSedeError = '';
+  createEdificioError = '';
+  createSedeForm: CreateSedeForm = this.buildEmptySedeForm();
+  createEdificioNome = '';
 
   ngOnInit(): void {
     this.loadSedi();
@@ -79,31 +95,7 @@ export class BookingsComponent implements OnInit, OnDestroy {
     if (!this.isAdmin()) {
       return;
     }
-
-    const nome = prompt('Nome della nuova sede');
-    if (!nome?.trim()) return;
-    const citta = prompt('Citta della nuova sede');
-    if (!citta?.trim()) return;
-    const indirizzo = prompt('Indirizzo della nuova sede');
-    if (!indirizzo?.trim()) return;
-
-    this.api.createSede({
-      nome: nome.trim(),
-      citta: citta.trim(),
-      indirizzo: indirizzo.trim(),
-      latitudine: null,
-      longitudine: null,
-    }).subscribe({
-      next: (sede) => {
-        this.sedi = [...this.sedi.filter((item) => item.id !== sede.id), sede];
-        this.selectedSedeId = sede.id;
-        this.onSedeChange();
-      },
-      error: (err) => {
-        this.error = err?.error?.message ?? 'Creazione sede non riuscita.';
-        this.refreshView();
-      },
-    });
+    this.openCreateSedeModal();
   }
 
   deleteSelectedSede(): void {
@@ -136,18 +128,129 @@ export class BookingsComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (!this.selectedSedeId) return;
-    const nome = prompt('Nome del nuovo edificio');
-    if (!nome?.trim()) return;
+    if (!this.selectedSedeId) {
+      return;
+    }
+    this.openCreateEdificioModal();
+  }
 
-    this.api.createEdificio({ nome: nome.trim(), sedeId: this.selectedSedeId }).subscribe({
+  openCreateSedeModal(): void {
+    this.createSedeForm = this.buildEmptySedeForm();
+    this.createSedeError = '';
+    this.showCreateSedeModal = true;
+    this.refreshView();
+  }
+
+  closeCreateSedeModal(): void {
+    if (this.creatingSede) {
+      return;
+    }
+    this.showCreateSedeModal = false;
+    this.createSedeError = '';
+    this.refreshView();
+  }
+
+  submitCreateSede(): void {
+    if (this.creatingSede || !this.isAdmin()) {
+      return;
+    }
+
+    const nome = this.createSedeForm.nome.trim();
+    const citta = this.createSedeForm.citta.trim();
+    const indirizzo = this.createSedeForm.indirizzo.trim();
+
+    if (!nome || !citta || !indirizzo) {
+      this.createSedeError = 'Compila i campi obbligatori: nome, citta e indirizzo.';
+      this.refreshView();
+      return;
+    }
+
+    const latitudine = this.parseCoordinate(this.createSedeForm.latitudine, 'Latitudine');
+    if (latitudine.error) {
+      this.createSedeError = latitudine.error;
+      this.refreshView();
+      return;
+    }
+
+    const longitudine = this.parseCoordinate(this.createSedeForm.longitudine, 'Longitudine');
+    if (longitudine.error) {
+      this.createSedeError = longitudine.error;
+      this.refreshView();
+      return;
+    }
+
+    this.creatingSede = true;
+    this.createSedeError = '';
+
+    this.api
+      .createSede({
+        nome: this.withExpriviaPrefix(nome),
+        citta,
+        indirizzo,
+        latitudine: latitudine.value,
+        longitudine: longitudine.value,
+      })
+      .subscribe({
+        next: (sede) => {
+          this.creatingSede = false;
+          this.showCreateSedeModal = false;
+          this.sedi = [...this.sedi.filter((item) => item.id !== sede.id), sede];
+          this.selectedSedeId = sede.id;
+          this.onSedeChange();
+        },
+        error: (err) => {
+          this.creatingSede = false;
+          this.createSedeError = err?.error?.message ?? 'Creazione sede non riuscita.';
+          this.refreshView();
+        },
+      });
+  }
+
+  openCreateEdificioModal(): void {
+    if (!this.selectedSedeId) {
+      return;
+    }
+    this.createEdificioNome = '';
+    this.createEdificioError = '';
+    this.showCreateEdificioModal = true;
+    this.refreshView();
+  }
+
+  closeCreateEdificioModal(): void {
+    if (this.creatingEdificio) {
+      return;
+    }
+    this.showCreateEdificioModal = false;
+    this.createEdificioError = '';
+    this.refreshView();
+  }
+
+  submitCreateEdificio(): void {
+    if (this.creatingEdificio || !this.isAdmin() || !this.selectedSedeId) {
+      return;
+    }
+
+    const nome = this.createEdificioNome.trim();
+    if (!nome) {
+      this.createEdificioError = 'Inserisci il nome del nuovo edificio.';
+      this.refreshView();
+      return;
+    }
+
+    this.creatingEdificio = true;
+    this.createEdificioError = '';
+
+    this.api.createEdificio({ nome, sedeId: this.selectedSedeId }).subscribe({
       next: (edificio) => {
+        this.creatingEdificio = false;
+        this.showCreateEdificioModal = false;
         this.edifici = [...this.edifici.filter((item) => item.id !== edificio.id), edificio];
         this.selectedEdificioId = edificio.id;
         this.onEdificioChange();
       },
       error: (err) => {
-        this.error = err?.error?.message ?? 'Creazione edificio non riuscita.';
+        this.creatingEdificio = false;
+        this.createEdificioError = err?.error?.message ?? 'Creazione edificio non riuscita.';
         this.refreshView();
       },
     });
@@ -394,6 +497,36 @@ export class BookingsComponent implements OnInit, OnDestroy {
 
   private isBooked(postazioneId: number): boolean {
     return this.bookings.some((booking) => booking.postazioneId === postazioneId && booking.stato === 'CONFERMATA');
+  }
+
+  private buildEmptySedeForm(): CreateSedeForm {
+    return {
+      nome: '',
+      citta: '',
+      indirizzo: '',
+      latitudine: '',
+      longitudine: '',
+    };
+  }
+
+  private withExpriviaPrefix(value: string): string {
+    const normalized = value.trim().replace(/\s+/g, ' ');
+    const withoutPrefix = normalized.replace(/^exprivia\s*[-:]?\s*/i, '').trim();
+    return withoutPrefix ? `Exprivia - ${withoutPrefix}` : 'Exprivia';
+  }
+
+  private parseCoordinate(value: string, label: 'Latitudine' | 'Longitudine'): { value: number | null; error: string | null } {
+    const normalized = value.replace(',', '.').trim();
+    if (!normalized) {
+      return { value: null, error: null };
+    }
+
+    const parsed = Number(normalized);
+    if (Number.isNaN(parsed)) {
+      return { value: null, error: `${label} non valida. Usa un numero, ad esempio 41.9028.` };
+    }
+
+    return { value: parsed, error: null };
   }
 
   private refreshView(): void {

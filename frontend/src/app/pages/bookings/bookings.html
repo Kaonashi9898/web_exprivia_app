@@ -135,3 +135,89 @@
     </div>
   </section>
 }
+
+@if (showCreateSedeModal) {
+  <div class="modal-backdrop" (click)="closeCreateSedeModal()">
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="createSedeTitle" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <h2 id="createSedeTitle">Nuova sede</h2>
+      </header>
+
+      @if (createSedeError) {
+        <div class="notice error modal-notice">{{ createSedeError }}</div>
+      }
+
+      <form class="modal-form" (ngSubmit)="submitCreateSede()">
+        <label>
+          Nome sede
+          <input
+            type="text"
+            name="createSedeNome"
+            [(ngModel)]="createSedeForm.nome"
+            placeholder="Es. Roma Eur"
+            [disabled]="creatingSede"
+            required
+          />
+          <span class="modal-help">Viene salvato automaticamente come: <strong>Exprivia - ...</strong></span>
+        </label>
+
+        <label>
+          Citta
+          <input type="text" name="createSedeCitta" [(ngModel)]="createSedeForm.citta" [disabled]="creatingSede" required />
+        </label>
+
+        <label>
+          Indirizzo
+          <input type="text" name="createSedeIndirizzo" [(ngModel)]="createSedeForm.indirizzo" [disabled]="creatingSede" required />
+        </label>
+
+        <div class="modal-grid">
+          <label>
+            Latitudine (opzionale)
+            <input type="text" name="createSedeLatitudine" [(ngModel)]="createSedeForm.latitudine" [disabled]="creatingSede" placeholder="Es. 41.9028" />
+          </label>
+
+          <label>
+            Longitudine (opzionale)
+            <input type="text" name="createSedeLongitudine" [(ngModel)]="createSedeForm.longitudine" [disabled]="creatingSede" placeholder="Es. 12.4964" />
+          </label>
+        </div>
+
+        <footer class="modal-actions">
+          <button class="ghost-button" type="button" (click)="closeCreateSedeModal()" [disabled]="creatingSede">Annulla</button>
+          <button class="primary-button" type="submit" [disabled]="creatingSede">
+            {{ creatingSede ? 'Creazione...' : 'Crea sede' }}
+          </button>
+        </footer>
+      </form>
+    </section>
+  </div>
+}
+
+@if (showCreateEdificioModal) {
+  <div class="modal-backdrop" (click)="closeCreateEdificioModal()">
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="createEdificioTitle" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <h2 id="createEdificioTitle">Nuovo edificio</h2>
+      </header>
+
+      @if (createEdificioError) {
+        <div class="notice error modal-notice">{{ createEdificioError }}</div>
+      }
+
+      <form class="modal-form" (ngSubmit)="submitCreateEdificio()">
+        <label>
+          Nome edificio
+          <input type="text" name="createEdificioNome" [(ngModel)]="createEdificioNome" [disabled]="creatingEdificio" required />
+        </label>
+
+        <footer class="modal-actions">
+          <button class="ghost-button" type="button" (click)="closeCreateEdificioModal()" [disabled]="creatingEdificio">Annulla</button>
+          <button class="primary-button" type="submit" [disabled]="creatingEdificio">
+            {{ creatingEdificio ? 'Creazione...' : 'Crea edificio' }}
+          </button>
+        </footer>
+      </form>
+    </section>
+  </div>
+}
