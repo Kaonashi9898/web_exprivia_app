@@ -82,7 +82,7 @@
     </div>
 
     <div class="upload-row">
-      <input type="file" accept="image/png,image/jpeg,image/svg+xml,.dxf,.dwg" (change)="setImageFile($event)" />
+      <input type="file" accept="image/png,image/jpeg,image/svg+xml,.dxf,.dwg" (change)="setImageFile($event)" title="Seleziona il file della planimetria (SVG, PNG, JPG, DXF o DWG)" />
       <label>
         Rinomina file
         <input
@@ -109,7 +109,7 @@
     </div>
 
     <div class="upload-row">
-      <input type="file" accept="application/json,.json" [disabled]="!canImportJson()" (change)="setJsonFile($event)" />
+      <input type="file" accept="application/json,.json" [disabled]="!canImportJson()" (change)="setJsonFile($event)" title="Seleziona il file JSON del layout" />
       <button class="btn btn-secondary" type="button" [disabled]="!canImportJson() || !jsonFile" (click)="importJson()">
         Importa JSON
       </button>
