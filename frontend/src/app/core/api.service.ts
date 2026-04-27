@@ -81,7 +81,7 @@ export class ApiService {
     return this.http.get<Stanza[]>(`${LOCATION_API}/api/stanze/piano/${pianoId}`);
   }
 
-  createStanza(request: { nome: string; pianoId: number }) {
+  createStanza(request: { nome: string; tipo: 'ROOM' | 'MEETING_ROOM'; layoutElementId?: string | null; xPct?: number | null; yPct?: number | null; pianoId: number }) {
     return this.http.post<Stanza>(`${LOCATION_API}/api/stanze`, request);
   }
 

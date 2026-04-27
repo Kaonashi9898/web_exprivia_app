@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 import java.util.List;
 
@@ -39,13 +41,19 @@ public class Piano {
     // Edificio a cui appartiene questo piano
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "edificio_id", nullable = false)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private Edificio edificio;
 
     // Stanze presenti in questo piano
     @OneToMany(mappedBy = "piano", cascade = CascadeType.ALL)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private List<Stanza> stanze;
 
     // Planimetria del piano (opzionale — può non essere caricata)
     @OneToOne(mappedBy = "piano", cascade = CascadeType.ALL)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private Planimetria planimetria;
 }

@@ -10,7 +10,7 @@ import it.exprivia.location.entity.Planimetria;
 import it.exprivia.location.entity.Postazione;
 import it.exprivia.location.entity.Stanza;
 import it.exprivia.location.entity.StatoPostazione;
-import it.exprivia.location.entity.TipoPostazione;
+import it.exprivia.location.entity.TipoStanza;
 import it.exprivia.location.messaging.PlanimetriaEliminataEvent;
 import it.exprivia.location.messaging.PlanimetriaEventPublisher;
 import it.exprivia.location.repository.PianoRepository;
@@ -29,7 +29,6 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -49,8 +48,6 @@ import java.util.Set;
 @Transactional(readOnly = true)
 public class PlanimetriaService {
 
-    private static final BigDecimal PERCENT_MIN = BigDecimal.ZERO;
-    private static final BigDecimal PERCENT_MAX = new BigDecimal("100");
     private static final Set<String> SUPPORTED_IMAGE_EXTENSIONS = Set.of("png", "jpg", "jpeg", "svg", "dxf", "dwg");
 
     private final PianoRepository pianoRepository;
@@ -88,6 +85,9 @@ public class PlanimetriaService {
         for (PlanimetriaLayoutDto.RoomDto room : safeList(layout.getRooms())) {
             roomLabelsById.put(room.getId(), normalizeText(room.getLabel()));
         }
+        for (PlanimetriaLayoutDto.RoomDto meeting : safeList(layout.getMeetings())) {
+            roomLabelsById.put(meeting.getId(), normalizeText(meeting.getLabel()));
+        }
 
         return safeList(layout.getStations()).stream()
                 .map(station -> new PlanimetriaPostazioneResponse(
@@ -123,12 +123,12 @@ public class PlanimetriaService {
 
             Planimetria existing = planimetriaRepository.findByPianoId(pianoId).orElse(null);
             String oldOriginalPath = existing != null ? existing.getFileOriginalePath() : null;
-            String oldImagePath = existing != null ? existing.getPngPath() : null;
+            String oldImagePath = existing != null ? existing.getImagePath() : null;
 
             Planimetria planimetria = existing != null ? existing : new Planimetria();
             planimetria.setPiano(piano);
             planimetria.setFileOriginalePath(normalizePath(imagePath));
-            planimetria.setPngPath(normalizePath(imagePath));
+            planimetria.setImagePath(normalizePath(imagePath));
             planimetria.setImageName(imagePath.getFileName().toString());
             planimetria.setFormatoOriginale(resolveFormato(extension));
             if (existing == null) {
@@ -138,7 +138,7 @@ public class PlanimetriaService {
             Planimetria saved = planimetriaRepository.save(planimetria);
             piano.setNome(resolveDisplayName(file.getOriginalFilename()));
             deleteIfReplaced(oldOriginalPath, saved.getFileOriginalePath());
-            deleteIfReplaced(oldImagePath, saved.getPngPath());
+            deleteIfReplaced(oldImagePath, saved.getImagePath());
             return toResponse(saved);
         } catch (IOException ex) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
@@ -167,7 +167,6 @@ public class PlanimetriaService {
             Planimetria planimetria = existing != null ? existing : new Planimetria();
             planimetria.setPiano(piano);
             planimetria.setJsonPath(normalizePath(jsonPath));
-            applyPercentBounds(planimetria, layout);
             if (existing == null) {
                 piano.setPlanimetria(planimetria);
             }
@@ -183,37 +182,59 @@ public class PlanimetriaService {
 
     private void importLayout(Piano piano, PlanimetriaLayoutDto layout) {
         Map<String, Stanza> stanzePerNome = new HashMap<>();
+        Map<String, Stanza> stanzePerLayoutId = new HashMap<>();
         for (Stanza stanza : stanzaRepository.findByPianoId(piano.getId())) {
             stanzePerNome.put(normalizeStanzaName(stanza.getNome()), stanza);
+            String layoutElementId = normalizeText(stanza.getLayoutElementId());
+            if (layoutElementId != null) {
+                stanzePerLayoutId.put(layoutElementId, stanza);
+            }
+        }
+
+        Set<String> importedStanzaNames = new HashSet<>(stanzePerNome.keySet());
+        Set<String> importedPostazioneCodes = new HashSet<>();
+        for (Postazione existing : postazioneRepository.findByStanzaPianoId(piano.getId())) {
+            String existingCode = normalizeText(existing.getCodice());
+            if (existingCode != null) {
+                importedPostazioneCodes.add(normalizeText(existingCode));
+            }
         }
 
         Map<String, Stanza> stanzePerRoomId = new HashMap<>();
         for (PlanimetriaLayoutDto.RoomDto importedRoom : safeList(layout.getRooms())) {
-            String roomName = normalizeText(importedRoom.getLabel());
-            String resolvedRoomName = roomName != null ? roomName : "Senza nome";
-            String roomKey = normalizeStanzaName(resolvedRoomName);
-            Stanza stanza = stanzePerNome.get(roomKey);
-            if (stanza == null) {
-                stanza = new Stanza();
-                stanza.setNome(resolvedRoomName);
-                stanza.setPiano(piano);
-                stanza = stanzaRepository.save(stanza);
-                stanzePerNome.put(roomKey, stanza);
-            }
-            stanzePerRoomId.put(importedRoom.getId(), stanza);
+            upsertStanzaFromLayout(
+                    importedRoom,
+                    TipoStanza.ROOM,
+                    piano,
+                    stanzePerNome,
+                    stanzePerLayoutId,
+                    stanzePerRoomId,
+                    importedStanzaNames
+            );
+        }
+        for (PlanimetriaLayoutDto.RoomDto importedMeeting : safeList(layout.getMeetings())) {
+            upsertStanzaFromLayout(
+                    importedMeeting,
+                    TipoStanza.MEETING_ROOM,
+                    piano,
+                    stanzePerNome,
+                    stanzePerLayoutId,
+                    stanzePerRoomId,
+                    importedStanzaNames
+            );
         }
 
         Set<String> importedStationIds = new HashSet<>();
         Set<String> importedCodes = new HashSet<>();
         for (PlanimetriaLayoutDto.StationDto importedStation : safeList(layout.getStations())) {
-            String cadId = normalizeText(importedStation.getId());
+            String layoutElementId = normalizeText(importedStation.getId());
             String codiceBase = normalizeText(importedStation.getLabel());
-            String codice = codiceBase != null ? codiceBase : cadId;
+            String codice = codiceBase != null ? codiceBase : layoutElementId;
             if (codice == null) {
                 continue;
             }
 
-            importedStationIds.add(cadId);
+            importedStationIds.add(layoutElementId);
             importedCodes.add(codice);
 
             Stanza stanza = stanzePerRoomId.get(importedStation.getRoomId());
@@ -223,34 +244,29 @@ public class PlanimetriaService {
                                 + " fa riferimento a una stanza inesistente");
             }
 
-            Postazione postazione = findExistingPostazione(piano.getId(), cadId, codice)
+            Postazione postazione = findExistingPostazione(piano.getId(), layoutElementId, codice)
                     .orElseGet(Postazione::new);
 
-            if (postazione.getTipo() == null) {
-                postazione.setTipo(inferTipoPostazione(stanza.getNome()));
-            }
             if (postazione.getStato() == null) {
                 postazione.setStato(StatoPostazione.DISPONIBILE);
             }
-            if (postazione.getAccessibile() == null) {
-                postazione.setAccessibile(Boolean.FALSE);
-            }
 
-            postazione.setCodice(resolveUniqueCodice(codice, postazione, piano.getId(), cadId));
-            postazione.setCadId(cadId);
-            postazione.setX(importedStation.getPosition() != null ? importedStation.getPosition().getXPct() : null);
-            postazione.setY(importedStation.getPosition() != null ? importedStation.getPosition().getYPct() : null);
+            postazione.setCodice(resolveUniqueCodice(codice, postazione, importedPostazioneCodes));
+            postazione.setLayoutElementId(layoutElementId);
+            postazione.setXPct(importedStation.getPosition() != null ? importedStation.getPosition().getXPct() : null);
+            postazione.setYPct(importedStation.getPosition() != null ? importedStation.getPosition().getYPct() : null);
             postazione.setStanza(stanza);
             postazioneRepository.save(postazione);
+            importedPostazioneCodes.add(normalizeText(postazione.getCodice()));
         }
 
         // Evita di lasciare postazioni tecniche duplicate create da import precedenti con id/codice non più presenti.
         for (Postazione existing : postazioneRepository.findByStanzaPianoId(piano.getId())) {
-            String existingCadId = normalizeText(existing.getCadId());
+            String existingLayoutElementId = normalizeText(existing.getLayoutElementId());
             String existingCode = normalizeText(existing.getCodice());
-            if (existingCadId != null && !importedStationIds.contains(existingCadId)
+            if (existingLayoutElementId != null && !importedStationIds.contains(existingLayoutElementId)
                     && importedCodes.contains(existingCode)) {
-                existing.setCadId(null);
+                existing.setLayoutElementId(null);
                 postazioneRepository.save(existing);
             }
         }
@@ -269,7 +285,7 @@ public class PlanimetriaService {
         }
         planimetriaRepository.delete(planimetria);
         deleteQuietly(planimetria.getFileOriginalePath());
-        deleteQuietly(planimetria.getPngPath());
+        deleteQuietly(planimetria.getImagePath());
         deleteQuietly(planimetria.getJsonPath());
         planimetriaEventPublisher.pubblicaEliminazione(new PlanimetriaEliminataEvent(pianoId, postazioneIds));
     }
@@ -309,6 +325,17 @@ public class PlanimetriaService {
             }
         }
 
+        Set<String> meetingIds = new HashSet<>();
+        for (PlanimetriaLayoutDto.RoomDto meeting : safeList(layout.getMeetings())) {
+            String meetingId = normalizeText(meeting.getId());
+            if (meetingId == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ogni meeting room deve avere un id");
+            }
+            if (!meetingIds.add(meetingId) || roomIds.contains(meetingId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Id stanza duplicato: " + meetingId);
+            }
+        }
+
         Set<String> stationIds = new HashSet<>();
         for (PlanimetriaLayoutDto.StationDto station : safeList(layout.getStations())) {
             String stationId = normalizeText(station.getId());
@@ -329,11 +356,6 @@ public class PlanimetriaService {
     private PlanimetriaLayoutDto normalizeLayout(PlanimetriaLayoutDto layout) {
         if (layout == null) {
             return null;
-        }
-        if (!safeList(layout.getMeetings()).isEmpty()) {
-            List<PlanimetriaLayoutDto.RoomDto> roomsWithMeetings = new java.util.ArrayList<>(safeList(layout.getRooms()));
-            roomsWithMeetings.addAll(layout.getMeetings());
-            layout.setRooms(roomsWithMeetings);
         }
         if (!safeList(layout.getStations()).isEmpty()) {
             return layout;
@@ -360,6 +382,41 @@ public class PlanimetriaService {
             }
         }
         return layout;
+    }
+
+    private void upsertStanzaFromLayout(PlanimetriaLayoutDto.RoomDto importedRoom,
+                                        TipoStanza tipoStanza,
+                                        Piano piano,
+                                        Map<String, Stanza> stanzePerNome,
+                                        Map<String, Stanza> stanzePerLayoutId,
+                                        Map<String, Stanza> stanzePerRoomId,
+                                        Set<String> importedStanzaNames) {
+        String roomId = normalizeText(importedRoom.getId());
+        String roomName = normalizeText(importedRoom.getLabel());
+        String resolvedRoomName = resolveUniqueStanzaName(roomName, importedRoom, importedStanzaNames);
+        String roomKey = normalizeStanzaName(resolvedRoomName);
+
+        Stanza stanza = roomId != null ? stanzePerLayoutId.get(roomId) : null;
+        if (stanza == null) {
+            stanza = stanzePerNome.get(roomKey);
+        }
+        if (stanza == null) {
+            stanza = new Stanza();
+        }
+
+        stanza.setNome(resolvedRoomName);
+        stanza.setTipo(tipoStanza);
+        stanza.setLayoutElementId(roomId);
+        stanza.setXPct(importedRoom.getPosition() != null ? importedRoom.getPosition().getXPct() : null);
+        stanza.setYPct(importedRoom.getPosition() != null ? importedRoom.getPosition().getYPct() : null);
+        stanza.setPiano(piano);
+
+        stanza = stanzaRepository.save(stanza);
+        stanzePerNome.put(roomKey, stanza);
+        if (roomId != null) {
+            stanzePerLayoutId.put(roomId, stanza);
+            stanzePerRoomId.put(roomId, stanza);
+        }
     }
 
     private Piano getPianoOrThrow(Long pianoId) {
@@ -427,27 +484,9 @@ public class PlanimetriaService {
         Files.write(path, data);
     }
 
-    private void applyPercentBounds(Planimetria planimetria, PlanimetriaLayoutDto layout) {
-        boolean hasMarkers = !safeList(layout.getRooms()).isEmpty() || !safeList(layout.getStations()).isEmpty();
-        if (!hasMarkers) {
-            planimetria.setCoordXmin(null);
-            planimetria.setCoordXmax(null);
-            planimetria.setCoordYmin(null);
-            planimetria.setCoordYmax(null);
-            return;
-        }
-        planimetria.setCoordXmin(PERCENT_MIN);
-        planimetria.setCoordXmax(PERCENT_MAX);
-        planimetria.setCoordYmin(PERCENT_MIN);
-        planimetria.setCoordYmax(PERCENT_MAX);
-    }
-
-    private Optional<Postazione> findExistingPostazione(Long pianoId, String cadId, String codice) {
-        if (cadId != null) {
-            Optional<Postazione> byCadId = postazioneRepository.findByCadIdAndStanzaPianoId(cadId, pianoId);
-            if (byCadId.isPresent()) {
-                return byCadId;
-            }
+    private Optional<Postazione> findExistingPostazione(Long pianoId, String layoutElementId, String codice) {
+        if (layoutElementId != null) {
+            return postazioneRepository.findByLayoutElementIdAndStanzaPianoId(layoutElementId, pianoId);
         }
         if (codice != null) {
             return postazioneRepository.findByCodice(codice);
@@ -455,20 +494,48 @@ public class PlanimetriaService {
         return Optional.empty();
     }
 
-    private String resolveUniqueCodice(String codiceBase, Postazione current, Long pianoId, String cadId) {
+    private String resolveUniqueCodice(String codiceBase, Postazione current, Set<String> usedCodes) {
+        String normalizedBase = normalizeText(codiceBase);
         Postazione existingWithSameCode = postazioneRepository.findByCodice(codiceBase).orElse(null);
-        if (existingWithSameCode == null) {
+        if (existingWithSameCode != null && current.getId() != null && current.getId().equals(existingWithSameCode.getId())) {
+            usedCodes.add(normalizedBase);
             return codiceBase;
-        }
-        if (current.getId() != null && current.getId().equals(existingWithSameCode.getId())) {
-            return codiceBase;
-        }
-        if (current.getCodice() != null && !current.getCodice().isBlank()) {
-            return current.getCodice();
         }
 
-        String suffixSource = cadId != null ? cadId : String.valueOf(Instant.now().toEpochMilli());
-        return codiceBase + "-" + pianoId + "-" + Math.abs(suffixSource.hashCode());
+        if (normalizedBase == null) {
+            normalizedBase = "POSTAZIONE";
+        }
+
+        String candidate = normalizedBase;
+        int suffix = 2;
+        while (usedCodes.contains(normalizeText(candidate)) || postazioneRepository.findByCodice(candidate).isPresent()) {
+            candidate = normalizedBase + "-" + suffix++;
+        }
+
+        usedCodes.add(normalizeText(candidate));
+        return candidate;
+    }
+
+    private String resolveUniqueStanzaName(String roomName, PlanimetriaLayoutDto.RoomDto importedRoom, Set<String> usedNames) {
+        String baseName = normalizeText(roomName);
+        if (baseName == null) {
+            baseName = importedRoom.getStations() != null && !importedRoom.getStations().isEmpty()
+                    ? "Room"
+                    : "Meeting Room";
+        }
+        String candidate = baseName;
+        if (!usedNames.contains(normalizeStanzaName(candidate))) {
+            usedNames.add(normalizeStanzaName(candidate));
+            return candidate;
+        }
+
+        int suffix = 2;
+        String resolved = candidate;
+        while (usedNames.contains(normalizeStanzaName(resolved))) {
+            resolved = candidate + " " + suffix++;
+        }
+        usedNames.add(normalizeStanzaName(resolved));
+        return resolved;
     }
 
     private String normalizeStanzaName(String stanzaName) {
@@ -489,20 +556,6 @@ public class PlanimetriaService {
         return normalizedFirst != null ? normalizedFirst : normalizeText(second);
     }
 
-    private TipoPostazione inferTipoPostazione(String stanzaName) {
-        String normalized = normalizeStanzaName(stanzaName);
-        if (normalized.contains("riunion") || normalized.contains("meeting") || normalized.contains("sala")) {
-            return TipoPostazione.SALA_RIUNIONI;
-        }
-        if (normalized.contains("labor")) {
-            return TipoPostazione.LABORATORIO;
-        }
-        if (normalized.contains("ufficio") || normalized.contains("office")) {
-            return TipoPostazione.UFFICIO_PRIVATO;
-        }
-        return TipoPostazione.OPEN_SPACE;
-    }
-
     private void deleteIfReplaced(String oldPath, String newPath) {
         if (oldPath != null && !oldPath.equals(newPath)) {
             deleteQuietly(oldPath);
@@ -521,7 +574,7 @@ public class PlanimetriaService {
     }
 
     private Path resolveImagePath(Planimetria planimetria) {
-        String preferredPath = firstNonBlank(planimetria.getFileOriginalePath(), planimetria.getPngPath());
+        String preferredPath = firstNonBlank(planimetria.getFileOriginalePath(), planimetria.getImagePath());
         return preferredPath != null ? resolvePath(preferredPath) : null;
     }
 
@@ -544,10 +597,6 @@ public class PlanimetriaService {
                 pianoId,
                 planimetria.getImageName(),
                 planimetria.getFormatoOriginale(),
-                planimetria.getCoordXmin(),
-                planimetria.getCoordXmax(),
-                planimetria.getCoordYmin(),
-                planimetria.getCoordYmax(),
                 "/api/piani/" + pianoId + "/planimetria/image",
                 "/api/piani/" + pianoId + "/planimetria/postazioni",
                 "/api/piani/" + pianoId + "/planimetria/layout"

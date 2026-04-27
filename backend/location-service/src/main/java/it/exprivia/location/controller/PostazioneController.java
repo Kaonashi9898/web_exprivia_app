@@ -15,8 +15,9 @@ import java.util.List;
 /**
  * Controller REST per la gestione delle postazioni di lavoro.
  *
- * Una postazione è l'unità prenotabile del sistema (scrivania, ufficio, sala riunioni, ecc.).
- * Ogni postazione ha un codice univoco, un tipo, uno stato e coordinate CAD per la planimetria.
+ * Una postazione è l'unità prenotabile del sistema.
+ * Ogni postazione ha un codice univoco, uno stato e un collegamento opzionale
+ * alla station del layout esportato dal PlanimetriaEditor.
  *
  * Endpoint (tutti sotto /api/postazioni):
  * - GET  /stanza/{id}             → postazioni di una stanza

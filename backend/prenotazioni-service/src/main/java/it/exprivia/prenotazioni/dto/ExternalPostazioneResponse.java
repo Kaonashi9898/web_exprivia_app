@@ -5,12 +5,10 @@ import java.math.BigDecimal;
 public record ExternalPostazioneResponse(
         Long id,
         String codice,
-        String cadId,
-        String tipo,
+        String layoutElementId,
         String stato,
-        Boolean accessibile,
-        BigDecimal x,
-        BigDecimal y,
+        BigDecimal xPct,
+        BigDecimal yPct,
         Long stanzaId,
         String stanzaNome
 ) {}

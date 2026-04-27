@@ -14,6 +14,6 @@ public class PlanimetriaPostazioneResponse {
     private String id;
     private String pdl;
     private String stanza;
-    private BigDecimal x;
-    private BigDecimal y;
+    private BigDecimal xPct;
+    private BigDecimal yPct;
 }

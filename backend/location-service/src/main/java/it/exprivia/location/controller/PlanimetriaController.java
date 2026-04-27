@@ -43,7 +43,7 @@ public class PlanimetriaController {
         return ResponseEntity.ok(planimetriaService.getLayoutByPianoId(pianoId));
     }
 
-    /** Restituisce le postazioni derivate dal JSON salvato. */
+    /** Restituisce le postazioni derivate dal layout JSON salvato. */
     @GetMapping("/postazioni")
     public ResponseEntity<List<PlanimetriaPostazioneResponse>> getPostazioni(@PathVariable Long pianoId) {
         return ResponseEntity.ok(planimetriaService.getPostazioniByPianoId(pianoId));
@@ -66,7 +66,7 @@ public class PlanimetriaController {
         return ResponseEntity.status(HttpStatus.CREATED).body(planimetriaService.uploadImage(pianoId, file));
     }
 
-    /** Importa il JSON esportato dall'editor esterno e sincronizza stanze e postazioni. */
+    /** Importa il JSON esportato dall'editor esterno e sincronizza room, meeting room e postazioni. */
     @PostMapping(path = "/json", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<PlanimetriaResponse> importJson(@PathVariable Long pianoId,
                                                           @RequestParam("file") MultipartFile file) {

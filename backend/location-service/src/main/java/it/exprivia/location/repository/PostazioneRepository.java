@@ -21,8 +21,8 @@ public interface PostazioneRepository extends JpaRepository<Postazione, Long> {
     // Cerca per codice univoco (usato per evitare duplicati e per lookups)
     Optional<Postazione> findByCodice(String codice);
 
-    // Cerca una postazione importata dal CAD nello stesso piano usando il suo handle/id tecnico
-    Optional<Postazione> findByCadIdAndStanzaPianoId(String cadId, Long pianoId);
+    // Cerca una postazione importata dal layout nello stesso piano usando il suo id tecnico
+    Optional<Postazione> findByLayoutElementIdAndStanzaPianoId(String layoutElementId, Long pianoId);
 
     // Tutte le postazioni appartenenti a un piano
     List<Postazione> findByStanzaPianoId(Long pianoId);

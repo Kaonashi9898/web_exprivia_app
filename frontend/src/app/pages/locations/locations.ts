@@ -397,11 +397,15 @@ export class LocationsComponent implements OnInit, OnDestroy {
   }
 
   findPostazione(station: LayoutStation): Postazione | null {
-    return (
-      this.postazioni.find((postazione) => postazione.cadId && postazione.cadId === station.id) ??
-      this.postazioni.find((postazione) => postazione.codice === station.label) ??
-      null
-    );
+    const byLayoutElementId =
+      this.postazioni.find((postazione) => postazione.layoutElementId && postazione.layoutElementId === station.id) ??
+      null;
+    if (byLayoutElementId) {
+      return byLayoutElementId;
+    }
+
+    const fallbackByCodice = this.postazioni.filter((postazione) => postazione.codice === station.label);
+    return fallbackByCodice.length === 1 ? fallbackByCodice[0] : null;
   }
 
   private resetPlan(): void {

@@ -63,7 +63,6 @@ public class PostazioneService {
     /**
      * Crea una nuova postazione.
      * Se stato non è specificato, usa DISPONIBILE come default.
-     * Se accessibile non è specificato, usa false come default.
      */
     @Transactional
     public PostazioneResponse create(PostazioneRequest request) {
@@ -74,12 +73,10 @@ public class PostazioneService {
         }
         Postazione postazione = new Postazione();
         postazione.setCodice(request.getCodice());
-        postazione.setCadId(request.getCadId());
-        postazione.setTipo(request.getTipo());
+        postazione.setLayoutElementId(request.getLayoutElementId());
         postazione.setStato(request.getStato() != null ? request.getStato() : StatoPostazione.DISPONIBILE);
-        postazione.setAccessibile(request.getAccessibile() != null ? request.getAccessibile() : Boolean.FALSE);
-        postazione.setX(request.getX());
-        postazione.setY(request.getY());
+        postazione.setXPct(request.getXPct());
+        postazione.setYPct(request.getYPct());
         postazione.setStanza(stanza);
         return toResponse(postazioneRepository.save(postazione));
     }
@@ -91,12 +88,10 @@ public class PostazioneService {
         Stanza stanza = stanzaRepository.findById(request.getStanzaId())
                 .orElseThrow(() -> new EntityNotFoundException("Stanza non trovata con id: " + request.getStanzaId()));
         postazione.setCodice(request.getCodice());
-        postazione.setCadId(request.getCadId());
-        postazione.setTipo(request.getTipo());
+        postazione.setLayoutElementId(request.getLayoutElementId());
         postazione.setStato(request.getStato());
-        postazione.setAccessibile(request.getAccessibile());
-        postazione.setX(request.getX());
-        postazione.setY(request.getY());
+        postazione.setXPct(request.getXPct());
+        postazione.setYPct(request.getYPct());
         postazione.setStanza(stanza);
         return toResponse(postazioneRepository.save(postazione));
     }
@@ -132,12 +127,10 @@ public class PostazioneService {
         return new PostazioneResponse(
                 p.getId(),
                 p.getCodice(),
-                p.getCadId(),
-                p.getTipo(),
+                p.getLayoutElementId(),
                 p.getStato(),
-                p.getAccessibile(),
-                p.getX(),
-                p.getY(),
+                p.getXPct(),
+                p.getYPct(),
                 p.getStanza().getId(),
                 p.getStanza().getNome()
         );

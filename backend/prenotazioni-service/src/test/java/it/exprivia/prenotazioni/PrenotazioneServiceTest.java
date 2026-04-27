@@ -184,10 +184,8 @@ class PrenotazioneServiceTest {
         return new ExternalPostazioneResponse(
                 id,
                 codice,
-                "cad-1",
-                "OPEN_SPACE",
+                "layout-1",
                 stato,
-                Boolean.FALSE,
                 BigDecimal.TEN,
                 BigDecimal.ONE,
                 3L,

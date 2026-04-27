@@ -50,34 +50,34 @@ export interface Piano {
 export interface Stanza {
   id: number;
   nome: string;
+  tipo: TipoStanza;
+  layoutElementId?: string | null;
+  xPct?: number | null;
+  yPct?: number | null;
   pianoId: number;
   pianoNumero: number;
 }
 
-export type TipoPostazione = 'OPEN_SPACE' | 'SALA_RIUNIONI' | 'UFFICIO_PRIVATO' | 'LABORATORIO';
+export type TipoStanza = 'ROOM' | 'MEETING_ROOM';
 export type StatoPostazione = 'DISPONIBILE' | 'NON_DISPONIBILE' | 'MANUTENZIONE' | 'CAMBIO_DESTINAZIONE';
 
 export interface Postazione {
   id: number;
   codice: string;
-  cadId?: string | null;
-  tipo: TipoPostazione;
+  layoutElementId?: string | null;
   stato: StatoPostazione;
-  accessibile: boolean;
-  x?: number | null;
-  y?: number | null;
+  xPct?: number | null;
+  yPct?: number | null;
   stanzaId: number;
   stanzaNome: string;
 }
 
 export interface PostazioneRequest {
   codice: string;
-  cadId?: string | null;
-  tipo: TipoPostazione;
+  layoutElementId?: string | null;
   stato: StatoPostazione;
-  accessibile: boolean;
-  x?: number | null;
-  y?: number | null;
+  xPct?: number | null;
+  yPct?: number | null;
   stanzaId: number;
 }
 

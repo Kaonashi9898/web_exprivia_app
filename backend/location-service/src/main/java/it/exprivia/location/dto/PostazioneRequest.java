@@ -1,7 +1,6 @@
 package it.exprivia.location.dto;
 
 import it.exprivia.location.entity.StatoPostazione;
-import it.exprivia.location.entity.TipoPostazione;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -18,17 +17,12 @@ public class PostazioneRequest {
     @NotBlank
     private String codice;
 
-    private String cadId;
-
-    @NotNull
-    private TipoPostazione tipo;
+    private String layoutElementId;
 
     private StatoPostazione stato = StatoPostazione.DISPONIBILE;
 
-    private Boolean accessibile = Boolean.FALSE;
-
-    private BigDecimal x;
-    private BigDecimal y;
+    private BigDecimal xPct;
+    private BigDecimal yPct;
 
     @NotNull
     private Long stanzaId;

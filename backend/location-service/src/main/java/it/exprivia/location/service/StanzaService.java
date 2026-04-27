@@ -53,17 +53,25 @@ public class StanzaService {
         }
         Stanza stanza = new Stanza();
         stanza.setNome(request.getNome());
+        stanza.setTipo(request.getTipo());
+        stanza.setLayoutElementId(request.getLayoutElementId());
+        stanza.setXPct(request.getXPct());
+        stanza.setYPct(request.getYPct());
         stanza.setPiano(piano);
         return toResponse(stanzaRepository.save(stanza));
     }
 
-    /** Aggiorna nome e piano di una stanza esistente. */
+    /** Aggiorna i dati principali di una stanza esistente. */
     @Transactional
     public StanzaResponse update(Long id, StanzaRequest request) {
         Stanza stanza = getOrThrow(id);
         Piano piano = pianoRepository.findById(request.getPianoId())
                 .orElseThrow(() -> new EntityNotFoundException("Piano non trovato con id: " + request.getPianoId()));
         stanza.setNome(request.getNome());
+        stanza.setTipo(request.getTipo());
+        stanza.setLayoutElementId(request.getLayoutElementId());
+        stanza.setXPct(request.getXPct());
+        stanza.setYPct(request.getYPct());
         stanza.setPiano(piano);
         return toResponse(stanzaRepository.save(stanza));
     }
@@ -88,6 +96,10 @@ public class StanzaService {
         return new StanzaResponse(
                 s.getId(),
                 s.getNome(),
+                s.getTipo(),
+                s.getLayoutElementId(),
+                s.getXPct(),
+                s.getYPct(),
                 s.getPiano().getId(),
                 s.getPiano().getNumero()
         );

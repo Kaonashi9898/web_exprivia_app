@@ -14,7 +14,8 @@ import java.util.List;
 /**
  * Controller REST per la gestione delle stanze.
  *
- * Una stanza appartiene a un piano e contiene una o più postazioni.
+ * Una stanza appartiene a un piano, ha un tipo coerente con il PlanimetriaEditor
+ * (`ROOM` o `MEETING_ROOM`) e contiene zero o più postazioni.
  * Il nome di una stanza deve essere univoco all'interno dello stesso piano.
  *
  * Endpoint (tutti sotto /api/stanze):
@@ -49,7 +50,7 @@ public class StanzaController {
         return ResponseEntity.status(HttpStatus.CREATED).body(stanzaService.create(request));
     }
 
-    /** Aggiorna nome e piano di una stanza esistente. */
+    /** Aggiorna i dati principali di una stanza esistente. */
     @PutMapping("/{id}")
     public ResponseEntity<StanzaResponse> update(@PathVariable Long id, @Valid @RequestBody StanzaRequest request) {
         return ResponseEntity.ok(stanzaService.update(id, request));

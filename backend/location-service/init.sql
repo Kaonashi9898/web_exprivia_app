@@ -1,4 +1,4 @@
-CREATE TYPE tipo_postazione AS ENUM ('OPEN_SPACE', 'SALA_RIUNIONI', 'UFFICIO_PRIVATO', 'LABORATORIO');
+CREATE TYPE tipo_stanza AS ENUM ('MEETING_ROOM', 'ROOM');
 CREATE TYPE stato_postazione AS ENUM ('DISPONIBILE', 'NON_DISPONIBILE', 'MANUTENZIONE', 'CAMBIO_DESTINAZIONE');
 CREATE TYPE formato_file AS ENUM ('PNG', 'JPEG', 'SVG', 'DWG', 'DXF');
 
@@ -25,23 +25,27 @@ CREATE TABLE piano (
 );
 
 CREATE TABLE stanza (
-    id       BIGSERIAL PRIMARY KEY,
-    nome     VARCHAR(100) NOT NULL,
-    piano_id BIGINT NOT NULL REFERENCES piano(id),
-    CONSTRAINT uk_stanza_nome_piano UNIQUE (nome, piano_id)
-);
+    id                BIGSERIAL PRIMARY KEY,
+    nome              VARCHAR(100) NOT NULL,
+    tipo              tipo_stanza NOT NULL,
+    layout_element_id VARCHAR(50),
+    x_pct             DECIMAL(6,3),
+    y_pct             DECIMAL(6,3),
+    piano_id          BIGINT NOT NULL REFERENCES piano(id),
+    CONSTRAINT uk_stanza_nome_piano UNIQUE (nome, piano_id),
+    CONSTRAINT uk_stanza_layout_element_piano UNIQUE (layout_element_id, piano_id)
+); --ogni elemento stanza del layout deve mappare al massimo una stanza DB su quel piano
 
 CREATE TABLE postazione (
-    id          BIGSERIAL PRIMARY KEY,
-    codice      VARCHAR(50)      NOT NULL UNIQUE,
-    cad_id      VARCHAR(50),
-    tipo        tipo_postazione  NOT NULL,
-    stato       stato_postazione NOT NULL DEFAULT 'DISPONIBILE',
-    accessibile BOOLEAN          NOT NULL DEFAULT FALSE,
-    x           DECIMAL(12,2),
-    y           DECIMAL(12,2),
-    stanza_id   BIGINT NOT NULL REFERENCES stanza(id)
-);
+    id                BIGSERIAL PRIMARY KEY,
+    codice            VARCHAR(50)      NOT NULL UNIQUE,
+    layout_element_id VARCHAR(50),
+    stato             stato_postazione NOT NULL DEFAULT 'DISPONIBILE',
+    x_pct             DECIMAL(6,3),
+    y_pct             DECIMAL(6,3),
+    stanza_id         BIGINT NOT NULL REFERENCES stanza(id),
+    CONSTRAINT uk_postazione_layout_element_stanza UNIQUE (layout_element_id, stanza_id)
+); --ogni elemento postazione del layout deve mappare al massimo una postazione DB su quella stanza
 
 CREATE TABLE gruppo_postazione (
     id            BIGSERIAL PRIMARY KEY,
@@ -53,13 +57,9 @@ CREATE TABLE gruppo_postazione (
 CREATE TABLE planimetria (
     id                   BIGSERIAL PRIMARY KEY,
     file_originale_path  VARCHAR(500),
-    png_path             VARCHAR(500),
+    image_path           VARCHAR(500),
     json_path            VARCHAR(500),
     image_name           VARCHAR(255),
-    coord_xmin           DECIMAL(12,2),
-    coord_xmax           DECIMAL(12,2),
-    coord_ymin           DECIMAL(12,2),
-    coord_ymax           DECIMAL(12,2),
     formato_originale    formato_file,
     piano_id             BIGINT NOT NULL UNIQUE REFERENCES piano(id)
 );
