@@ -165,22 +165,10 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
     }
 
     this.clearMessages();
-    this.uploadSubscription?.unsubscribe();
-    this.uploadSubscription = this.api.uploadPlanimetriaImage(this.selectedPianoId, this.imageFile).subscribe({
-      next: () => {
-        this.message = 'Planimetria caricata.';
-        this.planFileName = '';
-        this.imageFileRenamed = false;
-        this.imageFile = null;
-        this.pianiConPlanimetria.set(this.selectedPianoId!, true);
-        this.refreshView();
-        this.loadPlan(false);
-      },
-      error: (err) => {
-        this.error = err?.error?.message ?? 'Upload planimetria non riuscito.';
-        this.refreshView();
-      },
-    });
+    this.revokeImageUrl();
+    this.imageSrc = URL.createObjectURL(this.imageFile);
+    this.message = 'Planimetria caricata in anteprima. Premi "Salva planimetria" per salvarla nel database.';
+    this.refreshView();
   }
 
   renameImageFile(): void {
@@ -202,7 +190,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (!this.planimetria) {
+    if (!this.hasImageLoaded()) {
       this.error = "Carica prima l'immagine della planimetria per il piano selezionato.";
       this.message = '';
       this.refreshView();
@@ -210,19 +198,24 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
     }
 
     this.clearMessages();
-    this.importSubscription?.unsubscribe();
-    this.importSubscription = this.api.importPlanimetriaJson(this.selectedPianoId, this.jsonFile).subscribe({
-      next: () => {
-        this.message = 'Layout importato e sincronizzato.';
-        this.jsonFile = null;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsedLayout = JSON.parse(String(reader.result ?? '')) as PlanimetriaLayout;
+        this.layout = this.normalizeLayout(parsedLayout);
+        this.selectedRoomId = null;
+        this.message = 'Layout caricato in anteprima. Premi "Salva planimetria" per salvarlo nel database.';
         this.refreshView();
-        this.loadPlan(false);
-      },
-      error: (err) => {
-        this.error = err?.error?.message ?? 'Import JSON non riuscito.';
+      } catch {
+        this.error = 'Import JSON non riuscito.';
         this.refreshView();
-      },
-    });
+      }
+    };
+    reader.onerror = () => {
+      this.error = 'Import JSON non riuscito.';
+      this.refreshView();
+    };
+    reader.readAsText(this.jsonFile);
   }
 
   savePlan(): void {
@@ -289,16 +282,6 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
     });
   }
 
-  viewPreview(): void {
-    if (!this.canPreviewPlan()) {
-      return;
-    }
-
-    this.message = 'Anteprima aggiornata.';
-    this.error = '';
-    this.loadPlan(false);
-  }
-
   loadPlan(clearExistingMessages = true): void {
     if (!this.selectedPianoId) return;
     if (clearExistingMessages) {
@@ -360,7 +343,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
   }
 
   canImportJson(): boolean {
-    return this.canUseEditor() && !!this.selectedPianoId && (!!this.planimetria || !!this.imageFile);
+    return this.canUseEditor() && !!this.selectedPianoId && this.hasImageLoaded();
   }
 
   canSavePlan(): boolean {
@@ -368,7 +351,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
   }
 
   canPreviewPlan(): boolean {
-    return !!this.planimetria && !!this.layout;
+    return this.hasImageLoaded() && !!this.layout && !!this.imageSrc;
   }
 
   selectRoom(room: DisplayRoom): void {
@@ -423,7 +406,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
     if (!this.canUseEditor()) {
       return 1;
     }
-    if (!this.planimetria) {
+    if (!this.hasImageLoaded()) {
       return 2;
     }
     if (!this.layout) {
@@ -499,6 +482,45 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
     this.revokeImageUrl();
   }
 
+  private hasImageLoaded(): boolean {
+    return !!this.planimetria || !!this.imageFile || !!this.imageSrc;
+  }
+
+  private normalizeLayout(layout: PlanimetriaLayout | null): PlanimetriaLayout | null {
+    if (!layout) {
+      return null;
+    }
+
+    const rooms = layout.rooms ?? [];
+    const stations = layout.stations ?? [];
+    if (stations.length > 0) {
+      return layout;
+    }
+
+    const flattenedStations = rooms.flatMap((room) =>
+      ((room as { stations?: LayoutStation[] }).stations ?? []).map((station) => ({
+        ...station,
+        roomId: station.roomId || room.id,
+        roomLabel: station.roomLabel || room.label,
+      })),
+    );
+
+    return {
+      ...layout,
+      stations: flattenedStations,
+      rooms: rooms.map((room) => {
+        const nestedStations = ((room as { stations?: LayoutStation[] }).stations ?? []);
+        if ((room.stationIds?.length ?? 0) > 0 || nestedStations.length === 0) {
+          return room;
+        }
+        return {
+          ...room,
+          stationIds: nestedStations.map((station) => station.id),
+        };
+      }),
+    };
+  }
+
   private stripExtension(filename: string): string {
     const dotIndex = filename.lastIndexOf('.');
     return dotIndex > 0 ? filename.slice(0, dotIndex) : filename;
@@ -553,6 +575,9 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
     this.importSubscription?.unsubscribe();
     this.importSubscription = this.api.importPlanimetriaJson(pianoId, this.jsonFile).subscribe({
       next: () => {
+        this.planFileName = '';
+        this.imageFileRenamed = false;
+        this.imageFile = null;
         this.jsonFile = null;
         this.message = 'Planimetria e layout salvati correttamente.';
         this.refreshView();

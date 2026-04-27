@@ -73,7 +73,7 @@
       Apri editor interattivo
     </a>
 
-    <div class="step-row" [class.active]="currentStep() === 2" [class.done]="!!planimetria">
+    <div class="step-row" [class.active]="currentStep() === 2" [class.done]="canImportJson()">
       <span class="step-number">2</span>
       <div>
         <strong>Carica planimetria</strong>
@@ -115,10 +115,6 @@
       </button>
     </div>
 
-    <button class="ghost-button wide" type="button" [disabled]="!canPreviewPlan()" (click)="viewPreview()">
-      Visualizza anteprima
-    </button>
-
     <button class="btn btn-secondary wide" type="button" [disabled]="!canSavePlan()" (click)="savePlan()">
       Salva planimetria
     </button>
@@ -129,7 +125,7 @@
 
     <div class="meta-box">
       <span>File</span>
-      <strong>{{ planimetria?.imageName || 'Nessuna immagine' }}</strong>
+      <strong>{{ imageFile?.name || planimetria?.imageName || 'Nessuna immagine' }}</strong>
       <span>Stanze</span>
       <strong>{{ roomsForDisplay().length }}</strong>
       <span>Postazioni</span>
