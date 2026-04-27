@@ -4,6 +4,7 @@ import it.exprivia.prenotazioni.dto.CreatePrenotazioneRequest;
 import it.exprivia.prenotazioni.dto.ExternalPostazioneResponse;
 import it.exprivia.prenotazioni.dto.ExternalUtenteResponse;
 import it.exprivia.prenotazioni.dto.PrenotazioneResponse;
+import it.exprivia.prenotazioni.dto.UpdatePrenotazioneRequest;
 import it.exprivia.prenotazioni.entity.RuoloUtente;
 import it.exprivia.prenotazioni.entity.Prenotazione;
 import it.exprivia.prenotazioni.entity.StatoPrenotazione;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.EnumSet;
@@ -43,14 +45,13 @@ public class PrenotazioneService {
 
     @Transactional
     public PrenotazioneResponse create(CreatePrenotazioneRequest request, String authorizationHeader) {
-        validateTimeRange(request.getOraInizio(), request.getOraFine());
-
         ExternalUtenteResponse utente = utentiServiceClient.getCurrentUser(authorizationHeader);
         ensureRuoloPuoPrenotare(utente);
 
         ExternalPostazioneResponse postazione = locationServiceClient.getPostazione(request.getPostazioneId(), authorizationHeader);
         ensurePostazionePrenotabile(postazione);
         ensureAccessoGruppoConsentito(authorizationHeader, request.getPostazioneId());
+        validateBookableSlot(request.getDataPrenotazione(), request.getOraInizio(), request.getOraFine());
 
         prenotazioneRepository.findFirstByUtenteIdAndDataPrenotazioneAndStatoOrderByOraInizioAsc(
                 utente.id(),
@@ -97,6 +98,64 @@ public class PrenotazioneService {
             PrenotazioneResponse response = toResponse(saved);
             prenotazioneEventPublisher.pubblicaConferma(response);
             return response;
+        } catch (DataIntegrityViolationException ex) {
+            throw new IllegalArgumentException("Conflitto di prenotazione rilevato. Aggiorna la disponibilita' e riprova.");
+        }
+    }
+
+    @Transactional
+    public PrenotazioneResponse update(Long id,
+                                       UpdatePrenotazioneRequest request,
+                                       String authorizationHeader,
+                                       boolean puoGestireTutto) {
+        Prenotazione prenotazione = getOrThrow(id);
+        ensurePrenotazioneModificabile(prenotazione);
+
+        if (!puoGestireTutto) {
+            ExternalUtenteResponse utente = utentiServiceClient.getCurrentUser(authorizationHeader);
+            if (!prenotazione.getUtenteId().equals(utente.id())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Puoi modificare solo le tue prenotazioni");
+            }
+        }
+
+        validateBookableSlot(request.getDataPrenotazione(), request.getOraInizio(), request.getOraFine());
+
+        prenotazioneRepository.findFirstByUtenteIdAndDataPrenotazioneAndStatoAndIdNotOrderByOraInizioAsc(
+                prenotazione.getUtenteId(),
+                request.getDataPrenotazione(),
+                StatoPrenotazione.CONFERMATA,
+                prenotazione.getId()
+        ).ifPresent(existing -> {
+            throw new IllegalArgumentException(
+                    "Non puoi spostare la prenotazione: hai gia' una prenotazione per il giorno selezionato dalle "
+                            + existing.getOraInizio()
+                            + " alle "
+                            + existing.getOraFine()
+                            + " per la postazione "
+                            + existing.getPostazioneCodice()
+                            + " nella stanza "
+                            + existing.getStanzaNome()
+            );
+        });
+
+        if (prenotazioneRepository.existsActiveOverlapExcludingId(
+                prenotazione.getId(),
+                prenotazione.getPostazioneId(),
+                request.getDataPrenotazione(),
+                request.getOraInizio(),
+                request.getOraFine(),
+                StatoPrenotazione.CONFERMATA
+        )) {
+            throw new IllegalArgumentException("La postazione e' gia' prenotata nella fascia oraria richiesta");
+        }
+
+        prenotazione.setDataPrenotazione(request.getDataPrenotazione());
+        prenotazione.setOraInizio(request.getOraInizio());
+        prenotazione.setOraFine(request.getOraFine());
+
+        try {
+            Prenotazione saved = prenotazioneRepository.saveAndFlush(prenotazione);
+            return toResponse(saved);
         } catch (DataIntegrityViolationException ex) {
             throw new IllegalArgumentException("Conflitto di prenotazione rilevato. Aggiorna la disponibilita' e riprova.");
         }
@@ -151,7 +210,7 @@ public class PrenotazioneService {
     }
 
     public boolean isDisponibile(Long postazioneId, LocalDate dataPrenotazione, LocalTime oraInizio, LocalTime oraFine) {
-        validateTimeRange(oraInizio, oraFine);
+        validateBookableSlot(dataPrenotazione, oraInizio, oraFine);
         return !prenotazioneRepository.existsActiveOverlap(
                 postazioneId,
                 dataPrenotazione,
@@ -242,6 +301,33 @@ public class PrenotazioneService {
     private void validateTimeRange(LocalTime oraInizio, LocalTime oraFine) {
         if (!oraInizio.isBefore(oraFine)) {
             throw new IllegalArgumentException("L'ora di inizio deve essere precedente all'ora di fine");
+        }
+    }
+
+    private void validateBookableSlot(LocalDate dataPrenotazione, LocalTime oraInizio, LocalTime oraFine) {
+        validateTimeRange(oraInizio, oraFine);
+        validateBookableDate(dataPrenotazione);
+    }
+
+    private void validateBookableDate(LocalDate dataPrenotazione) {
+        LocalDate oggi = LocalDate.now(clock);
+        if (!dataPrenotazione.isAfter(oggi)) {
+            throw new IllegalArgumentException("Le prenotazioni sono consentite solo a partire dal giorno successivo");
+        }
+
+        DayOfWeek giorno = dataPrenotazione.getDayOfWeek();
+        if (giorno == DayOfWeek.SATURDAY || giorno == DayOfWeek.SUNDAY) {
+            throw new IllegalArgumentException("Le prenotazioni non sono consentite il sabato e la domenica");
+        }
+    }
+
+    private void ensurePrenotazioneModificabile(Prenotazione prenotazione) {
+        LocalDate oggi = LocalDate.now(clock);
+        if (!prenotazione.getDataPrenotazione().isAfter(oggi)) {
+            throw new IllegalArgumentException("Puoi modificare solo prenotazioni future");
+        }
+        if (prenotazione.getStato() != StatoPrenotazione.CONFERMATA) {
+            throw new IllegalArgumentException("Puoi modificare solo prenotazioni confermate");
         }
     }
 

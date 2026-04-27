@@ -2,6 +2,7 @@ package it.exprivia.prenotazioni.controller;
 
 import it.exprivia.prenotazioni.dto.CreatePrenotazioneRequest;
 import it.exprivia.prenotazioni.dto.PrenotazioneResponse;
+import it.exprivia.prenotazioni.dto.UpdatePrenotazioneRequest;
 import it.exprivia.prenotazioni.service.PrenotazioneService;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PutMapping;
 import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDate;
@@ -35,6 +37,14 @@ public class PrenotazioneController {
     public ResponseEntity<PrenotazioneResponse> create(@Valid @RequestBody CreatePrenotazioneRequest request,
                                                        @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader) {
         return ResponseEntity.status(HttpStatus.CREATED).body(prenotazioneService.create(request, authorizationHeader));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<PrenotazioneResponse> update(@PathVariable Long id,
+                                                       @Valid @RequestBody UpdatePrenotazioneRequest request,
+                                                       @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader,
+                                                       Authentication authentication) {
+        return ResponseEntity.ok(prenotazioneService.update(id, request, authorizationHeader, hasOperationalAccess(authentication)));
     }
 
     @GetMapping("/mie")

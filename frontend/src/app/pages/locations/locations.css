@@ -122,6 +122,11 @@
   border-color: #6f2413;
 }
 
+.station-pin.partial {
+  background: #cc8b14;
+  border-color: #9a6710;
+}
+
 .station-pin.unavailable {
   cursor: not-allowed;
   opacity: 0.82;

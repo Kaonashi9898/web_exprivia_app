@@ -12,6 +12,13 @@
       <h2>Le tue prenotazioni</h2>
     </div>
 
+    @if (editMessage) {
+      <div class="notice success">{{ editMessage }}</div>
+    }
+    @if (editError) {
+      <div class="notice error">{{ editError }}</div>
+    }
+
     <div class="booking-cards">
       @for (booking of bookings; track booking.id) {
         <article class="booking-card">
@@ -32,14 +39,53 @@
             <span>Orario</span>
             <strong>{{ booking.oraInizio }} - {{ booking.oraFine }}</strong>
           </div>
-          <button
-            class="danger-button"
-            type="button"
-            [disabled]="deletingBookingId === booking.id"
-            (click)="cancelBooking(booking)"
-          >
-            {{ deletingBookingId === booking.id ? 'Eliminazione...' : 'Elimina' }}
-          </button>
+          <div class="booking-actions">
+            @if (editingBookingId === booking.id) {
+              <div class="edit-grid">
+                <label>
+                  Data
+                  <input type="date" [(ngModel)]="editBookingDate" [min]="minBookingDate" />
+                </label>
+                <label>
+                  Inizio
+                  <input type="time" [(ngModel)]="editStartTime" />
+                </label>
+                <label>
+                  Fine
+                  <input type="time" [(ngModel)]="editEndTime" />
+                </label>
+              </div>
+              <button
+                class="btn btn-primary"
+                type="button"
+                [disabled]="savingBookingId === booking.id"
+                (click)="saveEdit(booking)"
+              >
+                {{ savingBookingId === booking.id ? 'Salvataggio...' : 'Salva modifica' }}
+              </button>
+              <button class="ghost-button" type="button" [disabled]="savingBookingId === booking.id" (click)="cancelEdit()">
+                Annulla
+              </button>
+            } @else {
+              <button
+                class="ghost-button"
+                type="button"
+                [disabled]="!canEditBooking(booking)"
+                (click)="startEdit(booking)"
+              >
+                Modifica
+              </button>
+            }
+
+            <button
+              class="danger-button"
+              type="button"
+              [disabled]="deletingBookingId === booking.id || savingBookingId === booking.id"
+              (click)="cancelBooking(booking)"
+            >
+              {{ deletingBookingId === booking.id ? 'Eliminazione...' : 'Elimina' }}
+            </button>
+          </div>
         </article>
       }
     </div>

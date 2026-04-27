@@ -92,6 +92,7 @@
                 class="station-pin"
                 [class.active]="selectedStation?.id === station.id"
                 [class.booked]="stationIsBooked(station)"
+                [class.partial]="stationIsPartiallyBooked(station)"
                 [class.unavailable]="!stationIsAvailable(station)"
                 [attr.aria-disabled]="!stationIsAvailable(station)"
                 [style.left.%]="station.position.xPct"
@@ -129,19 +130,21 @@
 
         <label>
           Data
-          <input type="date" name="bookingDate" [(ngModel)]="bookingDate" (change)="loadBookingsForCurrentPlan()" required />
+          <input type="date" name="bookingDate" [(ngModel)]="bookingDate" [min]="minBookingDate" (change)="onBookingDateChange()" required />
         </label>
 
         <div class="time-grid">
           <label>
             Inizio
-            <input type="time" name="startTime" [(ngModel)]="startTime" required />
+            <input type="time" name="startTime" [(ngModel)]="startTime" (change)="onBookingTimeChange()" required />
           </label>
           <label>
             Fine
-            <input type="time" name="endTime" [(ngModel)]="endTime" required />
+            <input type="time" name="endTime" [(ngModel)]="endTime" (change)="onBookingTimeChange()" required />
           </label>
         </div>
+
+        <p class="muted">Disponibilita calcolata per {{ selectedWindowSummary() }}. Le prenotazioni partono dal primo giorno lavorativo disponibile.</p>
 
         <button class="btn btn-primary" type="submit" [disabled]="!selectedPostazione">
           Prenota postazione

@@ -1,17 +1,17 @@
 package it.exprivia.prenotazioni;
 
+import it.exprivia.prenotazioni.dto.CreatePrenotazioneRequest;
+import it.exprivia.prenotazioni.dto.ExternalPostazioneResponse;
+import it.exprivia.prenotazioni.dto.ExternalUtenteResponse;
+import it.exprivia.prenotazioni.dto.UpdatePrenotazioneRequest;
+import it.exprivia.prenotazioni.entity.Prenotazione;
+import it.exprivia.prenotazioni.entity.RuoloUtente;
+import it.exprivia.prenotazioni.entity.StatoPrenotazione;
 import it.exprivia.prenotazioni.messaging.PrenotazioneEventPublisher;
 import it.exprivia.prenotazioni.repository.PrenotazioneRepository;
 import it.exprivia.prenotazioni.service.LocationServiceClient;
 import it.exprivia.prenotazioni.service.PrenotazioneService;
 import it.exprivia.prenotazioni.service.UtentiServiceClient;
-import it.exprivia.prenotazioni.dto.CreatePrenotazioneRequest;
-import it.exprivia.prenotazioni.dto.ExternalPostazioneResponse;
-import it.exprivia.prenotazioni.dto.ExternalUtenteResponse;
-import it.exprivia.prenotazioni.entity.Prenotazione;
-import it.exprivia.prenotazioni.entity.RuoloUtente;
-import it.exprivia.prenotazioni.entity.StatoPrenotazione;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,8 +36,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-
-
 @ExtendWith(MockitoExtension.class)
 class PrenotazioneServiceTest {
 
@@ -56,7 +54,7 @@ class PrenotazioneServiceTest {
     private PrenotazioneService prenotazioneService;
 
     private final Clock clock = Clock.fixed(
-            Instant.parse("2026-04-16T08:00:00Z"),
+            Instant.parse("2026-04-27T08:00:00Z"),
             ZoneId.of("Europe/Rome")
     );
 
@@ -72,29 +70,63 @@ class PrenotazioneServiceTest {
     }
 
     @Test
-    void create_rifiutaSecondaPrenotazioneNelloStessoGiornoPerUtente() {
-        CreatePrenotazioneRequest request = buildRequest(7L, LocalDate.of(2026, 4, 20), LocalTime.of(9, 0), LocalTime.of(13, 0));
+    void create_rifiutaPrenotazioneNelGiornoCorrente() {
+        CreatePrenotazioneRequest request = buildCreateRequest(7L, LocalDate.of(2026, 4, 27), LocalTime.of(9, 0), LocalTime.of(13, 0));
         when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(10L, RuoloUtente.USER));
         when(locationServiceClient.getPostazione(7L, "Bearer token")).thenReturn(buildPostazione(7L, "PS-007", "DISPONIBILE"));
         when(locationServiceClient.getGruppiAbilitati(7L, "Bearer token")).thenReturn(List.of());
-        when(prenotazioneRepository.existsByUtenteIdAndDataPrenotazioneAndStato(10L, request.getDataPrenotazione(), StatoPrenotazione.CONFERMATA))
-                .thenReturn(true);
 
         assertThatThrownBy(() -> prenotazioneService.create(request, "Bearer token"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("gia' una prenotazione attiva");
+                .hasMessageContaining("giorno successivo");
+
+        verify(prenotazioneRepository, never()).saveAndFlush(any(Prenotazione.class));
+    }
+
+    @Test
+    void create_rifiutaPrenotazioneNelWeekend() {
+        CreatePrenotazioneRequest request = buildCreateRequest(7L, LocalDate.of(2026, 5, 2), LocalTime.of(9, 0), LocalTime.of(13, 0));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(10L, RuoloUtente.USER));
+        when(locationServiceClient.getPostazione(7L, "Bearer token")).thenReturn(buildPostazione(7L, "PS-007", "DISPONIBILE"));
+        when(locationServiceClient.getGruppiAbilitati(7L, "Bearer token")).thenReturn(List.of());
+
+        assertThatThrownBy(() -> prenotazioneService.create(request, "Bearer token"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("sabato e la domenica");
+
+        verify(prenotazioneRepository, never()).saveAndFlush(any(Prenotazione.class));
+    }
+
+    @Test
+    void create_rifiutaSecondaPrenotazioneNelloStessoGiornoPerUtente() {
+        CreatePrenotazioneRequest request = buildCreateRequest(7L, LocalDate.of(2026, 4, 28), LocalTime.of(9, 0), LocalTime.of(13, 0));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(10L, RuoloUtente.USER));
+        when(locationServiceClient.getPostazione(7L, "Bearer token")).thenReturn(buildPostazione(7L, "PS-007", "DISPONIBILE"));
+        when(locationServiceClient.getGruppiAbilitati(7L, "Bearer token")).thenReturn(List.of());
+        when(prenotazioneRepository.findFirstByUtenteIdAndDataPrenotazioneAndStatoOrderByOraInizioAsc(
+                10L,
+                request.getDataPrenotazione(),
+                StatoPrenotazione.CONFERMATA
+        )).thenReturn(Optional.of(buildPrenotazione(99L, 10L, 8L, LocalDate.of(2026, 4, 28), LocalTime.of(8, 0), LocalTime.of(12, 0))));
+
+        assertThatThrownBy(() -> prenotazioneService.create(request, "Bearer token"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("hai gia' una prenotazione");
 
         verify(prenotazioneRepository, never()).saveAndFlush(any(Prenotazione.class));
     }
 
     @Test
     void create_rifiutaOverlapSullaStessaPostazione() {
-        CreatePrenotazioneRequest request = buildRequest(7L, LocalDate.of(2026, 4, 20), LocalTime.of(9, 0), LocalTime.of(13, 0));
+        CreatePrenotazioneRequest request = buildCreateRequest(7L, LocalDate.of(2026, 4, 28), LocalTime.of(9, 0), LocalTime.of(13, 0));
         when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(10L, RuoloUtente.USER));
         when(locationServiceClient.getPostazione(7L, "Bearer token")).thenReturn(buildPostazione(7L, "PS-007", "DISPONIBILE"));
         when(locationServiceClient.getGruppiAbilitati(7L, "Bearer token")).thenReturn(List.of());
-        when(prenotazioneRepository.existsByUtenteIdAndDataPrenotazioneAndStato(10L, request.getDataPrenotazione(), StatoPrenotazione.CONFERMATA))
-                .thenReturn(false);
+        when(prenotazioneRepository.findFirstByUtenteIdAndDataPrenotazioneAndStatoOrderByOraInizioAsc(
+                10L,
+                request.getDataPrenotazione(),
+                StatoPrenotazione.CONFERMATA
+        )).thenReturn(Optional.empty());
         when(prenotazioneRepository.existsActiveOverlap(
                 7L,
                 request.getDataPrenotazione(),
@@ -112,12 +144,15 @@ class PrenotazioneServiceTest {
 
     @Test
     void create_consenteFasciaContiguaPerAltroUtente() {
-        CreatePrenotazioneRequest request = buildRequest(7L, LocalDate.of(2026, 4, 20), LocalTime.of(13, 0), LocalTime.of(18, 0));
+        CreatePrenotazioneRequest request = buildCreateRequest(7L, LocalDate.of(2026, 4, 28), LocalTime.of(13, 0), LocalTime.of(18, 0));
         when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.USER));
         when(locationServiceClient.getPostazione(7L, "Bearer token")).thenReturn(buildPostazione(7L, "PS-007", "DISPONIBILE"));
         when(locationServiceClient.getGruppiAbilitati(7L, "Bearer token")).thenReturn(List.of());
-        when(prenotazioneRepository.existsByUtenteIdAndDataPrenotazioneAndStato(11L, request.getDataPrenotazione(), StatoPrenotazione.CONFERMATA))
-                .thenReturn(false);
+        when(prenotazioneRepository.findFirstByUtenteIdAndDataPrenotazioneAndStatoOrderByOraInizioAsc(
+                11L,
+                request.getDataPrenotazione(),
+                StatoPrenotazione.CONFERMATA
+        )).thenReturn(Optional.empty());
         when(prenotazioneRepository.existsActiveOverlap(
                 7L,
                 request.getDataPrenotazione(),
@@ -145,34 +180,84 @@ class PrenotazioneServiceTest {
     }
 
     @Test
-    void annulla_prenotazioneFuturaDelProprietario() {
-        Prenotazione prenotazione = new Prenotazione();
-        prenotazione.setId(22L);
-        prenotazione.setUtenteId(11L);
-        prenotazione.setUtenteEmail("utente@exprivia.com");
-        prenotazione.setUtenteFullName("Utente Test");
-        prenotazione.setPostazioneId(7L);
-        prenotazione.setPostazioneCodice("PS-007");
-        prenotazione.setStanzaId(3L);
-        prenotazione.setStanzaNome("Open Space");
-        prenotazione.setDataPrenotazione(LocalDate.of(2026, 4, 17));
-        prenotazione.setOraInizio(LocalTime.of(9, 0));
-        prenotazione.setOraFine(LocalTime.of(13, 0));
-        prenotazione.setStato(StatoPrenotazione.CONFERMATA);
-        prenotazione.setCreatedAt(OffsetDateTime.now(ZoneOffset.UTC));
-        prenotazione.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+    void update_rifiutaOverlapConAltraPrenotazioneEsistente() {
+        Prenotazione prenotazione = buildPrenotazione(22L, 11L, 7L, LocalDate.of(2026, 4, 29), LocalTime.of(9, 0), LocalTime.of(13, 0));
+        UpdatePrenotazioneRequest request = new UpdatePrenotazioneRequest(
+                LocalDate.of(2026, 4, 29),
+                LocalTime.of(9, 0),
+                LocalTime.of(18, 0)
+        );
 
         when(prenotazioneRepository.findById(22L)).thenReturn(Optional.of(prenotazione));
         when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.USER));
-        when(prenotazioneRepository.save(prenotazione)).thenReturn(prenotazione);
+        when(prenotazioneRepository.findFirstByUtenteIdAndDataPrenotazioneAndStatoAndIdNotOrderByOraInizioAsc(
+                11L,
+                request.getDataPrenotazione(),
+                StatoPrenotazione.CONFERMATA,
+                22L
+        )).thenReturn(Optional.empty());
+        when(prenotazioneRepository.existsActiveOverlapExcludingId(
+                22L,
+                7L,
+                request.getDataPrenotazione(),
+                request.getOraInizio(),
+                request.getOraFine(),
+                StatoPrenotazione.CONFERMATA
+        )).thenReturn(true);
+
+        assertThatThrownBy(() -> prenotazioneService.update(22L, request, "Bearer token", false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("gia' prenotata");
+    }
+
+    @Test
+    void update_aggiornaFasciaFuturaQuandoNonCiSonoConflitti() {
+        Prenotazione prenotazione = buildPrenotazione(22L, 11L, 7L, LocalDate.of(2026, 4, 29), LocalTime.of(9, 0), LocalTime.of(13, 0));
+        UpdatePrenotazioneRequest request = new UpdatePrenotazioneRequest(
+                LocalDate.of(2026, 4, 30),
+                LocalTime.of(10, 0),
+                LocalTime.of(17, 0)
+        );
+
+        when(prenotazioneRepository.findById(22L)).thenReturn(Optional.of(prenotazione));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.USER));
+        when(prenotazioneRepository.findFirstByUtenteIdAndDataPrenotazioneAndStatoAndIdNotOrderByOraInizioAsc(
+                11L,
+                request.getDataPrenotazione(),
+                StatoPrenotazione.CONFERMATA,
+                22L
+        )).thenReturn(Optional.empty());
+        when(prenotazioneRepository.existsActiveOverlapExcludingId(
+                22L,
+                7L,
+                request.getDataPrenotazione(),
+                request.getOraInizio(),
+                request.getOraFine(),
+                StatoPrenotazione.CONFERMATA
+        )).thenReturn(false);
+        when(prenotazioneRepository.saveAndFlush(prenotazione)).thenReturn(prenotazione);
+
+        var response = prenotazioneService.update(22L, request, "Bearer token", false);
+
+        assertThat(response.getDataPrenotazione()).isEqualTo(LocalDate.of(2026, 4, 30));
+        assertThat(response.getOraInizio()).isEqualTo(LocalTime.of(10, 0));
+        assertThat(response.getOraFine()).isEqualTo(LocalTime.of(17, 0));
+    }
+
+    @Test
+    void annulla_eliminaPrenotazioneFuturaDelProprietario() {
+        Prenotazione prenotazione = buildPrenotazione(22L, 11L, 7L, LocalDate.of(2026, 4, 28), LocalTime.of(9, 0), LocalTime.of(13, 0));
+
+        when(prenotazioneRepository.findById(22L)).thenReturn(Optional.of(prenotazione));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.USER));
 
         prenotazioneService.annulla(22L, "Bearer token", false);
 
-        assertThat(prenotazione.getStato()).isEqualTo(StatoPrenotazione.ANNULLATA);
+        verify(prenotazioneRepository).delete(prenotazione);
         verify(prenotazioneEventPublisher).pubblicaAnnullamento(any());
     }
 
-    private CreatePrenotazioneRequest buildRequest(Long postazioneId, LocalDate data, LocalTime oraInizio, LocalTime oraFine) {
+    private CreatePrenotazioneRequest buildCreateRequest(Long postazioneId, LocalDate data, LocalTime oraInizio, LocalTime oraFine) {
         return new CreatePrenotazioneRequest(postazioneId, data, oraInizio, oraFine);
     }
 
@@ -191,5 +276,29 @@ class PrenotazioneServiceTest {
                 3L,
                 "Open Space"
         );
+    }
+
+    private Prenotazione buildPrenotazione(Long id,
+                                           Long utenteId,
+                                           Long postazioneId,
+                                           LocalDate dataPrenotazione,
+                                           LocalTime oraInizio,
+                                           LocalTime oraFine) {
+        Prenotazione prenotazione = new Prenotazione();
+        prenotazione.setId(id);
+        prenotazione.setUtenteId(utenteId);
+        prenotazione.setUtenteEmail("utente@exprivia.com");
+        prenotazione.setUtenteFullName("Utente Test");
+        prenotazione.setPostazioneId(postazioneId);
+        prenotazione.setPostazioneCodice("PS-007");
+        prenotazione.setStanzaId(3L);
+        prenotazione.setStanzaNome("Open Space");
+        prenotazione.setDataPrenotazione(dataPrenotazione);
+        prenotazione.setOraInizio(oraInizio);
+        prenotazione.setOraFine(oraFine);
+        prenotazione.setStato(StatoPrenotazione.CONFERMATA);
+        prenotazione.setCreatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        prenotazione.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        return prenotazione;
     }
 }

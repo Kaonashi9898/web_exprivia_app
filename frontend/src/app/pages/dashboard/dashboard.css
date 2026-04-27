@@ -111,12 +111,29 @@
   white-space: nowrap;
 }
 
+.booking-actions {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: end;
+}
+
+.edit-grid {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.edit-grid label {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 180px;
+}
+
 @media (max-width: 900px) {
   .booking-card {
     grid-template-columns: 1fr;
   }
 
-  .booking-card .danger-button {
-    justify-self: stretch;
+  .booking-actions {
+    justify-items: stretch;
   }
 }

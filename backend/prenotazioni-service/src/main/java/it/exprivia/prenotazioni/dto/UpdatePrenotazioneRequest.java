@@ -8,15 +8,10 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
-
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class CreatePrenotazioneRequest {
-
-    @NotNull
-    private Long postazioneId;
+public class UpdatePrenotazioneRequest {
 
     @NotNull
     private LocalDate dataPrenotazione;

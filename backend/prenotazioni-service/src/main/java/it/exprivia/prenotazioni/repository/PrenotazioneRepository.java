@@ -22,6 +22,13 @@ public interface PrenotazioneRepository extends JpaRepository<Prenotazione, Long
             StatoPrenotazione stato
     );
 
+    Optional<Prenotazione> findFirstByUtenteIdAndDataPrenotazioneAndStatoAndIdNotOrderByOraInizioAsc(
+            Long utenteId,
+            LocalDate dataPrenotazione,
+            StatoPrenotazione stato,
+            Long id
+    );
+
     @Query("""
             select count(p) > 0
             from Prenotazione p
@@ -36,6 +43,23 @@ public interface PrenotazioneRepository extends JpaRepository<Prenotazione, Long
                                 @Param("oraInizio") LocalTime oraInizio,
                                 @Param("oraFine") LocalTime oraFine,
                                 @Param("stato") StatoPrenotazione stato);
+
+    @Query("""
+            select count(p) > 0
+            from Prenotazione p
+            where p.id <> :prenotazioneId
+              and p.postazioneId = :postazioneId
+              and p.dataPrenotazione = :dataPrenotazione
+              and p.stato = :stato
+              and :oraInizio < p.oraFine
+              and :oraFine > p.oraInizio
+            """)
+    boolean existsActiveOverlapExcludingId(@Param("prenotazioneId") Long prenotazioneId,
+                                           @Param("postazioneId") Long postazioneId,
+                                           @Param("dataPrenotazione") LocalDate dataPrenotazione,
+                                           @Param("oraInizio") LocalTime oraInizio,
+                                           @Param("oraFine") LocalTime oraFine,
+                                           @Param("stato") StatoPrenotazione stato);
 
     List<Prenotazione> findByUtenteIdOrderByDataPrenotazioneDescOraInizioAsc(Long utenteId);
 

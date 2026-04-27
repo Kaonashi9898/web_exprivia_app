@@ -13,6 +13,7 @@ import {
   RuoloUtente,
   Sede,
   Stanza,
+  UpdatePrenotazioneRequest,
   Utente,
 } from './app.models';
 import { environment } from '../../environments/environment';
@@ -124,6 +125,10 @@ export class ApiService {
 
   createBooking(request: CreatePrenotazioneRequest) {
     return this.http.post<Prenotazione>(`${PRENOTAZIONI_API}/api/prenotazioni`, request);
+  }
+
+  updateBooking(id: number, request: UpdatePrenotazioneRequest) {
+    return this.http.put<Prenotazione>(`${PRENOTAZIONI_API}/api/prenotazioni/${id}`, request);
   }
 
   cancelBooking(id: number) {

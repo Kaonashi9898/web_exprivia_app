@@ -107,6 +107,12 @@ export interface CreatePrenotazioneRequest {
   oraFine: string;
 }
 
+export interface UpdatePrenotazioneRequest {
+  dataPrenotazione: string;
+  oraInizio: string;
+  oraFine: string;
+}
+
 export interface PlanimetriaResponse {
   id: number;
   pianoId: number;

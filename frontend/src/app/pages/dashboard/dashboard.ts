@@ -1,9 +1,11 @@
 import { ChangeDetectorRef, Component, computed, inject, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { forkJoin, map, of, switchMap } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { Prenotazione } from '../../core/app.models';
 import { AuthService } from '../../core/auth.service';
+import { isWeekendIsoDate, nextBookableIsoDate } from '../../core/date.utils';
 
 interface DashboardBooking extends Prenotazione {
   sedeLabel: string;
@@ -17,7 +19,7 @@ interface StanzaLocationInfo {
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink],
+  imports: [RouterLink, FormsModule],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.css',
 })
@@ -31,6 +33,14 @@ export class DashboardComponent implements OnInit {
   bookingsLoading = false;
   bookingsError = '';
   deletingBookingId: number | null = null;
+  editingBookingId: number | null = null;
+  savingBookingId: number | null = null;
+  editBookingDate = '';
+  editStartTime = '09:00';
+  editEndTime = '18:00';
+  editError = '';
+  editMessage = '';
+  readonly minBookingDate = nextBookableIsoDate();
 
   protected readonly roleLabel = computed(() => {
     const role = this.auth.ruolo();
@@ -79,6 +89,61 @@ export class DashboardComponent implements OnInit {
       error: (err) => {
         this.deletingBookingId = null;
         this.bookingsError = err?.error?.message ?? 'Eliminazione prenotazione non riuscita.';
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  startEdit(booking: DashboardBooking): void {
+    this.editingBookingId = booking.id;
+    this.editBookingDate = booking.dataPrenotazione;
+    this.editStartTime = booking.oraInizio;
+    this.editEndTime = booking.oraFine;
+    this.editError = '';
+    this.editMessage = '';
+    this.cdr.detectChanges();
+  }
+
+  cancelEdit(): void {
+    this.editingBookingId = null;
+    this.editError = '';
+    this.editMessage = '';
+    this.cdr.detectChanges();
+  }
+
+  canEditBooking(booking: DashboardBooking): boolean {
+    return booking.dataPrenotazione >= this.minBookingDate;
+  }
+
+  saveEdit(booking: DashboardBooking): void {
+    const validationError = this.validateEditSelection();
+    if (validationError) {
+      this.editError = validationError;
+      this.editMessage = '';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.savingBookingId = booking.id;
+    this.editError = '';
+    this.editMessage = '';
+    this.api.updateBooking(booking.id, {
+      dataPrenotazione: this.editBookingDate,
+      oraInizio: this.editStartTime,
+      oraFine: this.editEndTime,
+    }).subscribe({
+      next: (updated) => {
+        this.bookings = this.bookings
+          .map((item) => item.id === booking.id ? { ...item, ...updated } : item)
+          .sort((a, b) => `${a.dataPrenotazione} ${a.oraInizio}`.localeCompare(`${b.dataPrenotazione} ${b.oraInizio}`));
+        this.savingBookingId = null;
+        this.editingBookingId = null;
+        this.editMessage = 'Prenotazione aggiornata.';
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.savingBookingId = null;
+        this.editError = err?.error?.message ?? 'Aggiornamento prenotazione non riuscito.';
         this.cdr.detectChanges();
       },
     });
@@ -178,5 +243,21 @@ export class DashboardComponent implements OnInit {
     if (numero === 1) return 'Primo piano';
     if (numero === 2) return 'Secondo piano';
     return `Piano ${numero}`;
+  }
+
+  private validateEditSelection(): string | null {
+    if (!this.editBookingDate) {
+      return 'Seleziona una data valida.';
+    }
+    if (this.editBookingDate < this.minBookingDate) {
+      return 'Le prenotazioni sono modificabili solo a partire dal primo giorno lavorativo disponibile.';
+    }
+    if (isWeekendIsoDate(this.editBookingDate)) {
+      return 'Le prenotazioni non sono consentite il sabato e la domenica.';
+    }
+    if (!this.editStartTime || !this.editEndTime || this.editStartTime >= this.editEndTime) {
+      return "L'ora di inizio deve essere precedente all'ora di fine.";
+    }
+    return null;
   }
 }

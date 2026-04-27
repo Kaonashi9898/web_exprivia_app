@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { forkJoin, of, Subscription, switchMap } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { Edificio, Piano, PlanimetriaLayout, PlanimetriaResponse, Postazione, Prenotazione, Sede } from '../../core/app.models';
-import { todayLocalIsoDate } from '../../core/date.utils';
+import { isWeekendIsoDate, nextBookableIsoDate } from '../../core/date.utils';
 
 type LayoutRoom = NonNullable<PlanimetriaLayout['rooms']>[number];
 type LayoutMeeting = NonNullable<PlanimetriaLayout['meetings']>[number];
@@ -53,7 +53,8 @@ export class LocationsComponent implements OnInit, OnDestroy {
   error = '';
   sediLoading = false;
 
-  bookingDate = todayLocalIsoDate();
+  readonly minBookingDate = nextBookableIsoDate();
+  bookingDate = this.minBookingDate;
   startTime = '09:00';
   endTime = '18:00';
 
@@ -176,6 +177,22 @@ export class LocationsComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const dateError = this.validateBookingDateSelection();
+    if (dateError) {
+      this.error = dateError;
+      this.message = '';
+      this.refreshView();
+      return;
+    }
+
+    const timeError = this.validateBookingTimeSelection();
+    if (timeError) {
+      this.error = timeError;
+      this.message = '';
+      this.refreshView();
+      return;
+    }
+
     this.clearMessages();
     this.createBookingSubscription?.unsubscribe();
     this.createBookingSubscription = this.api
@@ -230,29 +247,60 @@ export class LocationsComponent implements OnInit, OnDestroy {
   }
 
   stationIsBooked(station: LayoutStation): boolean {
-    return !!this.bookingForStation(station);
+    return this.stationHasOverlap(station);
   }
 
   stationIsAvailable(station: LayoutStation): boolean {
     const postazione = this.findPostazione(station);
-    return !!postazione && postazione.stato === 'DISPONIBILE' && !this.stationIsBooked(station);
+    return !!postazione && postazione.stato === 'DISPONIBILE' && this.hasValidBookingWindow() && !this.stationHasOverlap(station);
+  }
+
+  stationIsPartiallyBooked(station: LayoutStation): boolean {
+    const postazione = this.findPostazione(station);
+    return !!postazione
+      && postazione.stato === 'DISPONIBILE'
+      && this.hasValidBookingWindow()
+      && this.stationHasBookings(station)
+      && !this.stationHasOverlap(station);
   }
 
   bookingForStation(station: LayoutStation): Prenotazione | null {
+    return this.bookingsForStation(station).find((booking) => this.bookingOverlapsSelectedWindow(booking)) ?? null;
+  }
+
+  bookingsForStation(station: LayoutStation): Prenotazione[] {
     const postazione = this.findPostazione(station);
     if (!postazione) {
-      return null;
+      return [];
     }
 
-    return this.bookings.find((booking) =>
+    return this.bookings.filter((booking) =>
       booking.stato === 'CONFERMATA' && booking.postazioneId === postazione.id,
-    ) ?? null;
+    );
   }
 
   stationTooltip(station: LayoutStation): string {
-    const booking = this.bookingForStation(station);
-    if (booking) {
-      return `Prenotata da ${booking.utenteFullName}, dalle ${booking.oraInizio} alle ${booking.oraFine}`;
+    const dateError = this.validateBookingDateSelection(false);
+    if (dateError) {
+      return dateError;
+    }
+
+    const timeError = this.validateBookingTimeSelection();
+    if (timeError) {
+      return timeError;
+    }
+
+    const bookings = this.bookingsForStation(station);
+    const overlappingBooking = bookings.find((booking) => this.bookingOverlapsSelectedWindow(booking));
+    if (overlappingBooking) {
+      return `Occupata nella fascia selezionata da ${overlappingBooking.utenteFullName}, dalle ${overlappingBooking.oraInizio} alle ${overlappingBooking.oraFine}`;
+    }
+
+    if (bookings.length) {
+      const fasce = bookings
+        .map((booking) => `${booking.oraInizio}-${booking.oraFine}`)
+        .join(', ');
+      return `Occupata parzialmente nelle fasce ${fasce}. Libera per l'orario selezionato.`;
     }
 
     const postazione = this.findPostazione(station);
@@ -263,6 +311,33 @@ export class LocationsComponent implements OnInit, OnDestroy {
       return 'Postazione non prenotabile';
     }
     return station.label;
+  }
+
+  selectedWindowSummary(): string {
+    return `${this.bookingDate} dalle ${this.startTime} alle ${this.endTime}`;
+  }
+
+  onBookingDateChange(): void {
+    this.clearMessages();
+    const dateError = this.validateBookingDateSelection();
+    if (dateError) {
+      this.error = dateError;
+      this.bookingDate = this.minBookingDate;
+    }
+    this.selectedStation = null;
+    this.selectedPostazione = null;
+    this.loadBookingsForCurrentPlan();
+  }
+
+  onBookingTimeChange(): void {
+    this.clearMessages();
+    const timeError = this.validateBookingTimeSelection();
+    if (timeError) {
+      this.error = timeError;
+    }
+    this.selectedStation = null;
+    this.selectedPostazione = null;
+    this.refreshView();
   }
 
   selectedRoomStyle(): Record<string, string> {
@@ -444,6 +519,14 @@ export class LocationsComponent implements OnInit, OnDestroy {
   }
 
   loadBookingsForCurrentPlan(): void {
+    const dateError = this.validateBookingDateSelection(false);
+    if (dateError) {
+      this.bookings = [];
+      this.error = dateError;
+      this.refreshView();
+      return;
+    }
+
     if (!this.selectedPianoId || !this.postazioni.length) {
       this.bookings = [];
       this.refreshView();
@@ -478,5 +561,50 @@ export class LocationsComponent implements OnInit, OnDestroy {
     const sedeLabel = sede ? `${sede.nome} - ${sede.citta}` : 'questa sede';
     const pianoLabel = piano ? this.getPianoDisplayName(piano) : 'questo piano';
     return `Per ${sedeLabel} e per ${pianoLabel} non c'e ancora la planimetria.`;
+  }
+
+  private stationHasBookings(station: LayoutStation): boolean {
+    return this.bookingsForStation(station).length > 0;
+  }
+
+  private stationHasOverlap(station: LayoutStation): boolean {
+    return !!this.bookingForStation(station);
+  }
+
+  private bookingOverlapsSelectedWindow(booking: Prenotazione): boolean {
+    return this.startTime < booking.oraFine && this.endTime > booking.oraInizio;
+  }
+
+  private validateBookingDateSelection(replaceInvalidDate = true): string | null {
+    if (!this.bookingDate) {
+      return 'Seleziona una data per la prenotazione.';
+    }
+    if (this.bookingDate < this.minBookingDate) {
+      if (replaceInvalidDate) {
+        this.bookingDate = this.minBookingDate;
+      }
+      return 'Le prenotazioni sono consentite solo a partire dal primo giorno lavorativo disponibile.';
+    }
+    if (isWeekendIsoDate(this.bookingDate)) {
+      if (replaceInvalidDate) {
+        this.bookingDate = this.minBookingDate;
+      }
+      return 'Le prenotazioni non sono consentite il sabato e la domenica.';
+    }
+    return null;
+  }
+
+  private validateBookingTimeSelection(): string | null {
+    if (!this.startTime || !this.endTime) {
+      return 'Seleziona una fascia oraria valida.';
+    }
+    if (this.startTime >= this.endTime) {
+      return "L'ora di inizio deve essere precedente all'ora di fine.";
+    }
+    return null;
+  }
+
+  private hasValidBookingWindow(): boolean {
+    return !this.validateBookingDateSelection(false) && !this.validateBookingTimeSelection();
   }
 }
