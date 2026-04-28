@@ -1,5 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
+import { map } from 'rxjs';
 import {
   CreatePrenotazioneRequest,
   DashboardPrenotazione,
@@ -110,12 +111,16 @@ export class ApiService {
 
   listMyBookings(data?: string) {
     const params = data ? new HttpParams().set('data', data) : undefined;
-    return this.http.get<Prenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni/mie`, { params });
+    return this.http.get<Prenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni/mie`, { params }).pipe(
+      map((bookings) => bookings.map((booking) => this.normalizeBookingTimes(booking))),
+    );
   }
 
   listMyDashboardBookings(data?: string) {
     const params = data ? new HttpParams().set('data', data) : undefined;
-    return this.http.get<DashboardPrenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni/mie/dashboard`, { params });
+    return this.http.get<DashboardPrenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni/mie/dashboard`, { params }).pipe(
+      map((bookings) => bookings.map((booking) => this.normalizeBookingTimes(booking))),
+    );
   }
 
   listBookings(data?: string, postazioneId?: number) {
@@ -126,29 +131,41 @@ export class ApiService {
     if (postazioneId) {
       params = params.set('postazioneId', postazioneId);
     }
-    return this.http.get<Prenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni`, { params });
+    return this.http.get<Prenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni`, { params }).pipe(
+      map((bookings) => bookings.map((booking) => this.normalizeBookingTimes(booking))),
+    );
   }
 
   listBookingsByMeetingRoom(stanzaId: number, data?: string) {
     const params = data ? new HttpParams().set('data', data) : undefined;
-    return this.http.get<Prenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni/meeting-room/${stanzaId}`, { params });
+    return this.http.get<Prenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni/meeting-room/${stanzaId}`, { params }).pipe(
+      map((bookings) => bookings.map((booking) => this.normalizeBookingTimes(booking))),
+    );
   }
 
   listBookingsByPostazione(postazioneId: number, data?: string) {
     const params = data ? new HttpParams().set('data', data) : undefined;
-    return this.http.get<Prenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni/postazione/${postazioneId}`, { params });
+    return this.http.get<Prenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni/postazione/${postazioneId}`, { params }).pipe(
+      map((bookings) => bookings.map((booking) => this.normalizeBookingTimes(booking))),
+    );
   }
 
   createBooking(request: CreatePrenotazioneRequest) {
-    return this.http.post<Prenotazione>(`${PRENOTAZIONI_API}/api/prenotazioni`, request);
+    return this.http.post<Prenotazione>(`${PRENOTAZIONI_API}/api/prenotazioni`, request).pipe(
+      map((booking) => this.normalizeBookingTimes(booking)),
+    );
   }
 
   createMeetingRoomBooking(request: CreatePrenotazioneRequest) {
-    return this.http.post<Prenotazione>(`${PRENOTAZIONI_API}/api/prenotazioni/meeting-room`, request);
+    return this.http.post<Prenotazione>(`${PRENOTAZIONI_API}/api/prenotazioni/meeting-room`, request).pipe(
+      map((booking) => this.normalizeBookingTimes(booking)),
+    );
   }
 
   updateBooking(id: number, request: UpdatePrenotazioneRequest) {
-    return this.http.put<Prenotazione>(`${PRENOTAZIONI_API}/api/prenotazioni/${id}`, request);
+    return this.http.put<Prenotazione>(`${PRENOTAZIONI_API}/api/prenotazioni/${id}`, request).pipe(
+      map((booking) => this.normalizeBookingTimes(booking)),
+    );
   }
 
   cancelBooking(id: number) {
@@ -183,5 +200,21 @@ export class ApiService {
 
   deletePlanimetria(pianoId: number) {
     return this.http.delete<void>(`${LOCATION_API}/api/piani/${pianoId}/planimetria`);
+  }
+
+  private normalizeBookingTimes<T extends Prenotazione | DashboardPrenotazione>(booking: T): T {
+    return {
+      ...booking,
+      oraInizio: this.withoutSeconds(booking.oraInizio),
+      oraFine: this.withoutSeconds(booking.oraFine),
+    };
+  }
+
+  private withoutSeconds(value: string | null | undefined): string {
+    if (!value) {
+      return '';
+    }
+
+    return value.slice(0, 5);
   }
 }

@@ -14,7 +14,7 @@ import {
   nextBookingTimeOption,
 } from '../../core/booking-time.utils';
 import { isWeekendIsoDate, nextBookableIsoDate } from '../../core/date.utils';
-import { BOOKING_ROLES, PLAN_EDITOR_ROLES } from '../../core/role-access';
+import { BOOKING_ROLES, LOCATION_MANAGEMENT_ROLES, PLAN_EDITOR_ROLES } from '../../core/role-access';
 
 @Component({
   selector: 'app-dashboard',
@@ -32,6 +32,7 @@ export class DashboardComponent implements OnInit {
   bookingsLoading = false;
   bookingsError = '';
   deletingBookingId: number | null = null;
+  bookingPendingDeletion: DashboardPrenotazione | null = null;
   editingBookingId: number | null = null;
   savingBookingId: number | null = null;
   editBookingDate = '';
@@ -56,6 +57,7 @@ export class DashboardComponent implements OnInit {
   });
   protected readonly isAdmin = computed(() => this.auth.hasAnyRole(['ADMIN']));
   protected readonly canAccessPlanEditor = computed(() => this.auth.hasAnyRole(PLAN_EDITOR_ROLES));
+  protected readonly canAccessLocations = computed(() => this.auth.hasAnyRole(LOCATION_MANAGEMENT_ROLES));
   protected readonly isReception = computed(() => this.auth.hasAnyRole(['RECEPTION']));
   protected readonly canBook = computed(() =>
     this.auth.hasAnyRole(BOOKING_ROLES),
@@ -74,8 +76,27 @@ export class DashboardComponent implements OnInit {
     });
   }
 
-  cancelBooking(booking: DashboardPrenotazione): void {
-    if (this.deletingBookingId || !confirm(`Eliminare la prenotazione per ${this.bookingResourceLabel(booking)}?`)) {
+  askCancelBooking(booking: DashboardPrenotazione): void {
+    if (this.deletingBookingId || this.savingBookingId) {
+      return;
+    }
+
+    this.bookingPendingDeletion = booking;
+    this.cdr.detectChanges();
+  }
+
+  closeCancelBookingModal(): void {
+    if (this.deletingBookingId) {
+      return;
+    }
+
+    this.bookingPendingDeletion = null;
+    this.cdr.detectChanges();
+  }
+
+  cancelBooking(): void {
+    const booking = this.bookingPendingDeletion;
+    if (!booking || this.deletingBookingId) {
       return;
     }
 
@@ -85,10 +106,12 @@ export class DashboardComponent implements OnInit {
       next: () => {
         this.bookings = this.bookings.filter((item) => item.id !== booking.id);
         this.deletingBookingId = null;
+        this.bookingPendingDeletion = null;
         this.cdr.detectChanges();
       },
       error: (err) => {
         this.deletingBookingId = null;
+        this.bookingPendingDeletion = null;
         this.bookingsError = apiErrorMessage(err, 'Eliminazione prenotazione non riuscita.');
         this.cdr.detectChanges();
       },

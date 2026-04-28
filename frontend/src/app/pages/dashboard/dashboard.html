@@ -85,14 +85,14 @@
               </button>
             }
 
-            <button
-              class="danger-button"
-              type="button"
-              [disabled]="deletingBookingId === booking.id || savingBookingId === booking.id"
-              (click)="cancelBooking(booking)"
-            >
-              {{ deletingBookingId === booking.id ? 'Eliminazione...' : 'Elimina' }}
-            </button>
+              <button
+                class="danger-button"
+                type="button"
+                [disabled]="deletingBookingId === booking.id || savingBookingId === booking.id"
+                (click)="askCancelBooking(booking)"
+              >
+                {{ deletingBookingId === booking.id ? 'Eliminazione...' : 'Elimina' }}
+              </button>
           </div>
         </article>
       }
@@ -100,6 +100,35 @@
   </section>
 } @else if (bookingsError) {
   <div class="notice error">{{ bookingsError }}</div>
+}
+
+@if (bookingPendingDeletion) {
+  <div class="modal-backdrop" (click)="closeCancelBookingModal()">
+    <section class="modal-card confirm-card" role="dialog" aria-modal="true" aria-labelledby="deleteBookingTitle" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div>
+          <p class="eyebrow">Conferma eliminazione</p>
+          <h2 id="deleteBookingTitle">Eliminare questa prenotazione?</h2>
+        </div>
+      </header>
+
+      <p class="modal-copy">
+        Stai per eliminare la prenotazione di {{ bookingResourceTypeLabel(bookingPendingDeletion).toLowerCase() }}
+        <strong>{{ bookingResourceLabel(bookingPendingDeletion) }}</strong>
+        per il giorno <strong>{{ formatDate(bookingPendingDeletion.dataPrenotazione) }}</strong>
+        nella fascia <strong>{{ bookingPendingDeletion.oraInizio }} - {{ bookingPendingDeletion.oraFine }}</strong>.
+      </p>
+
+      <footer class="modal-actions">
+        <button class="ghost-button" type="button" [disabled]="deletingBookingId !== null" (click)="closeCancelBookingModal()">
+          Annulla
+        </button>
+        <button class="danger-button" type="button" [disabled]="deletingBookingId !== null" (click)="cancelBooking()">
+          {{ deletingBookingId !== null ? 'Eliminazione...' : 'Conferma eliminazione' }}
+        </button>
+      </footer>
+    </section>
+  </div>
 }
 
 <section class="quick-grid">
@@ -123,7 +152,7 @@
     </a>
   }
 
-  @if (isAdmin()) {
+  @if (canAccessLocations()) {
     <a routerLink="/sedi-postazioni" class="action-card">
       <span class="card-icon teal">
         <svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l8-4 6 4v14M9 21v-7h4v7M9 9h.01M13 9h.01M17 9h.01M17 13h.01" /></svg>

@@ -50,6 +50,9 @@ export class BookingsComponent implements OnInit, OnDestroy {
   private reportSubscription: Subscription | null = null;
 
   protected readonly isAdmin = computed(() => this.auth.hasAnyRole(['ADMIN']));
+  protected readonly canManageDeskStates = computed(() =>
+    this.auth.hasAnyRole(['ADMIN', 'BUILDING_MANAGER']),
+  );
 
   sedi: Sede[] = [];
   edifici: Edificio[] = [];
@@ -78,6 +81,12 @@ export class BookingsComponent implements OnInit, OnDestroy {
   createSedeForm: CreateSedeForm = this.buildEmptySedeForm();
   createEdificioNome = '';
   createPianoForm: CreatePianoForm = this.buildEmptyPianoForm();
+  showSeatStateModal = false;
+  selectedRoomForState: RoomStats | null = null;
+  updatingSeatId: number | null = null;
+  seatStateDrafts: Record<number, StatoPostazione> = {};
+  seatStateError = '';
+  seatStateMessage = '';
 
   ngOnInit(): void {
     this.loadSedi();
@@ -508,6 +517,101 @@ export class BookingsComponent implements OnInit, OnDestroy {
     return booking.risorsaLabel || booking.meetingRoomNome || booking.postazioneCodice || 'Risorsa non disponibile';
   }
 
+  canManageRoomSeats(room: RoomStats): boolean {
+    return this.canManageDeskStates() && !room.meetingRoom;
+  }
+
+  openSeatStateModal(room: RoomStats): void {
+    if (!this.canManageRoomSeats(room)) {
+      return;
+    }
+
+    this.selectedRoomForState = room;
+    this.showSeatStateModal = true;
+    this.updatingSeatId = null;
+    this.seatStateError = '';
+    this.seatStateMessage = '';
+    this.seatStateDrafts = Object.fromEntries(
+      this.postazioniForRoom(room.stanza.id).map((seat) => [seat.id, seat.stato]),
+    );
+    this.refreshView();
+  }
+
+  closeSeatStateModal(): void {
+    if (this.updatingSeatId !== null) {
+      return;
+    }
+
+    this.showSeatStateModal = false;
+    this.selectedRoomForState = null;
+    this.seatStateError = '';
+    this.seatStateMessage = '';
+    this.seatStateDrafts = {};
+    this.refreshView();
+  }
+
+  postazioniForRoom(stanzaId: number): Postazione[] {
+    return this.postazioni
+      .filter((seat) => seat.stanzaId === stanzaId)
+      .sort((left, right) => left.codice.localeCompare(right.codice));
+  }
+
+  statoOptions(): readonly StatoPostazione[] {
+    return ['DISPONIBILE', 'NON_DISPONIBILE', 'MANUTENZIONE', 'CAMBIO_DESTINAZIONE'];
+  }
+
+  statoLabel(stato: StatoPostazione): string {
+    switch (stato) {
+      case 'DISPONIBILE':
+        return 'Disponibile';
+      case 'NON_DISPONIBILE':
+        return 'Non disponibile';
+      case 'MANUTENZIONE':
+        return 'Manutenzione';
+      case 'CAMBIO_DESTINAZIONE':
+        return 'Cambio destinazione';
+    }
+  }
+
+  isSeatBookedToday(postazioneId: number): boolean {
+    return this.isBooked(postazioneId);
+  }
+
+  saveSeatState(seat: Postazione): void {
+    if (!this.canManageDeskStates() || this.updatingSeatId !== null) {
+      return;
+    }
+
+    const nextState = this.seatStateDrafts[seat.id] ?? seat.stato;
+    if (nextState === seat.stato) {
+      this.seatStateMessage = `Nessuna modifica per ${seat.codice}.`;
+      this.seatStateError = '';
+      this.refreshView();
+      return;
+    }
+
+    this.updatingSeatId = seat.id;
+    this.seatStateError = '';
+    this.seatStateMessage = '';
+
+    this.api.updatePostazioneStato(seat.id, nextState).subscribe({
+      next: (updatedSeat) => {
+        this.postazioni = this.postazioni.map((item) => item.id === updatedSeat.id ? updatedSeat : item);
+        this.seatStateDrafts[seat.id] = updatedSeat.stato;
+        this.refreshRoomStatsAfterSeatUpdate();
+        this.updatingSeatId = null;
+        this.seatStateMessage = `Stato aggiornato per ${updatedSeat.codice}: ${this.statoLabel(updatedSeat.stato)}.`;
+        this.refreshView();
+      },
+      error: (err) => {
+        this.updatingSeatId = null;
+        this.seatStateDrafts[seat.id] = seat.stato;
+        this.seatStateError = apiErrorMessage(err, 'Aggiornamento stato postazione non riuscito.');
+        this.refreshView();
+      },
+    });
+  }
+
   private resetSelection(level: 'sede' | 'edificio' | 'piano'): void {
     this.error = '';
     if (level === 'sede') {
@@ -574,6 +678,13 @@ export class BookingsComponent implements OnInit, OnDestroy {
 
   private isBooked(postazioneId: number): boolean {
     return this.bookings.some((booking) => booking.postazioneId === postazioneId && booking.stato === 'CONFERMATA');
+  }
+
+  private refreshRoomStatsAfterSeatUpdate(): void {
+    this.roomStats = this.buildRoomStats();
+    if (this.selectedRoomForState) {
+      this.selectedRoomForState = this.roomStats.find((room) => room.stanza.id === this.selectedRoomForState?.stanza.id) ?? null;
+    }
   }
 
   private buildEmptySedeForm(): CreateSedeForm {

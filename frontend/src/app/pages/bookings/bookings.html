@@ -111,6 +111,11 @@
                 <span class="metric free">{{ room.free }} libere</span>
                 <span class="metric occupied">{{ room.occupied }} occupate</span>
                 <span class="metric blocked">{{ room.unavailable + room.maintenance }} bloccate</span>
+                @if (canManageRoomSeats(room)) {
+                  <button class="ghost-button room-action-button" type="button" (click)="openSeatStateModal(room)">
+                    Gestisci postazioni
+                  </button>
+                }
               }
             </div>
           </article>
@@ -140,6 +145,67 @@
       </div>
     </div>
   </section>
+}
+
+@if (showSeatStateModal && selectedRoomForState) {
+  <div class="modal-backdrop" (click)="closeSeatStateModal()">
+    <section class="modal-card seat-state-card" role="dialog" aria-modal="true" aria-labelledby="seatStateTitle" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div>
+          <h2 id="seatStateTitle">Stato postazioni</h2>
+          <p class="muted">Stanza: {{ selectedRoomForState.stanza.nome }}</p>
+        </div>
+      </header>
+
+      @if (seatStateMessage) {
+        <div class="notice success modal-notice">{{ seatStateMessage }}</div>
+      }
+      @if (seatStateError) {
+        <div class="notice error modal-notice">{{ seatStateError }}</div>
+      }
+
+      <div class="seat-state-list">
+        @for (seat of postazioniForRoom(selectedRoomForState.stanza.id); track seat.id) {
+          <article class="seat-state-row">
+            <div class="seat-state-meta">
+              <strong>{{ seat.codice }}</strong>
+              <span>Stato attuale: {{ statoLabel(seat.stato) }}</span>
+              @if (isSeatBookedToday(seat.id)) {
+                <span class="metric occupied">Prenotata nel giorno selezionato</span>
+              }
+            </div>
+
+            <div class="seat-state-actions">
+              <label>
+                Nuovo stato
+                <select [(ngModel)]="seatStateDrafts[seat.id]" [disabled]="updatingSeatId === seat.id">
+                  @for (stato of statoOptions(); track stato) {
+                    <option [ngValue]="stato">{{ statoLabel(stato) }}</option>
+                  }
+                </select>
+              </label>
+              <button
+                class="primary-button"
+                type="button"
+                [disabled]="updatingSeatId === seat.id || seatStateDrafts[seat.id] === seat.stato"
+                (click)="saveSeatState(seat)"
+              >
+                {{ updatingSeatId === seat.id ? 'Salvataggio...' : 'Salva stato' }}
+              </button>
+            </div>
+          </article>
+        } @empty {
+          <p class="muted">Nessuna postazione configurata per questa stanza.</p>
+        }
+      </div>
+
+      <footer class="modal-actions">
+        <button class="ghost-button" type="button" [disabled]="updatingSeatId !== null" (click)="closeSeatStateModal()">
+          Chiudi
+        </button>
+      </footer>
+    </section>
+  </div>
 }
 
 @if (showCreateSedeModal) {
