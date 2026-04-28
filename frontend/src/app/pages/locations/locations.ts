@@ -6,6 +6,15 @@ import { ApiService } from '../../core/api.service';
 import { Edificio, Piano, PlanimetriaLayout, PlanimetriaResponse, Postazione, Prenotazione, Sede } from '../../core/app.models';
 import { apiErrorMessage } from '../../core/api-error.utils';
 import { AuthService } from '../../core/auth.service';
+import {
+  BOOKING_DAY_END,
+  BOOKING_DAY_START,
+  BOOKING_END_OPTIONS,
+  BOOKING_START_OPTIONS,
+  ceilBookingStartOption,
+  isWithinBookingWindow,
+  nextBookingTimeOption,
+} from '../../core/booking-time.utils';
 import { isWeekendIsoDate, nextBookableIsoDate } from '../../core/date.utils';
 import { OPERATIONAL_BOOKING_ROLES } from '../../core/role-access';
 
@@ -63,9 +72,11 @@ export class LocationsComponent implements OnInit, OnDestroy {
   bookingsLoaded = false;
 
   readonly minBookingDate = nextBookableIsoDate();
+  readonly bookingStartOptions = BOOKING_START_OPTIONS;
+  readonly bookingEndOptions = BOOKING_END_OPTIONS;
   bookingDate = this.minBookingDate;
-  startTime = '09:00';
-  endTime = '18:00';
+  startTime = BOOKING_DAY_START;
+  endTime = BOOKING_DAY_END;
 
   ngOnInit(): void {
     this.sediLoading = true;
@@ -380,7 +391,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
     }
     this.startTime = this.suggestedStartTime;
     if (this.endTime <= this.startTime) {
-      this.endTime = this.addOneHour(this.startTime);
+      this.endTime = nextBookingTimeOption(this.startTime) ?? BOOKING_DAY_END;
     }
     this.clearMessages();
     this.suggestedStartTime = this.findSuggestedStartTime(this.selectedStation);
@@ -400,6 +411,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
 
   onBookingTimeChange(): void {
     this.clearMessages();
+    this.normalizeBookingTimeWindow();
     const timeError = this.validateBookingTimeSelection();
     if (timeError) {
       this.error = timeError;
@@ -429,6 +441,14 @@ export class LocationsComponent implements OnInit, OnDestroy {
 
   getPianoDisplayName(piano: Piano): string {
     return piano.nome?.trim() || this.getPianoLabel(piano.numero);
+  }
+
+  availableStartTimes(): readonly string[] {
+    return this.bookingStartOptions.filter((time) => time < this.endTime);
+  }
+
+  availableEndTimes(): readonly string[] {
+    return this.bookingEndOptions.filter((time) => time > this.startTime);
   }
 
   private loadPlan(pianoId: number): void {
@@ -681,10 +701,16 @@ export class LocationsComponent implements OnInit, OnDestroy {
       return null;
     }
 
-    return overlappingBookings
+    const rawSuggestion = overlappingBookings
       .map((booking) => booking.oraFine)
       .sort()
       .at(-1) ?? null;
+
+    if (!rawSuggestion) {
+      return null;
+    }
+
+    return ceilBookingStartOption(rawSuggestion);
   }
 
   private bookingOverlapsSelectedWindow(booking: Prenotazione): boolean {
@@ -741,8 +767,11 @@ export class LocationsComponent implements OnInit, OnDestroy {
     if (!this.startTime || !this.endTime) {
       return 'Seleziona una fascia oraria valida.';
     }
-    if (this.startTime >= this.endTime) {
-      return "L'ora di inizio deve essere precedente all'ora di fine.";
+    if (!isWithinBookingWindow(this.startTime, this.endTime)) {
+      if (this.startTime >= this.endTime) {
+        return "L'ora di inizio deve essere precedente all'ora di fine.";
+      }
+      return 'Le prenotazioni sono consentite solo tra le 09:00 e le 18:00.';
     }
     return null;
   }
@@ -751,11 +780,15 @@ export class LocationsComponent implements OnInit, OnDestroy {
     return !this.validateBookingDateSelection(false) && !this.validateBookingTimeSelection();
   }
 
-  private addOneHour(value: string): string {
-    const [hours, minutes] = value.split(':').map(Number);
-    const date = new Date();
-    date.setHours(hours, minutes, 0, 0);
-    date.setHours(date.getHours() + 1);
-    return date.toTimeString().slice(0, 5);
+  private normalizeBookingTimeWindow(): void {
+    if (this.startTime < BOOKING_DAY_START) {
+      this.startTime = BOOKING_DAY_START;
+    }
+    if (this.endTime > BOOKING_DAY_END) {
+      this.endTime = BOOKING_DAY_END;
+    }
+    if (this.startTime >= this.endTime) {
+      this.endTime = nextBookingTimeOption(this.startTime) ?? BOOKING_DAY_END;
+    }
   }
 }

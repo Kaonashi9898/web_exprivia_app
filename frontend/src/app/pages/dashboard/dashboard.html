@@ -48,11 +48,19 @@
                 </label>
                 <label>
                   Inizio
-                  <input type="time" [(ngModel)]="editStartTime" />
+                  <select [(ngModel)]="editStartTime" (ngModelChange)="onEditTimeChange()">
+                    @for (time of availableEditStartTimes(); track time) {
+                      <option [ngValue]="time">{{ time }}</option>
+                    }
+                  </select>
                 </label>
                 <label>
                   Fine
-                  <input type="time" [(ngModel)]="editEndTime" />
+                  <select [(ngModel)]="editEndTime" (ngModelChange)="onEditTimeChange()">
+                    @for (time of availableEditEndTimes(); track time) {
+                      <option [ngValue]="time">{{ time }}</option>
+                    }
+                  </select>
                 </label>
               </div>
               <button

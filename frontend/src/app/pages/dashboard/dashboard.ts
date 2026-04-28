@@ -5,6 +5,14 @@ import { ApiService } from '../../core/api.service';
 import { DashboardPrenotazione } from '../../core/app.models';
 import { apiErrorMessage } from '../../core/api-error.utils';
 import { AuthService } from '../../core/auth.service';
+import {
+  BOOKING_DAY_END,
+  BOOKING_DAY_START,
+  BOOKING_END_OPTIONS,
+  BOOKING_START_OPTIONS,
+  isWithinBookingWindow,
+  nextBookingTimeOption,
+} from '../../core/booking-time.utils';
 import { isWeekendIsoDate, nextBookableIsoDate } from '../../core/date.utils';
 import { BOOKING_ROLES, PLAN_EDITOR_ROLES } from '../../core/role-access';
 
@@ -27,11 +35,13 @@ export class DashboardComponent implements OnInit {
   editingBookingId: number | null = null;
   savingBookingId: number | null = null;
   editBookingDate = '';
-  editStartTime = '09:00';
-  editEndTime = '18:00';
+  editStartTime = BOOKING_DAY_START;
+  editEndTime = BOOKING_DAY_END;
   editError = '';
   editMessage = '';
   readonly minBookingDate = nextBookableIsoDate();
+  readonly bookingStartOptions = BOOKING_START_OPTIONS;
+  readonly bookingEndOptions = BOOKING_END_OPTIONS;
 
   protected readonly roleLabel = computed(() => {
     const role = this.auth.ruolo();
@@ -106,6 +116,21 @@ export class DashboardComponent implements OnInit {
     return booking.dataPrenotazione >= this.minBookingDate;
   }
 
+  availableEditStartTimes(): readonly string[] {
+    return this.bookingStartOptions.filter((time) => time < this.editEndTime);
+  }
+
+  availableEditEndTimes(): readonly string[] {
+    return this.bookingEndOptions.filter((time) => time > this.editStartTime);
+  }
+
+  onEditTimeChange(): void {
+    this.normalizeEditTimeWindow();
+    this.editError = '';
+    this.editMessage = '';
+    this.cdr.detectChanges();
+  }
+
   saveEdit(booking: DashboardPrenotazione): void {
     const validationError = this.validateEditSelection();
     if (validationError) {
@@ -178,9 +203,27 @@ export class DashboardComponent implements OnInit {
     if (isWeekendIsoDate(this.editBookingDate)) {
       return 'Le prenotazioni non sono consentite il sabato e la domenica.';
     }
-    if (!this.editStartTime || !this.editEndTime || this.editStartTime >= this.editEndTime) {
-      return "L'ora di inizio deve essere precedente all'ora di fine.";
+    if (!this.editStartTime || !this.editEndTime) {
+      return 'Seleziona una fascia oraria valida.';
+    }
+    if (!isWithinBookingWindow(this.editStartTime, this.editEndTime)) {
+      if (this.editStartTime >= this.editEndTime) {
+        return "L'ora di inizio deve essere precedente all'ora di fine.";
+      }
+      return 'Le prenotazioni sono consentite solo tra le 09:00 e le 18:00.';
     }
     return null;
+  }
+
+  private normalizeEditTimeWindow(): void {
+    if (this.editStartTime < BOOKING_DAY_START) {
+      this.editStartTime = BOOKING_DAY_START;
+    }
+    if (this.editEndTime > BOOKING_DAY_END) {
+      this.editEndTime = BOOKING_DAY_END;
+    }
+    if (this.editStartTime >= this.editEndTime) {
+      this.editEndTime = nextBookingTimeOption(this.editStartTime) ?? BOOKING_DAY_END;
+    }
   }
 }

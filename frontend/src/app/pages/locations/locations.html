@@ -146,11 +146,19 @@
         <div class="time-grid">
           <label>
             Inizio
-            <input type="time" name="startTime" [(ngModel)]="startTime" (change)="onBookingTimeChange()" required />
+            <select name="startTime" [(ngModel)]="startTime" (ngModelChange)="onBookingTimeChange()" required>
+              @for (time of availableStartTimes(); track time) {
+                <option [ngValue]="time">{{ time }}</option>
+              }
+            </select>
           </label>
           <label>
             Fine
-            <input type="time" name="endTime" [(ngModel)]="endTime" (change)="onBookingTimeChange()" required />
+            <select name="endTime" [(ngModel)]="endTime" (ngModelChange)="onBookingTimeChange()" required>
+              @for (time of availableEndTimes(); track time) {
+                <option [ngValue]="time">{{ time }}</option>
+              }
+            </select>
           </label>
         </div>
 

@@ -99,6 +99,20 @@ class PrenotazioneServiceTest {
     }
 
     @Test
+    void create_rifiutaPrenotazioneFuoriDallaFasciaNoveDiciotto() {
+        CreatePrenotazioneRequest request = buildCreateRequest(7L, LocalDate.of(2026, 4, 28), LocalTime.of(8, 0), LocalTime.of(12, 0));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(10L, RuoloUtente.USER));
+        when(locationServiceClient.getPostazione(7L, "Bearer token")).thenReturn(buildPostazione(7L, "PS-007", "DISPONIBILE"));
+        when(locationServiceClient.getGruppiAbilitati(7L, "Bearer token")).thenReturn(List.of());
+
+        assertThatThrownBy(() -> prenotazioneService.create(request, "Bearer token"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("09:00 e le 18:00");
+
+        verify(prenotazioneRepository, never()).saveAndFlush(any(Prenotazione.class));
+    }
+
+    @Test
     void create_rifiutaSecondaPrenotazioneNelloStessoGiornoPerUtente() {
         CreatePrenotazioneRequest request = buildCreateRequest(7L, LocalDate.of(2026, 4, 28), LocalTime.of(9, 0), LocalTime.of(13, 0));
         when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(10L, RuoloUtente.USER));
@@ -243,6 +257,23 @@ class PrenotazioneServiceTest {
         assertThat(response.getDataPrenotazione()).isEqualTo(LocalDate.of(2026, 4, 30));
         assertThat(response.getOraInizio()).isEqualTo(LocalTime.of(10, 0));
         assertThat(response.getOraFine()).isEqualTo(LocalTime.of(17, 0));
+    }
+
+    @Test
+    void update_rifiutaPrenotazioneFuoriDallaFasciaNoveDiciotto() {
+        Prenotazione prenotazione = buildPrenotazione(22L, 11L, 7L, LocalDate.of(2026, 4, 29), LocalTime.of(9, 0), LocalTime.of(13, 0));
+        UpdatePrenotazioneRequest request = new UpdatePrenotazioneRequest(
+                LocalDate.of(2026, 4, 30),
+                LocalTime.of(10, 0),
+                LocalTime.of(19, 0)
+        );
+
+        when(prenotazioneRepository.findById(22L)).thenReturn(Optional.of(prenotazione));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.USER));
+
+        assertThatThrownBy(() -> prenotazioneService.update(22L, request, "Bearer token", false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("09:00 e le 18:00");
     }
 
     @Test

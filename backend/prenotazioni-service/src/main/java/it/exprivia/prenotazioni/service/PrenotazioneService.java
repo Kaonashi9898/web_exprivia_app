@@ -41,6 +41,8 @@ import java.util.Set;
 public class PrenotazioneService {
 
     private static final String STATO_POSTAZIONE_DISPONIBILE = "DISPONIBILE";
+    private static final LocalTime ORA_INIZIO_PRENOTAZIONI = LocalTime.of(9, 0);
+    private static final LocalTime ORA_FINE_PRENOTAZIONI = LocalTime.of(18, 0);
     private static final Set<RuoloUtente> RUOLI_ABILITATI_PRENOTAZIONE =
             EnumSet.of(RuoloUtente.USER, RuoloUtente.BUILDING_MANAGER, RuoloUtente.RECEPTION, RuoloUtente.ADMIN);
 
@@ -321,6 +323,9 @@ public class PrenotazioneService {
     private void validateTimeRange(LocalTime oraInizio, LocalTime oraFine) {
         if (!oraInizio.isBefore(oraFine)) {
             throw new IllegalArgumentException("L'ora di inizio deve essere precedente all'ora di fine");
+        }
+        if (oraInizio.isBefore(ORA_INIZIO_PRENOTAZIONI) || oraFine.isAfter(ORA_FINE_PRENOTAZIONI)) {
+            throw new IllegalArgumentException("Le prenotazioni sono consentite solo tra le 09:00 e le 18:00");
         }
     }
 
