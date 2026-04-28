@@ -66,15 +66,12 @@ public class PostazioneService {
      */
     @Transactional
     public PostazioneResponse create(PostazioneRequest request) {
-        Stanza stanza = stanzaRepository.findById(request.getStanzaId())
-                .orElseThrow(() -> new EntityNotFoundException("Stanza non trovata con id: " + request.getStanzaId()));
-        if (postazioneRepository.existsByCodice(request.getCodice())) {
-            throw new IllegalArgumentException("Postazione già esistente con codice: " + request.getCodice());
-        }
+        Stanza stanza = getStanzaOrThrow(request.getStanzaId());
+        ensureCodiceUnivoco(request.getCodice(), null);
         Postazione postazione = new Postazione();
         postazione.setCodice(request.getCodice());
         postazione.setLayoutElementId(request.getLayoutElementId());
-        postazione.setStato(request.getStato() != null ? request.getStato() : StatoPostazione.DISPONIBILE);
+        postazione.setStato(resolveStato(request.getStato()));
         postazione.setXPct(request.getXPct());
         postazione.setYPct(request.getYPct());
         postazione.setStanza(stanza);
@@ -85,11 +82,11 @@ public class PostazioneService {
     @Transactional
     public PostazioneResponse update(Long id, PostazioneRequest request) {
         Postazione postazione = getOrThrow(id);
-        Stanza stanza = stanzaRepository.findById(request.getStanzaId())
-                .orElseThrow(() -> new EntityNotFoundException("Stanza non trovata con id: " + request.getStanzaId()));
+        Stanza stanza = getStanzaOrThrow(request.getStanzaId());
+        ensureCodiceUnivoco(request.getCodice(), postazione.getId());
         postazione.setCodice(request.getCodice());
         postazione.setLayoutElementId(request.getLayoutElementId());
-        postazione.setStato(request.getStato());
+        postazione.setStato(resolveStato(request.getStato()));
         postazione.setXPct(request.getXPct());
         postazione.setYPct(request.getYPct());
         postazione.setStanza(stanza);
@@ -120,6 +117,23 @@ public class PostazioneService {
     private Postazione getOrThrow(Long id) {
         return postazioneRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Postazione non trovata con id: " + id));
+    }
+
+    private Stanza getStanzaOrThrow(Long stanzaId) {
+        return stanzaRepository.findById(stanzaId)
+                .orElseThrow(() -> new EntityNotFoundException("Stanza non trovata con id: " + stanzaId));
+    }
+
+    private void ensureCodiceUnivoco(String codice, Long currentPostazioneId) {
+        postazioneRepository.findByCodice(codice).ifPresent(existing -> {
+            if (currentPostazioneId == null || !existing.getId().equals(currentPostazioneId)) {
+                throw new IllegalArgumentException("Postazione già esistente con codice: " + codice);
+            }
+        });
+    }
+
+    private StatoPostazione resolveStato(StatoPostazione stato) {
+        return stato != null ? stato : StatoPostazione.DISPONIBILE;
     }
 
     // Converte l'entità Postazione nel DTO di risposta

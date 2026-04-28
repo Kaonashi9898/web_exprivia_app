@@ -125,7 +125,7 @@
     </a>
   }
 
-  @if (isBuildingManager()) {
+  @if (canAccessPlanEditor()) {
     <a routerLink="/planimetria" class="action-card">
       <span class="card-icon blue">
         <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 5v14M16 5v14M4 12h16" /></svg>

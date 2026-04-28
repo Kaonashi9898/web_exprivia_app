@@ -1,7 +1,12 @@
 package it.exprivia.prenotazioni.service;
 
 import it.exprivia.prenotazioni.dto.CreatePrenotazioneRequest;
+import it.exprivia.prenotazioni.dto.DashboardPrenotazioneResponse;
+import it.exprivia.prenotazioni.dto.ExternalEdificioResponse;
+import it.exprivia.prenotazioni.dto.ExternalPianoResponse;
 import it.exprivia.prenotazioni.dto.ExternalPostazioneResponse;
+import it.exprivia.prenotazioni.dto.ExternalSedeResponse;
+import it.exprivia.prenotazioni.dto.ExternalStanzaResponse;
 import it.exprivia.prenotazioni.dto.ExternalUtenteResponse;
 import it.exprivia.prenotazioni.dto.PrenotazioneResponse;
 import it.exprivia.prenotazioni.dto.UpdatePrenotazioneRequest;
@@ -25,7 +30,9 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -162,11 +169,24 @@ public class PrenotazioneService {
     }
 
     public List<PrenotazioneResponse> findMine(String authorizationHeader, LocalDate dataPrenotazione) {
-        ExternalUtenteResponse utente = utentiServiceClient.getCurrentUser(authorizationHeader);
-        List<Prenotazione> prenotazioni = dataPrenotazione != null
-                ? prenotazioneRepository.findByUtenteIdAndDataPrenotazioneOrderByOraInizioAsc(utente.id(), dataPrenotazione)
-                : prenotazioneRepository.findByUtenteIdOrderByDataPrenotazioneDescOraInizioAsc(utente.id());
-        return prenotazioni.stream().map(this::toResponse).toList();
+        return findMineEntities(authorizationHeader, dataPrenotazione).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    public List<DashboardPrenotazioneResponse> findMineForDashboard(String authorizationHeader, LocalDate dataPrenotazione) {
+        List<Prenotazione> prenotazioni = findMineEntities(authorizationHeader, dataPrenotazione);
+        Map<Long, DashboardLocationInfo> locationByStanzaId = new HashMap<>();
+
+        return prenotazioni.stream()
+                .map(prenotazione -> toDashboardResponse(
+                        prenotazione,
+                        locationByStanzaId.computeIfAbsent(
+                                prenotazione.getStanzaId(),
+                                stanzaId -> loadDashboardLocationInfo(stanzaId, authorizationHeader)
+                        )
+                ))
+                .toList();
     }
 
     public PrenotazioneResponse findById(Long id, String authorizationHeader, boolean puoGestireTutto) {
@@ -347,6 +367,44 @@ public class PrenotazioneService {
                 .orElseThrow(() -> new EntityNotFoundException("Prenotazione non trovata con id: " + id));
     }
 
+    private List<Prenotazione> findMineEntities(String authorizationHeader, LocalDate dataPrenotazione) {
+        ExternalUtenteResponse utente = utentiServiceClient.getCurrentUser(authorizationHeader);
+        return dataPrenotazione != null
+                ? prenotazioneRepository.findByUtenteIdAndDataPrenotazioneOrderByOraInizioAsc(utente.id(), dataPrenotazione)
+                : prenotazioneRepository.findByUtenteIdOrderByDataPrenotazioneDescOraInizioAsc(utente.id());
+    }
+
+    private DashboardLocationInfo loadDashboardLocationInfo(Long stanzaId, String authorizationHeader) {
+        ExternalStanzaResponse stanza = locationServiceClient.getStanza(stanzaId, authorizationHeader);
+        ExternalPianoResponse piano = locationServiceClient.getPiano(stanza.pianoId(), authorizationHeader);
+        ExternalEdificioResponse edificio = locationServiceClient.getEdificio(piano.edificioId(), authorizationHeader);
+        ExternalSedeResponse sede = locationServiceClient.getSede(edificio.sedeId(), authorizationHeader);
+
+        return new DashboardLocationInfo(
+                sede.nome() + " - " + sede.citta(),
+                getPianoLabel(piano.numero(), piano.nome())
+        );
+    }
+
+    private String getPianoLabel(Integer numero, String nome) {
+        if (nome != null && !nome.trim().isEmpty()) {
+            return nome.trim();
+        }
+        if (numero == null) {
+            return "Piano non disponibile";
+        }
+        if (numero == 0) {
+            return "Piano terra";
+        }
+        if (numero == 1) {
+            return "Primo piano";
+        }
+        if (numero == 2) {
+            return "Secondo piano";
+        }
+        return "Piano " + numero;
+    }
+
     private PrenotazioneResponse toResponse(Prenotazione prenotazione) {
         return new PrenotazioneResponse(
                 prenotazione.getId(),
@@ -364,5 +422,30 @@ public class PrenotazioneService {
                 prenotazione.getCreatedAt(),
                 prenotazione.getUpdatedAt()
         );
+    }
+
+    private DashboardPrenotazioneResponse toDashboardResponse(Prenotazione prenotazione,
+                                                              DashboardLocationInfo locationInfo) {
+        return new DashboardPrenotazioneResponse(
+                prenotazione.getId(),
+                prenotazione.getUtenteId(),
+                prenotazione.getUtenteEmail(),
+                prenotazione.getUtenteFullName(),
+                prenotazione.getPostazioneId(),
+                prenotazione.getPostazioneCodice(),
+                prenotazione.getStanzaId(),
+                prenotazione.getStanzaNome(),
+                locationInfo.sedeLabel(),
+                locationInfo.pianoLabel(),
+                prenotazione.getDataPrenotazione(),
+                prenotazione.getOraInizio(),
+                prenotazione.getOraFine(),
+                prenotazione.getStato(),
+                prenotazione.getCreatedAt(),
+                prenotazione.getUpdatedAt()
+        );
+    }
+
+    private record DashboardLocationInfo(String sedeLabel, String pianoLabel) {
     }
 }

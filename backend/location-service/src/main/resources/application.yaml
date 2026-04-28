@@ -10,7 +10,7 @@ server:
 
 # Configurazione JWT — usata SOLO per verificare i token, non per generarli
 jwt:
-  secret: ${JWT_SECRET}               # Stessa chiave segreta di utenti-service (indispensabile)
+  secret: ${JWT_SECRET}               # Deve essere fornita dall'ambiente reale
   expiration: ${JWT_EXPIRATION:86400000}  # Non usato qui (solo per compatibilità), default 24h
 
 spring:

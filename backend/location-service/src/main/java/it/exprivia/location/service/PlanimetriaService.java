@@ -33,6 +33,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -181,9 +182,11 @@ public class PlanimetriaService {
     }
 
     private void importLayout(Piano piano, PlanimetriaLayoutDto layout) {
+        List<Stanza> existingStanze = stanzaRepository.findByPianoId(piano.getId());
+        List<Postazione> existingPostazioni = postazioneRepository.findByStanzaPianoId(piano.getId());
         Map<String, Stanza> stanzePerNome = new HashMap<>();
         Map<String, Stanza> stanzePerLayoutId = new HashMap<>();
-        for (Stanza stanza : stanzaRepository.findByPianoId(piano.getId())) {
+        for (Stanza stanza : existingStanze) {
             stanzePerNome.put(normalizeStanzaName(stanza.getNome()), stanza);
             String layoutElementId = normalizeText(stanza.getLayoutElementId());
             if (layoutElementId != null) {
@@ -193,7 +196,7 @@ public class PlanimetriaService {
 
         Set<String> importedStanzaNames = new HashSet<>(stanzePerNome.keySet());
         Set<String> importedPostazioneCodes = new HashSet<>();
-        for (Postazione existing : postazioneRepository.findByStanzaPianoId(piano.getId())) {
+        for (Postazione existing : existingPostazioni) {
             String existingCode = normalizeText(existing.getCodice());
             if (existingCode != null) {
                 importedPostazioneCodes.add(normalizeText(existingCode));
@@ -201,8 +204,9 @@ public class PlanimetriaService {
         }
 
         Map<String, Stanza> stanzePerRoomId = new HashMap<>();
+        Set<Long> retainedStanzaIds = new HashSet<>();
         for (PlanimetriaLayoutDto.RoomDto importedRoom : safeList(layout.getRooms())) {
-            upsertStanzaFromLayout(
+            Stanza stanza = upsertStanzaFromLayout(
                     importedRoom,
                     TipoStanza.ROOM,
                     piano,
@@ -211,9 +215,12 @@ public class PlanimetriaService {
                     stanzePerRoomId,
                     importedStanzaNames
             );
+            if (stanza.getId() != null) {
+                retainedStanzaIds.add(stanza.getId());
+            }
         }
         for (PlanimetriaLayoutDto.RoomDto importedMeeting : safeList(layout.getMeetings())) {
-            upsertStanzaFromLayout(
+            Stanza stanza = upsertStanzaFromLayout(
                     importedMeeting,
                     TipoStanza.MEETING_ROOM,
                     piano,
@@ -222,10 +229,12 @@ public class PlanimetriaService {
                     stanzePerRoomId,
                     importedStanzaNames
             );
+            if (stanza.getId() != null) {
+                retainedStanzaIds.add(stanza.getId());
+            }
         }
 
-        Set<String> importedStationIds = new HashSet<>();
-        Set<String> importedCodes = new HashSet<>();
+        Set<Long> retainedPostazioneIds = new HashSet<>();
         for (PlanimetriaLayoutDto.StationDto importedStation : safeList(layout.getStations())) {
             String layoutElementId = normalizeText(importedStation.getId());
             String codiceBase = normalizeText(importedStation.getLabel());
@@ -233,9 +242,6 @@ public class PlanimetriaService {
             if (codice == null) {
                 continue;
             }
-
-            importedStationIds.add(layoutElementId);
-            importedCodes.add(codice);
 
             Stanza stanza = stanzePerRoomId.get(importedStation.getRoomId());
             if (stanza == null) {
@@ -258,17 +264,31 @@ public class PlanimetriaService {
             postazione.setStanza(stanza);
             postazioneRepository.save(postazione);
             importedPostazioneCodes.add(normalizeText(postazione.getCodice()));
+            if (postazione.getId() != null) {
+                retainedPostazioneIds.add(postazione.getId());
+            }
         }
 
-        // Evita di lasciare postazioni tecniche duplicate create da import precedenti con id/codice non più presenti.
-        for (Postazione existing : postazioneRepository.findByStanzaPianoId(piano.getId())) {
-            String existingLayoutElementId = normalizeText(existing.getLayoutElementId());
-            String existingCode = normalizeText(existing.getCodice());
-            if (existingLayoutElementId != null && !importedStationIds.contains(existingLayoutElementId)
-                    && importedCodes.contains(existingCode)) {
-                existing.setLayoutElementId(null);
-                postazioneRepository.save(existing);
-            }
+        List<Long> deletedPostazioneIds = new ArrayList<>();
+        List<Postazione> obsoletePostazioni = existingPostazioni.stream()
+                .filter(existing -> existing.getId() != null && !retainedPostazioneIds.contains(existing.getId()))
+                .toList();
+        for (Postazione obsolete : obsoletePostazioni) {
+            deletedPostazioneIds.add(obsolete.getId());
+        }
+        if (!obsoletePostazioni.isEmpty()) {
+            postazioneRepository.deleteAll(obsoletePostazioni);
+        }
+
+        List<Stanza> obsoleteStanze = existingStanze.stream()
+                .filter(existing -> existing.getId() != null && !retainedStanzaIds.contains(existing.getId()))
+                .toList();
+        if (!obsoleteStanze.isEmpty()) {
+            stanzaRepository.deleteAll(obsoleteStanze);
+        }
+
+        if (!deletedPostazioneIds.isEmpty()) {
+            planimetriaEventPublisher.pubblicaEliminazione(new PlanimetriaEliminataEvent(piano.getId(), deletedPostazioneIds));
         }
     }
 
@@ -384,13 +404,13 @@ public class PlanimetriaService {
         return layout;
     }
 
-    private void upsertStanzaFromLayout(PlanimetriaLayoutDto.RoomDto importedRoom,
-                                        TipoStanza tipoStanza,
-                                        Piano piano,
-                                        Map<String, Stanza> stanzePerNome,
-                                        Map<String, Stanza> stanzePerLayoutId,
-                                        Map<String, Stanza> stanzePerRoomId,
-                                        Set<String> importedStanzaNames) {
+    private Stanza upsertStanzaFromLayout(PlanimetriaLayoutDto.RoomDto importedRoom,
+                                          TipoStanza tipoStanza,
+                                          Piano piano,
+                                          Map<String, Stanza> stanzePerNome,
+                                          Map<String, Stanza> stanzePerLayoutId,
+                                          Map<String, Stanza> stanzePerRoomId,
+                                          Set<String> importedStanzaNames) {
         String roomId = normalizeText(importedRoom.getId());
         String roomName = normalizeText(importedRoom.getLabel());
         String resolvedRoomName = resolveUniqueStanzaName(roomName, importedRoom, importedStanzaNames);
@@ -417,6 +437,7 @@ public class PlanimetriaService {
             stanzePerLayoutId.put(roomId, stanza);
             stanzePerRoomId.put(roomId, stanza);
         }
+        return stanza;
     }
 
     private Piano getPianoOrThrow(Long pianoId) {

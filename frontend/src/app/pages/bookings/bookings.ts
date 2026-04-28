@@ -3,8 +3,9 @@ import { FormsModule } from '@angular/forms';
 import { forkJoin, of, Subscription, switchMap } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { Edificio, Piano, Postazione, Prenotazione, Sede, Stanza, StatoPostazione } from '../../core/app.models';
+import { apiErrorMessage } from '../../core/api-error.utils';
 import { AuthService } from '../../core/auth.service';
-import { todayLocalIsoDate } from '../../core/date.utils';
+import { nextBookableIsoDate } from '../../core/date.utils';
 
 interface RoomStats {
   stanza: Stanza;
@@ -59,7 +60,8 @@ export class BookingsComponent implements OnInit, OnDestroy {
   selectedSedeId: number | null = null;
   selectedEdificioId: number | null = null;
   selectedPianoId: number | null = null;
-  reportDate = todayLocalIsoDate();
+  readonly minReportDate = nextBookableIsoDate();
+  reportDate = this.minReportDate;
   loading = false;
   error = '';
   showCreateSedeModal = false;
@@ -94,7 +96,7 @@ export class BookingsComponent implements OnInit, OnDestroy {
         this.refreshView();
       },
       error: (err) => {
-        this.error = err?.error?.message ?? 'Impossibile caricare le sedi.';
+        this.error = apiErrorMessage(err, 'Impossibile caricare le sedi.');
         this.refreshView();
       },
     });
@@ -126,7 +128,7 @@ export class BookingsComponent implements OnInit, OnDestroy {
         this.resetSelection('sede');
       },
       error: (err) => {
-        this.error = err?.error?.message ?? 'Eliminazione sede non riuscita.';
+        this.error = apiErrorMessage(err, 'Eliminazione sede non riuscita.');
         this.refreshView();
       },
     });
@@ -209,7 +211,7 @@ export class BookingsComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           this.creatingSede = false;
-          this.createSedeError = err?.error?.message ?? 'Creazione sede non riuscita.';
+          this.createSedeError = apiErrorMessage(err, 'Creazione sede non riuscita.');
           this.refreshView();
         },
       });
@@ -259,7 +261,7 @@ export class BookingsComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.creatingEdificio = false;
-        this.createEdificioError = err?.error?.message ?? 'Creazione edificio non riuscita.';
+        this.createEdificioError = apiErrorMessage(err, 'Creazione edificio non riuscita.');
         this.refreshView();
       },
     });
@@ -284,7 +286,7 @@ export class BookingsComponent implements OnInit, OnDestroy {
         this.resetSelection('edificio');
       },
       error: (err) => {
-        this.error = err?.error?.message ?? 'Eliminazione edificio non riuscita.';
+        this.error = apiErrorMessage(err, 'Eliminazione edificio non riuscita.');
         this.refreshView();
       },
     });
@@ -362,7 +364,7 @@ export class BookingsComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           this.creatingPiano = false;
-          this.createPianoError = err?.error?.message ?? 'Creazione piano non riuscita.';
+          this.createPianoError = apiErrorMessage(err, 'Creazione piano non riuscita.');
           this.refreshView();
         },
       });
@@ -388,7 +390,7 @@ export class BookingsComponent implements OnInit, OnDestroy {
         this.resetSelection('piano');
       },
       error: (err) => {
-        this.error = err?.error?.message ?? 'Eliminazione piano non riuscita.';
+        this.error = apiErrorMessage(err, 'Eliminazione piano non riuscita.');
         this.refreshView();
       },
     });
@@ -405,7 +407,7 @@ export class BookingsComponent implements OnInit, OnDestroy {
         this.refreshView();
       },
       error: (err) => {
-        this.error = err?.error?.message ?? 'Impossibile caricare gli edifici.';
+        this.error = apiErrorMessage(err, 'Impossibile caricare gli edifici.');
         this.refreshView();
       },
     });
@@ -422,7 +424,7 @@ export class BookingsComponent implements OnInit, OnDestroy {
         this.refreshView();
       },
       error: (err) => {
-        this.error = err?.error?.message ?? 'Impossibile caricare i piani.';
+        this.error = apiErrorMessage(err, 'Impossibile caricare i piani.');
         this.refreshView();
       },
     });
@@ -463,7 +465,7 @@ export class BookingsComponent implements OnInit, OnDestroy {
         },
         error: (err) => {
           this.loading = false;
-          this.error = err?.error?.message ?? 'Impossibile caricare il riepilogo prenotazioni.';
+          this.error = apiErrorMessage(err, 'Impossibile caricare il riepilogo prenotazioni.');
           this.refreshView();
         },
       });

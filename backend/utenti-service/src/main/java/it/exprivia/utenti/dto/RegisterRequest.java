@@ -1,6 +1,7 @@
 package it.exprivia.utenti.dto;
 
 import it.exprivia.utenti.entity.RuoloUtente;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -21,9 +22,10 @@ public class RegisterRequest {
     private String fullName;
 
     @NotBlank(message = "L'email è obbligatoria")
+    @Email(message = "L'email deve essere valida")
     @Pattern(
-        regexp = "^[a-z]+\\.[a-z]+@exprivia\\.com$",
-        message = "L'email deve essere nel formato nome.cognome@exprivia.com"
+        regexp = "(?i)^[a-z0-9]+(?:[._-][a-z0-9]+)*@exprivia\\.com$",
+        message = "L'email deve essere un indirizzo aziendale @exprivia.com valido"
     )
     private String email;
 

@@ -61,7 +61,7 @@
 
   <label>
     Giorno
-    <input type="date" name="reportDate" [(ngModel)]="reportDate" (change)="loadReport()" />
+    <input type="date" name="reportDate" [(ngModel)]="reportDate" [min]="minReportDate" (change)="loadReport()" />
   </label>
 </section>
 
@@ -76,11 +76,11 @@
       <strong>{{ totalSeats }}</strong>
     </article>
     <article class="stat-card free">
-      <span>Libere oggi</span>
+      <span>Libere nel giorno selezionato</span>
       <strong>{{ freeSeats }}</strong>
     </article>
     <article class="stat-card occupied">
-      <span>Occupate oggi</span>
+      <span>Occupate nel giorno selezionato</span>
       <strong>{{ occupiedSeats }}</strong>
     </article>
     <article class="stat-card blocked">

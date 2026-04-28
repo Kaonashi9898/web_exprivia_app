@@ -34,6 +34,40 @@
   border-radius: var(--radius-sm);
 }
 
+.status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin-bottom: 0.8rem;
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+}
+
+.status-legend span {
+  display: inline-flex;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.legend-dot.free {
+  background: #08715f;
+}
+
+.legend-dot.partial {
+  background: #cc8b14;
+}
+
+.legend-dot.conflict {
+  background: #8a2d18;
+}
+
 .plan-stage {
   position: relative;
   min-width: 100%;
@@ -165,6 +199,12 @@
 
 .selected-seat strong {
   color: var(--color-primary-dark);
+}
+
+.booking-slots strong,
+.partial-note strong,
+.suggestion-box strong {
+  color: var(--color-text-main);
 }
 
 .empty-plan.inline {

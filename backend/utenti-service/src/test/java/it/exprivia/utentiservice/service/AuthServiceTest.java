@@ -61,6 +61,21 @@ class AuthServiceTest {
     }
 
     @Test
+    void register_normalizzaEmailPrimaDiSalvarla() {
+        RegisterRequest request = buildRequest("  Mario.De-Santis@Exprivia.com  ", null);
+        when(utenteRepository.existsByEmail("mario.de-santis@exprivia.com")).thenReturn(false);
+        when(passwordEncoder.encode(request.getPassword())).thenReturn("hash");
+        when(utenteRepository.save(any(Utente.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = authService.register(request);
+
+        ArgumentCaptor<Utente> captor = ArgumentCaptor.forClass(Utente.class);
+        verify(utenteRepository).save(captor.capture());
+        assertThat(captor.getValue().getEmail()).isEqualTo("mario.de-santis@exprivia.com");
+        assertThat(response.getEmail()).isEqualTo("mario.de-santis@exprivia.com");
+    }
+
+    @Test
     void register_ruoloPrivilegiatoVieneRifiutato() {
         RegisterRequest request = buildRequest("admin.user@exprivia.com", RuoloUtente.ADMIN);
         when(utenteRepository.existsByEmail(request.getEmail())).thenReturn(false);

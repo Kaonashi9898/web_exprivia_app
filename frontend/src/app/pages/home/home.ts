@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { finalize } from 'rxjs';
+import { apiErrorMessage } from '../../core/api-error.utils';
 import { AuthService } from '../../core/auth.service';
 
 @Component({
@@ -37,7 +38,7 @@ export class HomeComponent {
       .subscribe({
         next: () => this.router.navigateByUrl('/dashboard'),
         error: (err) => {
-          this.error = err?.error?.message ?? 'Credenziali non valide o servizio non raggiungibile.';
+          this.error = apiErrorMessage(err, 'Credenziali non valide o servizio non raggiungibile.');
         },
       });
   }

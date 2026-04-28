@@ -33,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -255,6 +256,37 @@ class PrenotazioneServiceTest {
 
         verify(prenotazioneRepository).delete(prenotazione);
         verify(prenotazioneEventPublisher).pubblicaAnnullamento(any());
+    }
+
+    @Test
+    void findMineForDashboard_arricchisceLePrenotazioniESfruttaCachePerLaStessaStanza() {
+        Prenotazione prima = buildPrenotazione(22L, 11L, 7L, LocalDate.of(2026, 4, 29), LocalTime.of(9, 0), LocalTime.of(13, 0));
+        Prenotazione seconda = buildPrenotazione(23L, 11L, 8L, LocalDate.of(2026, 4, 30), LocalTime.of(14, 0), LocalTime.of(18, 0));
+        seconda.setStanzaId(3L);
+        seconda.setPostazioneCodice("PS-008");
+
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.USER));
+        when(prenotazioneRepository.findByUtenteIdOrderByDataPrenotazioneDescOraInizioAsc(11L))
+                .thenReturn(List.of(prima, seconda));
+        when(locationServiceClient.getStanza(3L, "Bearer token"))
+                .thenReturn(new it.exprivia.prenotazioni.dto.ExternalStanzaResponse(3L, "Open Space", 5L, 2));
+        when(locationServiceClient.getPiano(5L, "Bearer token"))
+                .thenReturn(new it.exprivia.prenotazioni.dto.ExternalPianoResponse(5L, 2, "", 9L, "Edificio A"));
+        when(locationServiceClient.getEdificio(9L, "Bearer token"))
+                .thenReturn(new it.exprivia.prenotazioni.dto.ExternalEdificioResponse(9L, "Edificio A", 12L, "Sede Milano"));
+        when(locationServiceClient.getSede(12L, "Bearer token"))
+                .thenReturn(new it.exprivia.prenotazioni.dto.ExternalSedeResponse(12L, "HQ", "Via Roma 1", "Milano"));
+
+        var response = prenotazioneService.findMineForDashboard("Bearer token", null);
+
+        assertThat(response).hasSize(2);
+        assertThat(response)
+                .extracting(item -> item.getSedeLabel() + " | " + item.getPianoLabel())
+                .containsOnly("HQ - Milano | Secondo piano");
+        verify(locationServiceClient, times(1)).getStanza(3L, "Bearer token");
+        verify(locationServiceClient, times(1)).getPiano(5L, "Bearer token");
+        verify(locationServiceClient, times(1)).getEdificio(9L, "Bearer token");
+        verify(locationServiceClient, times(1)).getSede(12L, "Bearer token");
     }
 
     private CreatePrenotazioneRequest buildCreateRequest(Long postazioneId, LocalDate data, LocalTime oraInizio, LocalTime oraFine) {

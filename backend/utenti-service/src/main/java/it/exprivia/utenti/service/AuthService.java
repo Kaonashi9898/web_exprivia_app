@@ -12,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.Locale;
+
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -21,13 +23,14 @@ public class AuthService {
     private final JwtUtils jwtUtils;
 
     public UtenteDTO register(RegisterRequest request) {
-        if (utenteRepository.existsByEmail(request.getEmail())) {
+        String normalizedEmail = normalizeEmail(request.getEmail());
+        if (utenteRepository.existsByEmail(normalizedEmail)) {
             throw new IllegalArgumentException("Email gia' registrata");
         }
 
         Utente utente = new Utente();
         utente.setFullName(request.getFullName());
-        utente.setEmail(request.getEmail());
+        utente.setEmail(normalizedEmail);
         utente.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         utente.setRuolo(resolvePublicRegistrationRole(request.getRuolo()));
 
@@ -36,7 +39,7 @@ public class AuthService {
     }
 
     public LoginResponse login(LoginRequest request) {
-        Utente utente = utenteRepository.findByEmail(request.getEmail())
+        Utente utente = utenteRepository.findByEmail(normalizeEmail(request.getEmail()))
                 .orElseThrow(() -> new IllegalArgumentException("Credenziali non valide"));
 
         if (!passwordEncoder.matches(request.getPassword(), utente.getPasswordHash())) {
@@ -55,5 +58,9 @@ public class AuthService {
             return requestedRole;
         }
         throw new IllegalArgumentException("La registrazione pubblica puo' creare solo utenti USER o GUEST");
+    }
+
+    private String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
     }
 }

@@ -100,6 +100,11 @@ export interface Prenotazione {
   updatedAt: string;
 }
 
+export interface DashboardPrenotazione extends Prenotazione {
+  sedeLabel: string;
+  pianoLabel: string;
+}
+
 export interface CreatePrenotazioneRequest {
   postazioneId: number;
   dataPrenotazione: string;

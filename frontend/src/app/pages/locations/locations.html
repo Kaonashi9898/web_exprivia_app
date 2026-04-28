@@ -15,6 +15,9 @@
 @if (error) {
   <div class="notice error">{{ error }}</div>
 }
+@if (availabilityError) {
+  <div class="notice error">{{ availabilityError }}</div>
+}
 
 <section class="panel picker-panel">
   <label>
@@ -57,9 +60,15 @@
 @if (imageSrc || layout) {
   <section class="plan-layout">
     <div class="panel plan-panel">
-      <div class="panel-header">
-        <h2>Planimetria</h2>
-      </div>
+    <div class="panel-header">
+      <h2>Planimetria</h2>
+    </div>
+
+    <div class="status-legend">
+      <span><i class="legend-dot free"></i> Libera</span>
+      <span><i class="legend-dot partial"></i> Parzialmente occupata</span>
+      <span><i class="legend-dot conflict"></i> Occupata nella fascia selezionata</span>
+    </div>
 
       @if (imageSrc) {
         <div class="plan-preview">
@@ -93,8 +102,9 @@
                 [class.active]="selectedStation?.id === station.id"
                 [class.booked]="stationIsBooked(station)"
                 [class.partial]="stationIsPartiallyBooked(station)"
-                [class.unavailable]="!stationIsAvailable(station)"
-                [attr.aria-disabled]="!stationIsAvailable(station)"
+                [class.unavailable]="stationIsUnavailable(station)"
+                [disabled]="stationIsUnavailable(station)"
+                [attr.aria-disabled]="stationIsUnavailable(station)"
                 [style.left.%]="station.position.xPct"
                 [style.top.%]="station.position.yPct"
                 (click)="selectStation(station)"
@@ -146,7 +156,31 @@
 
         <p class="muted">Disponibilita calcolata per {{ selectedWindowSummary() }}. Le prenotazioni partono dal primo giorno lavorativo disponibile.</p>
 
-        <button class="btn btn-primary" type="submit" [disabled]="!selectedPostazione">
+        @if (selectedStationIsPartiallyOccupied()) {
+          <div class="selected-seat partial-note">
+            <span>Stato della postazione</span>
+            <strong>Questa postazione e parzialmente occupata nel giorno selezionato.</strong>
+          </div>
+        }
+
+        @if (selectedStationBookingsSummary().length) {
+          <div class="selected-seat booking-slots">
+            <span>Fasce gia occupate per questa postazione</span>
+            <strong>{{ selectedStationBookingsSummary().join(', ') }}</strong>
+          </div>
+        }
+
+        @if (suggestedStartTime && selectedStation) {
+          <div class="selected-seat suggestion-box">
+            <span>Prima disponibilita suggerita</span>
+            <strong>Dalle {{ suggestedStartTime }}</strong>
+            <button class="ghost-button" type="button" (click)="applySuggestedStartTime()">
+              Usa questa fascia
+            </button>
+          </div>
+        }
+
+        <button class="btn btn-primary" type="submit" [disabled]="!selectedStationCanBeBooked()">
           Prenota postazione
         </button>
 
@@ -155,6 +189,9 @@
         }
         @if (error) {
           <div class="notice error inline-booking-message">{{ error }}</div>
+        }
+        @if (availabilityError) {
+          <div class="notice error inline-booking-message">{{ availabilityError }}</div>
         }
 
         @if (!selectedRoomId) {

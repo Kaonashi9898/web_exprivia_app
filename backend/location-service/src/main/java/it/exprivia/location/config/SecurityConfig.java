@@ -49,6 +49,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 // Regole specifiche PRIMA di quella generica GET (Spring Security: vince la prima che fa match)
+                .requestMatchers(HttpMethod.GET, "/api/gruppi-postazioni/postazione/**")
+                    .hasAnyRole("USER", "RECEPTION", "BUILDING_MANAGER", "ADMIN")
                 .requestMatchers("/api/gruppi-postazioni/**").hasAnyRole("BUILDING_MANAGER", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/piani/*/planimetria/**").hasAnyRole("BUILDING_MANAGER", "ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/piani/*/planimetria", "/api/piani/*/planimetria/**").hasAnyRole("BUILDING_MANAGER", "ADMIN")

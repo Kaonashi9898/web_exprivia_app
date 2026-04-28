@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -32,13 +33,14 @@ public class UtenteService {
     }
 
     public UtenteDTO create(RegisterRequest request) {
-        if (utenteRepository.existsByEmail(request.getEmail())) {
+        String normalizedEmail = normalizeEmail(request.getEmail());
+        if (utenteRepository.existsByEmail(normalizedEmail)) {
             throw new IllegalArgumentException("Email gia' registrata");
         }
 
         Utente utente = new Utente();
         utente.setFullName(request.getFullName());
-        utente.setEmail(request.getEmail());
+        utente.setEmail(normalizedEmail);
         utente.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         utente.setRuolo(request.getRuolo() != null ? request.getRuolo() : RuoloUtente.USER);
 
@@ -46,8 +48,9 @@ public class UtenteService {
     }
 
     public UtenteDTO findByEmail(String email) {
-        Utente utente = utenteRepository.findByEmail(email)
-                .orElseThrow(() -> new EntityNotFoundException("Utente non trovato con email: " + email));
+        String normalizedEmail = normalizeEmail(email);
+        Utente utente = utenteRepository.findByEmail(normalizedEmail)
+                .orElseThrow(() -> new EntityNotFoundException("Utente non trovato con email: " + normalizedEmail));
         return toDTO(utente);
     }
 
@@ -60,11 +63,12 @@ public class UtenteService {
     public UtenteDTO update(Long id, UtenteDTO dto) {
         Utente utente = utenteRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Utente non trovato con id: " + id));
-        if (!utente.getEmail().equals(dto.getEmail()) && utenteRepository.existsByEmail(dto.getEmail())) {
-            throw new IllegalArgumentException("Email già registrata: " + dto.getEmail());
+        String normalizedEmail = normalizeEmail(dto.getEmail());
+        if (!normalizeEmail(utente.getEmail()).equals(normalizedEmail) && utenteRepository.existsByEmail(normalizedEmail)) {
+            throw new IllegalArgumentException("Email già registrata: " + normalizedEmail);
         }
         utente.setFullName(dto.getFullName());
-        utente.setEmail(dto.getEmail());
+        utente.setEmail(normalizedEmail);
         return toDTO(utenteRepository.save(utente));
     }
 
@@ -92,5 +96,9 @@ public class UtenteService {
                 utente.getEmail(),
                 utente.getRuolo()
         );
+    }
+
+    private String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
     }
 }

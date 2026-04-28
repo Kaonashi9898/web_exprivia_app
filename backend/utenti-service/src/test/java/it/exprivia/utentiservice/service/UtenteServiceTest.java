@@ -1,7 +1,10 @@
 package it.exprivia.utentiservice.service;
 
+import it.exprivia.utenti.dto.RegisterRequest;
 import it.exprivia.utenti.messaging.GruppoEventPublisher;
 import it.exprivia.utenti.messaging.UtenteEliminatoEvent;
+import it.exprivia.utenti.entity.RuoloUtente;
+import it.exprivia.utenti.entity.Utente;
 import it.exprivia.utenti.repository.GruppoUtenteRepository;
 import it.exprivia.utenti.repository.UtenteRepository;
 import it.exprivia.utenti.service.UtenteService;
@@ -12,6 +15,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,8 +32,29 @@ class UtenteServiceTest {
     @Mock UtenteRepository utenteRepository;
     @Mock GruppoUtenteRepository gruppoUtenteRepository;
     @Mock GruppoEventPublisher gruppoEventPublisher;
+    @Mock PasswordEncoder passwordEncoder;
 
     @InjectMocks UtenteService utenteService;
+
+    @Test
+    void create_normalizzaEmailPrimaDiSalvarla() {
+        RegisterRequest request = new RegisterRequest();
+        request.setFullName("Mario Rossi");
+        request.setEmail("  Mario.De-Santis@Exprivia.com  ");
+        request.setPassword("password123");
+        request.setRuolo(RuoloUtente.USER);
+
+        when(utenteRepository.existsByEmail("mario.de-santis@exprivia.com")).thenReturn(false);
+        when(passwordEncoder.encode("password123")).thenReturn("hash");
+        when(utenteRepository.save(any(Utente.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = utenteService.create(request);
+
+        ArgumentCaptor<Utente> captor = ArgumentCaptor.forClass(Utente.class);
+        verify(utenteRepository).save(captor.capture());
+        assertThat(captor.getValue().getEmail()).isEqualTo("mario.de-santis@exprivia.com");
+        assertThat(response.getEmail()).isEqualTo("mario.de-santis@exprivia.com");
+    }
 
     @Test
     void delete_utenteInesistente_lanceEntityNotFoundException() {

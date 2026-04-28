@@ -2,6 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import {
   CreatePrenotazioneRequest,
+  DashboardPrenotazione,
   Edificio,
   Piano,
   PlanimetriaLayout,
@@ -112,6 +113,11 @@ export class ApiService {
     return this.http.get<Prenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni/mie`, { params });
   }
 
+  listMyDashboardBookings(data?: string) {
+    const params = data ? new HttpParams().set('data', data) : undefined;
+    return this.http.get<DashboardPrenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni/mie/dashboard`, { params });
+  }
+
   listBookings(data?: string, postazioneId?: number) {
     let params = new HttpParams();
     if (data) {
@@ -121,6 +127,11 @@ export class ApiService {
       params = params.set('postazioneId', postazioneId);
     }
     return this.http.get<Prenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni`, { params });
+  }
+
+  listBookingsByPostazione(postazioneId: number, data?: string) {
+    const params = data ? new HttpParams().set('data', data) : undefined;
+    return this.http.get<Prenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni/postazione/${postazioneId}`, { params });
   }
 
   createBooking(request: CreatePrenotazioneRequest) {

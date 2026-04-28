@@ -169,6 +169,8 @@ services:
         condition: service_healthy
     networks:
       - backend
+    volumes:
+      - planimetrie_location_data:/app/storage/planimetrie
 
   # ─── PRENOTAZIONI SERVICE ────────────────────────────────────────────────
   # Microservizio Java Spring Boot per la gestione delle prenotazioni orarie.
@@ -245,3 +247,4 @@ volumes:
   postgresql_utenti_data:
   postgresql_location_data:
   postgresql_prenotazioni_data:
+  planimetrie_location_data:

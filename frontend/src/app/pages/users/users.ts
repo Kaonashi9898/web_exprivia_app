@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { finalize, retry, timer, timeout } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { RegisterRequest, RuoloUtente, Utente } from '../../core/app.models';
+import { apiErrorMessage } from '../../core/api-error.utils';
 
 @Component({
   selector: 'app-users',
@@ -58,7 +59,7 @@ export class UsersComponent implements OnInit, OnDestroy {
           this.refreshView();
         },
         error: (err) => {
-          this.error = err?.error?.message ?? 'Impossibile caricare gli utenti.';
+          this.error = apiErrorMessage(err, 'Impossibile caricare gli utenti.');
           this.refreshView();
         },
       });
@@ -94,7 +95,7 @@ export class UsersComponent implements OnInit, OnDestroy {
         error: (err) => {
           this.clearCreateRefreshTimers();
           this.saving = false;
-          this.error = err?.error?.message ?? 'Creazione utente non riuscita.';
+          this.error = apiErrorMessage(err, 'Creazione utente non riuscita.');
           this.refreshView();
           this.loadUsers(false);
         },
@@ -109,7 +110,7 @@ export class UsersComponent implements OnInit, OnDestroy {
         this.refreshView();
       },
       error: (err) => {
-        this.error = err?.error?.message ?? 'Aggiornamento ruolo non riuscito.';
+        this.error = apiErrorMessage(err, 'Aggiornamento ruolo non riuscito.');
         this.refreshView();
       },
     });
@@ -128,7 +129,7 @@ export class UsersComponent implements OnInit, OnDestroy {
         this.loadUsers(false);
       },
       error: (err) => {
-        this.error = err?.error?.message ?? 'Eliminazione utente non riuscita.';
+        this.error = apiErrorMessage(err, 'Eliminazione utente non riuscita.');
         this.refreshView();
       },
     });

@@ -1,10 +1,13 @@
 import { ChangeDetectorRef, Component, inject, OnDestroy, OnInit } from '@angular/core';
 import { NgStyle } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { forkJoin, of, Subscription, switchMap } from 'rxjs';
+import { forkJoin, Observable, of, Subscription, switchMap, map } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { Edificio, Piano, PlanimetriaLayout, PlanimetriaResponse, Postazione, Prenotazione, Sede } from '../../core/app.models';
+import { apiErrorMessage } from '../../core/api-error.utils';
+import { AuthService } from '../../core/auth.service';
 import { isWeekendIsoDate, nextBookableIsoDate } from '../../core/date.utils';
+import { OPERATIONAL_BOOKING_ROLES } from '../../core/role-access';
 
 type LayoutRoom = NonNullable<PlanimetriaLayout['rooms']>[number];
 type LayoutMeeting = NonNullable<PlanimetriaLayout['meetings']>[number];
@@ -21,6 +24,7 @@ type PositionedStation = LayoutStation & { position: { xPct: number; yPct: numbe
 })
 export class LocationsComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
+  private readonly auth = inject(AuthService);
   private readonly cdr = inject(ChangeDetectorRef);
   private sediSubscription: Subscription | null = null;
   private edificiSubscription: Subscription | null = null;
@@ -32,6 +36,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
   private bookingsSubscription: Subscription | null = null;
   private createBookingSubscription: Subscription | null = null;
   private currentPlanRequestId = 0;
+  private currentBookingsRequestId = 0;
 
   sedi: Sede[] = [];
   edifici: Edificio[] = [];
@@ -44,6 +49,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
   selectedRoomId: string | null = null;
   selectedStation: LayoutStation | null = null;
   selectedPostazione: Postazione | null = null;
+  suggestedStartTime: string | null = null;
 
   planimetria: PlanimetriaResponse | null = null;
   layout: PlanimetriaLayout | null = null;
@@ -51,7 +57,10 @@ export class LocationsComponent implements OnInit, OnDestroy {
   unavailableMessage = '';
   message = '';
   error = '';
+  availabilityError = '';
   sediLoading = false;
+  bookingsLoading = false;
+  bookingsLoaded = false;
 
   readonly minBookingDate = nextBookableIsoDate();
   bookingDate = this.minBookingDate;
@@ -69,7 +78,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.sediLoading = false;
-        this.error = err?.error?.message ?? 'Impossibile caricare le sedi.';
+        this.error = apiErrorMessage(err, 'Impossibile caricare le sedi.');
         this.refreshView();
       },
     });
@@ -109,7 +118,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
           this.refreshView();
         },
         error: (err) => {
-          this.error = err?.error?.message ?? 'Impossibile caricare la sede.';
+          this.error = apiErrorMessage(err, 'Impossibile caricare la sede.');
           this.refreshView();
         },
       });
@@ -134,7 +143,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
         this.refreshView();
       },
       error: (err) => {
-        this.error = err?.error?.message ?? 'Impossibile caricare i piani.';
+        this.error = apiErrorMessage(err, 'Impossibile caricare i piani.');
         this.refreshView();
       },
     });
@@ -162,13 +171,26 @@ export class LocationsComponent implements OnInit, OnDestroy {
   }
 
   selectStation(station: LayoutStation): void {
-    if (!this.stationIsAvailable(station)) {
+    const postazione = this.findPostazione(station);
+    if (!postazione || postazione.stato !== 'DISPONIBILE') {
       return;
     }
 
     this.selectedStation = station;
     this.selectedRoomId = station.roomId ?? this.selectedRoomId;
-    this.selectedPostazione = this.findPostazione(station);
+    this.selectedPostazione = postazione;
+    if (!this.bookingsAreReady()) {
+      this.suggestedStartTime = null;
+      this.refreshView();
+      return;
+    }
+    this.suggestedStartTime = this.findSuggestedStartTime(station);
+    if (this.selectedStationHasOverlap() && this.suggestedStartTime) {
+      this.message = '';
+      this.error = `La postazione e' occupata nella fascia selezionata. Prima disponibilita suggerita dalle ${this.suggestedStartTime}.`;
+    } else {
+      this.clearMessages();
+    }
     this.refreshView();
   }
 
@@ -209,7 +231,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
           this.refreshView();
         },
         error: (err) => {
-          this.error = err?.error?.message ?? 'Prenotazione non riuscita.';
+          this.error = apiErrorMessage(err, 'Prenotazione non riuscita.');
           this.refreshView();
         },
       });
@@ -247,21 +269,32 @@ export class LocationsComponent implements OnInit, OnDestroy {
   }
 
   stationIsBooked(station: LayoutStation): boolean {
+    if (!this.bookingsAreReady()) {
+      return false;
+    }
     return this.stationHasOverlap(station);
   }
 
   stationIsAvailable(station: LayoutStation): boolean {
     const postazione = this.findPostazione(station);
-    return !!postazione && postazione.stato === 'DISPONIBILE' && this.hasValidBookingWindow() && !this.stationHasOverlap(station);
+    return !!postazione
+      && postazione.stato === 'DISPONIBILE'
+      && this.bookingsAreReady()
+      && this.hasValidBookingWindow()
+      && !this.stationHasOverlap(station);
+  }
+
+  stationIsUnavailable(station: LayoutStation): boolean {
+    const postazione = this.findPostazione(station);
+    return !postazione || postazione.stato !== 'DISPONIBILE' || !this.bookingsAreReady();
   }
 
   stationIsPartiallyBooked(station: LayoutStation): boolean {
+    if (!this.bookingsAreReady()) {
+      return false;
+    }
     const postazione = this.findPostazione(station);
-    return !!postazione
-      && postazione.stato === 'DISPONIBILE'
-      && this.hasValidBookingWindow()
-      && this.stationHasBookings(station)
-      && !this.stationHasOverlap(station);
+    return !!postazione && postazione.stato === 'DISPONIBILE' && this.stationHasBookings(station);
   }
 
   bookingForStation(station: LayoutStation): Prenotazione | null {
@@ -288,6 +321,10 @@ export class LocationsComponent implements OnInit, OnDestroy {
     const timeError = this.validateBookingTimeSelection();
     if (timeError) {
       return timeError;
+    }
+
+    if (!this.bookingsAreReady()) {
+      return this.availabilityStatusMessage();
     }
 
     const bookings = this.bookingsForStation(station);
@@ -317,6 +354,39 @@ export class LocationsComponent implements OnInit, OnDestroy {
     return `${this.bookingDate} dalle ${this.startTime} alle ${this.endTime}`;
   }
 
+  selectedStationCanBeBooked(): boolean {
+    return !!this.selectedPostazione
+      && this.bookingsAreReady()
+      && this.hasValidBookingWindow()
+      && !this.selectedStationHasOverlap();
+  }
+
+  selectedStationBookingsSummary(): string[] {
+    if (!this.selectedStation || !this.bookingsAreReady()) {
+      return [];
+    }
+    return this.bookingsForStation(this.selectedStation)
+      .map((booking) => `${booking.oraInizio}-${booking.oraFine}`)
+      .sort();
+  }
+
+  selectedStationIsPartiallyOccupied(): boolean {
+    return this.selectedStationBookingsSummary().length > 0;
+  }
+
+  applySuggestedStartTime(): void {
+    if (!this.suggestedStartTime || !this.bookingsAreReady()) {
+      return;
+    }
+    this.startTime = this.suggestedStartTime;
+    if (this.endTime <= this.startTime) {
+      this.endTime = this.addOneHour(this.startTime);
+    }
+    this.clearMessages();
+    this.suggestedStartTime = this.findSuggestedStartTime(this.selectedStation);
+    this.refreshView();
+  }
+
   onBookingDateChange(): void {
     this.clearMessages();
     const dateError = this.validateBookingDateSelection();
@@ -324,8 +394,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
       this.error = dateError;
       this.bookingDate = this.minBookingDate;
     }
-    this.selectedStation = null;
-    this.selectedPostazione = null;
+    this.suggestedStartTime = null;
     this.loadBookingsForCurrentPlan();
   }
 
@@ -335,8 +404,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
     if (timeError) {
       this.error = timeError;
     }
-    this.selectedStation = null;
-    this.selectedPostazione = null;
+    this.suggestedStartTime = this.findSuggestedStartTime(this.selectedStation);
     this.refreshView();
   }
 
@@ -485,12 +553,14 @@ export class LocationsComponent implements OnInit, OnDestroy {
 
   private resetPlan(): void {
     this.currentPlanRequestId += 1;
+    this.currentBookingsRequestId += 1;
     this.planimetriaSubscription?.unsubscribe();
     this.imageSubscription?.unsubscribe();
     this.layoutSubscription?.unsubscribe();
     this.seatsSubscription?.unsubscribe();
     this.bookingsSubscription?.unsubscribe();
     this.clearMessages();
+    this.clearAvailabilityState();
     this.planimetria = null;
     this.layout = null;
     this.postazioni = [];
@@ -498,6 +568,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
     this.selectedRoomId = null;
     this.selectedStation = null;
     this.selectedPostazione = null;
+    this.suggestedStartTime = null;
     this.unavailableMessage = '';
     this.revokeImageUrl();
   }
@@ -505,6 +576,12 @@ export class LocationsComponent implements OnInit, OnDestroy {
   private clearMessages(): void {
     this.message = '';
     this.error = '';
+  }
+
+  private clearAvailabilityState(): void {
+    this.availabilityError = '';
+    this.bookingsLoading = false;
+    this.bookingsLoaded = false;
   }
 
   private revokeImageUrl(): void {
@@ -522,6 +599,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
     const dateError = this.validateBookingDateSelection(false);
     if (dateError) {
       this.bookings = [];
+      this.clearAvailabilityState();
       this.error = dateError;
       this.refreshView();
       return;
@@ -529,27 +607,42 @@ export class LocationsComponent implements OnInit, OnDestroy {
 
     if (!this.selectedPianoId || !this.postazioni.length) {
       this.bookings = [];
+      this.clearAvailabilityState();
       this.refreshView();
       return;
     }
 
     const selectedPianoId = this.selectedPianoId;
+    const requestId = ++this.currentBookingsRequestId;
     const postazioneIds = new Set(this.postazioni.map((postazione) => postazione.id));
 
     this.bookingsSubscription?.unsubscribe();
-    this.bookingsSubscription = this.api.listBookings(this.bookingDate || undefined).subscribe({
+    this.bookingsLoading = true;
+    this.bookingsLoaded = false;
+    this.availabilityError = '';
+    this.bookingsSubscription = this.loadBookingsForCurrentRole(this.bookingDate || undefined, this.postazioni).subscribe({
       next: (bookings) => {
-        if (this.selectedPianoId !== selectedPianoId) {
+        if (requestId !== this.currentBookingsRequestId || this.selectedPianoId !== selectedPianoId) {
           return;
         }
         this.bookings = bookings.filter((booking) => postazioneIds.has(booking.postazioneId));
+        this.bookingsLoading = false;
+        this.bookingsLoaded = true;
+        this.suggestedStartTime = this.findSuggestedStartTime(this.selectedStation);
         this.refreshView();
       },
-      error: () => {
-        if (this.selectedPianoId !== selectedPianoId) {
+      error: (err) => {
+        if (requestId !== this.currentBookingsRequestId || this.selectedPianoId !== selectedPianoId) {
           return;
         }
         this.bookings = [];
+        this.bookingsLoading = false;
+        this.bookingsLoaded = false;
+        this.suggestedStartTime = null;
+        this.availabilityError = apiErrorMessage(
+          err,
+          "Impossibile verificare la disponibilita delle postazioni. Per evitare risultati falsati la mappa non mostra posti prenotabili.",
+        );
         this.refreshView();
       },
     });
@@ -571,8 +664,58 @@ export class LocationsComponent implements OnInit, OnDestroy {
     return !!this.bookingForStation(station);
   }
 
+  private selectedStationHasOverlap(): boolean {
+    return this.selectedStation ? this.stationHasOverlap(this.selectedStation) : false;
+  }
+
+  private findSuggestedStartTime(station: LayoutStation | null): string | null {
+    if (!station || !this.bookingsAreReady() || !this.hasValidBookingWindow()) {
+      return null;
+    }
+
+    const overlappingBookings = this.bookingsForStation(station)
+      .filter((booking) => this.bookingOverlapsSelectedWindow(booking))
+      .sort((left, right) => left.oraInizio.localeCompare(right.oraInizio));
+
+    if (!overlappingBookings.length) {
+      return null;
+    }
+
+    return overlappingBookings
+      .map((booking) => booking.oraFine)
+      .sort()
+      .at(-1) ?? null;
+  }
+
   private bookingOverlapsSelectedWindow(booking: Prenotazione): boolean {
     return this.startTime < booking.oraFine && this.endTime > booking.oraInizio;
+  }
+
+  private loadBookingsForCurrentRole(data?: string, postazioni: Postazione[] = this.postazioni): Observable<Prenotazione[]> {
+    if (this.hasOperationalBookingAccess()) {
+      return this.api.listBookings(data);
+    }
+
+    return forkJoin(postazioni.map((postazione) => this.api.listBookingsByPostazione(postazione.id, data))).pipe(
+      map((groups) => groups.flat()),
+    );
+  }
+
+  private hasOperationalBookingAccess(): boolean {
+    return this.auth.hasAnyRole(OPERATIONAL_BOOKING_ROLES);
+  }
+
+  private bookingsAreReady(): boolean {
+    return this.bookingsLoaded && !this.bookingsLoading && !this.availabilityError;
+  }
+
+  private availabilityStatusMessage(): string {
+    if (this.bookingsLoading) {
+      return 'Verifica della disponibilita in corso. Attendi qualche istante.';
+    }
+
+    return this.availabilityError
+      || 'Disponibilita non verificata al momento. Riprova tra qualche istante.';
   }
 
   private validateBookingDateSelection(replaceInvalidDate = true): string | null {
@@ -606,5 +749,13 @@ export class LocationsComponent implements OnInit, OnDestroy {
 
   private hasValidBookingWindow(): boolean {
     return !this.validateBookingDateSelection(false) && !this.validateBookingTimeSelection();
+  }
+
+  private addOneHour(value: string): string {
+    const [hours, minutes] = value.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    date.setHours(date.getHours() + 1);
+    return date.toTimeString().slice(0, 5);
   }
 }

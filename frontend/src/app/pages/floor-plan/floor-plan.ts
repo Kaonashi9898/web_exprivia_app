@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { catchError, forkJoin, map, of, Subscription } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { Edificio, Piano, PlanimetriaLayout, PlanimetriaResponse, Sede } from '../../core/app.models';
+import { apiErrorMessage } from '../../core/api-error.utils';
 import { environment } from '../../../environments/environment';
 
 const EXPRIVIA_ITALIA_SEDI: Sede[] = [];
@@ -71,7 +72,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.sediLoading = false;
-        this.error = err?.error?.message ?? 'Impossibile caricare le sedi.';
+        this.error = apiErrorMessage(err, 'Impossibile caricare le sedi.');
         this.refreshView();
       },
     });
@@ -109,7 +110,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.pianiLoading = false;
-        this.error = err?.error?.message ?? 'Impossibile caricare gli edifici della sede.';
+        this.error = apiErrorMessage(err, 'Impossibile caricare gli edifici della sede.');
         this.refreshView();
       },
     });
@@ -135,7 +136,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.pianiLoading = false;
-        this.error = err?.error?.message ?? 'Impossibile caricare i piani della sede.';
+        this.error = apiErrorMessage(err, 'Impossibile caricare i piani della sede.');
         this.refreshView();
       },
     });
@@ -254,7 +255,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
           this.loadPlan(false);
         },
         error: (err) => {
-          this.error = err?.error?.message ?? 'Salvataggio planimetria non riuscito.';
+          this.error = apiErrorMessage(err, 'Salvataggio planimetria non riuscito.');
           this.refreshView();
         },
       });
@@ -276,7 +277,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
         this.refreshView();
       },
       error: (err) => {
-        this.error = err?.error?.message ?? 'Eliminazione planimetria non riuscita.';
+        this.error = apiErrorMessage(err, 'Eliminazione planimetria non riuscita.');
         this.refreshView();
       },
     });
@@ -584,7 +585,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
         this.loadPlan(false);
       },
       error: (err) => {
-        this.error = err?.error?.message ?? 'Salvataggio layout non riuscito.';
+        this.error = apiErrorMessage(err, 'Salvataggio layout non riuscito.');
         this.refreshView();
       },
     });
@@ -612,7 +613,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
         this.loadPlan(false);
       },
       error: (err) => {
-        this.error = err?.error?.message ?? 'Salvataggio layout non riuscito.';
+        this.error = apiErrorMessage(err, 'Salvataggio layout non riuscito.');
         this.refreshView();
       },
     });

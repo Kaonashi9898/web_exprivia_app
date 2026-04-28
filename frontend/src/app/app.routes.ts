@@ -2,6 +2,12 @@ import { Routes } from '@angular/router';
 import { HomeComponent } from './pages/home/home';
 import { AppShellComponent } from './components/app-shell/app-shell';
 import { authGuard, roleGuard } from './core/auth.guard';
+import {
+  BOOKING_ROLES,
+  LOCATION_MANAGEMENT_ROLES,
+  PLAN_EDITOR_ROLES,
+  USER_MANAGEMENT_ROLES,
+} from './core/role-access';
 
 export const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -18,25 +24,25 @@ export const routes: Routes = [
         path: 'prenotazioni',
         loadComponent: () => import('./pages/locations/locations').then((m) => m.LocationsComponent),
         canActivate: [roleGuard],
-        data: { roles: ['ADMIN', 'RECEPTION', 'USER'] }
+        data: { roles: BOOKING_ROLES }
       },
       {
         path: 'utenti',
         loadComponent: () => import('./pages/users/users').then((m) => m.UsersComponent),
         canActivate: [roleGuard],
-        data: { roles: ['ADMIN'] }
+        data: { roles: USER_MANAGEMENT_ROLES }
       },
       {
         path: 'sedi-postazioni',
         loadComponent: () => import('./pages/bookings/bookings').then((m) => m.BookingsComponent),
         canActivate: [roleGuard],
-        data: { roles: ['ADMIN'] }
+        data: { roles: LOCATION_MANAGEMENT_ROLES }
       },
       {
         path: 'planimetria',
         loadComponent: () => import('./pages/floor-plan/floor-plan').then((m) => m.FloorPlanComponent),
         canActivate: [roleGuard],
-        data: { roles: ['ADMIN', 'BUILDING_MANAGER'] }
+        data: { roles: PLAN_EDITOR_ROLES }
       }
     ]
   },

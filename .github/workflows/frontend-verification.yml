@@ -1,0 +1,45 @@
+name: Frontend Verification
+
+on:
+  push:
+    paths:
+      - '.github/workflows/frontend-verification.yml'
+      - 'frontend/**'
+      - 'PlanimetriaEditor-main/**'
+  pull_request:
+    paths:
+      - '.github/workflows/frontend-verification.yml'
+      - 'frontend/**'
+      - 'PlanimetriaEditor-main/**'
+  workflow_dispatch:
+
+jobs:
+  build-frontends:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app:
+          - frontend
+          - PlanimetriaEditor-main
+
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build

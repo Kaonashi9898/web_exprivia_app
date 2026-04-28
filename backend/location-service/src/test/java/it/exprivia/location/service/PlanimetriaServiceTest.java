@@ -11,6 +11,7 @@ import it.exprivia.location.entity.Postazione;
 import it.exprivia.location.entity.Stanza;
 import it.exprivia.location.entity.StatoPostazione;
 import it.exprivia.location.entity.TipoStanza;
+import it.exprivia.location.messaging.PlanimetriaEliminataEvent;
 import it.exprivia.location.messaging.PlanimetriaEventPublisher;
 import it.exprivia.location.repository.PianoRepository;
 import it.exprivia.location.repository.PlanimetriaRepository;
@@ -515,8 +516,10 @@ class PlanimetriaServiceTest {
         when(postazioneRepository.findByLayoutElementIdAndStanzaPianoId("station-a8-1", 31L)).thenReturn(Optional.of(postazioneEsistente));
         when(postazioneRepository.findByLayoutElementIdAndStanzaPianoId("station-b1-1", 31L)).thenReturn(Optional.empty());
         when(postazioneRepository.findByStanzaPianoId(31L)).thenReturn(List.of(postazioneEsistente));
-        when(postazioneRepository.findByCodice("Station 1")).thenReturn(Optional.of(postazioneEsistente));
-        when(postazioneRepository.findByCodice("Station 1-31-2")).thenReturn(Optional.empty());
+        when(postazioneRepository.findByCodice(anyString())).thenAnswer(invocation -> {
+            String codice = invocation.getArgument(0, String.class);
+            return "Station 1".equals(codice) ? Optional.of(postazioneEsistente) : Optional.empty();
+        });
         when(postazioneRepository.save(any(Postazione.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(planimetriaRepository.save(any(Planimetria.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -534,8 +537,97 @@ class PlanimetriaServiceTest {
 
         assertEquals(null, secondSaved.getId());
         assertEquals("station-b1-1", secondSaved.getLayoutElementId());
-        assertEquals("Station 1-31-2", secondSaved.getCodice());
+        assertTrue(secondSaved.getCodice().startsWith("Station 1-"));
+        assertTrue(!secondSaved.getCodice().equals(firstSaved.getCodice()));
         assertNotNull(secondSaved.getStanza());
         assertEquals("room-b1", secondSaved.getStanza().getLayoutElementId());
+    }
+
+    @Test
+    void importJson_eliminaPostazioniEStanzeSpariteDalLayoutEPubblicaEvento() throws Exception {
+        ReflectionTestUtils.setField(planimetriaService, "storageDir", tempDir.toString());
+
+        Piano piano = new Piano();
+        piano.setId(41L);
+
+        Stanza stanzaDaTenere = new Stanza();
+        stanzaDaTenere.setId(411L);
+        stanzaDaTenere.setNome("Open Space");
+        stanzaDaTenere.setLayoutElementId("room-keep");
+        stanzaDaTenere.setPiano(piano);
+
+        Stanza stanzaDaEliminare = new Stanza();
+        stanzaDaEliminare.setId(412L);
+        stanzaDaEliminare.setNome("Room Morta");
+        stanzaDaEliminare.setLayoutElementId("room-drop");
+        stanzaDaEliminare.setPiano(piano);
+
+        Postazione postazioneDaTenere = new Postazione();
+        postazioneDaTenere.setId(421L);
+        postazioneDaTenere.setCodice("PDL-KEEP");
+        postazioneDaTenere.setLayoutElementId("stn-keep");
+        postazioneDaTenere.setStato(StatoPostazione.DISPONIBILE);
+        postazioneDaTenere.setStanza(stanzaDaTenere);
+
+        Postazione postazioneDaEliminare = new Postazione();
+        postazioneDaEliminare.setId(422L);
+        postazioneDaEliminare.setCodice("PDL-DROP");
+        postazioneDaEliminare.setLayoutElementId("stn-drop");
+        postazioneDaEliminare.setStato(StatoPostazione.DISPONIBILE);
+        postazioneDaEliminare.setStanza(stanzaDaEliminare);
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "reconciled-layout.json",
+                "application/json",
+                """
+                {
+                  "rooms": [
+                    {
+                      "id": "room-keep",
+                      "label": "Open Space",
+                      "position": { "xPct": 10, "yPct": 15 },
+                      "stationIds": ["stn-keep"]
+                    }
+                  ],
+                  "stations": [
+                    {
+                      "id": "stn-keep",
+                      "label": "PDL-KEEP",
+                      "position": { "xPct": 12, "yPct": 18 },
+                      "roomId": "room-keep",
+                      "roomLabel": "Open Space"
+                    }
+                  ]
+                }
+                """.getBytes()
+        );
+
+        when(pianoRepository.findById(41L)).thenReturn(Optional.of(piano));
+        when(stanzaRepository.findByPianoId(41L)).thenReturn(List.of(stanzaDaTenere, stanzaDaEliminare));
+        when(stanzaRepository.save(any(Stanza.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(planimetriaRepository.findByPianoId(41L)).thenReturn(Optional.empty());
+        when(postazioneRepository.findByStanzaPianoId(41L)).thenReturn(List.of(postazioneDaTenere, postazioneDaEliminare));
+        when(postazioneRepository.findByLayoutElementIdAndStanzaPianoId("stn-keep", 41L)).thenReturn(Optional.of(postazioneDaTenere));
+        when(postazioneRepository.findByCodice("PDL-KEEP")).thenReturn(Optional.of(postazioneDaTenere));
+        when(postazioneRepository.save(any(Postazione.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(planimetriaRepository.save(any(Planimetria.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        planimetriaService.importJson(41L, file);
+
+        ArgumentCaptor<List<Postazione>> postazioniDeleteCaptor = ArgumentCaptor.forClass(List.class);
+        verify(postazioneRepository).deleteAll(postazioniDeleteCaptor.capture());
+        assertEquals(1, postazioniDeleteCaptor.getValue().size());
+        assertEquals(Long.valueOf(422L), postazioniDeleteCaptor.getValue().get(0).getId());
+
+        ArgumentCaptor<List<Stanza>> stanzeDeleteCaptor = ArgumentCaptor.forClass(List.class);
+        verify(stanzaRepository).deleteAll(stanzeDeleteCaptor.capture());
+        assertEquals(1, stanzeDeleteCaptor.getValue().size());
+        assertEquals(Long.valueOf(412L), stanzeDeleteCaptor.getValue().get(0).getId());
+
+        ArgumentCaptor<PlanimetriaEliminataEvent> eventCaptor = ArgumentCaptor.forClass(PlanimetriaEliminataEvent.class);
+        verify(planimetriaEventPublisher).pubblicaEliminazione(eventCaptor.capture());
+        assertEquals(Long.valueOf(41L), eventCaptor.getValue().pianoId());
+        assertEquals(List.of(422L), eventCaptor.getValue().postazioneIds());
     }
 }

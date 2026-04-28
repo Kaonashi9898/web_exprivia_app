@@ -1,21 +1,12 @@
 import { ChangeDetectorRef, Component, computed, inject, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { forkJoin, map, of, switchMap } from 'rxjs';
 import { ApiService } from '../../core/api.service';
-import { Prenotazione } from '../../core/app.models';
+import { DashboardPrenotazione } from '../../core/app.models';
+import { apiErrorMessage } from '../../core/api-error.utils';
 import { AuthService } from '../../core/auth.service';
 import { isWeekendIsoDate, nextBookableIsoDate } from '../../core/date.utils';
-
-interface DashboardBooking extends Prenotazione {
-  sedeLabel: string;
-  pianoLabel: string;
-}
-
-interface StanzaLocationInfo {
-  sedeLabel: string;
-  pianoLabel: string;
-}
+import { BOOKING_ROLES, PLAN_EDITOR_ROLES } from '../../core/role-access';
 
 @Component({
   selector: 'app-dashboard',
@@ -29,7 +20,7 @@ export class DashboardComponent implements OnInit {
   private readonly cdr = inject(ChangeDetectorRef);
 
   protected readonly user = this.auth.currentUser;
-  bookings: DashboardBooking[] = [];
+  bookings: DashboardPrenotazione[] = [];
   bookingsLoading = false;
   bookingsError = '';
   deletingBookingId: number | null = null;
@@ -54,10 +45,10 @@ export class DashboardComponent implements OnInit {
     return role ? labels[role] : '';
   });
   protected readonly isAdmin = computed(() => this.auth.hasAnyRole(['ADMIN']));
-  protected readonly isBuildingManager = computed(() => this.auth.hasAnyRole(['ADMIN', 'BUILDING_MANAGER']));
+  protected readonly canAccessPlanEditor = computed(() => this.auth.hasAnyRole(PLAN_EDITOR_ROLES));
   protected readonly isReception = computed(() => this.auth.hasAnyRole(['RECEPTION']));
   protected readonly canBook = computed(() =>
-    this.auth.hasAnyRole(['ADMIN', 'RECEPTION', 'USER']),
+    this.auth.hasAnyRole(BOOKING_ROLES),
   );
 
   ngOnInit(): void {
@@ -73,7 +64,7 @@ export class DashboardComponent implements OnInit {
     });
   }
 
-  cancelBooking(booking: DashboardBooking): void {
+  cancelBooking(booking: DashboardPrenotazione): void {
     if (this.deletingBookingId || !confirm(`Eliminare la prenotazione per ${booking.postazioneCodice}?`)) {
       return;
     }
@@ -88,13 +79,13 @@ export class DashboardComponent implements OnInit {
       },
       error: (err) => {
         this.deletingBookingId = null;
-        this.bookingsError = err?.error?.message ?? 'Eliminazione prenotazione non riuscita.';
+        this.bookingsError = apiErrorMessage(err, 'Eliminazione prenotazione non riuscita.');
         this.cdr.detectChanges();
       },
     });
   }
 
-  startEdit(booking: DashboardBooking): void {
+  startEdit(booking: DashboardPrenotazione): void {
     this.editingBookingId = booking.id;
     this.editBookingDate = booking.dataPrenotazione;
     this.editStartTime = booking.oraInizio;
@@ -111,11 +102,11 @@ export class DashboardComponent implements OnInit {
     this.cdr.detectChanges();
   }
 
-  canEditBooking(booking: DashboardBooking): boolean {
+  canEditBooking(booking: DashboardPrenotazione): boolean {
     return booking.dataPrenotazione >= this.minBookingDate;
   }
 
-  saveEdit(booking: DashboardBooking): void {
+  saveEdit(booking: DashboardPrenotazione): void {
     const validationError = this.validateEditSelection();
     if (validationError) {
       this.editError = validationError;
@@ -143,7 +134,7 @@ export class DashboardComponent implements OnInit {
       },
       error: (err) => {
         this.savingBookingId = null;
-        this.editError = err?.error?.message ?? 'Aggiornamento prenotazione non riuscito.';
+        this.editError = apiErrorMessage(err, 'Aggiornamento prenotazione non riuscito.');
         this.cdr.detectChanges();
       },
     });
@@ -153,96 +144,28 @@ export class DashboardComponent implements OnInit {
     this.bookingsLoading = true;
     this.bookingsError = '';
 
-    forkJoin({
-      bookings: this.api.listMyBookings(),
-      stanzaToLocation: this.loadStanzaToLocationMap(),
-    }).subscribe({
-      next: ({ bookings, stanzaToLocation }) => {
+    this.api.listMyDashboardBookings().subscribe({
+      next: (bookings) => {
         this.bookings = bookings
           .filter((booking) => booking.stato === 'CONFERMATA')
           .sort((a, b) =>
             `${a.dataPrenotazione} ${a.oraInizio}`.localeCompare(`${b.dataPrenotazione} ${b.oraInizio}`),
           )
-          .map((booking) => {
-            const location = stanzaToLocation.get(booking.stanzaId);
-            return {
-              ...booking,
-              sedeLabel: location?.sedeLabel ?? 'Sede non disponibile',
-              pianoLabel: location?.pianoLabel ?? 'Piano non disponibile',
-            };
-          });
+          .map((booking) => ({
+            ...booking,
+            sedeLabel: booking.sedeLabel || 'Sede non disponibile',
+            pianoLabel: booking.pianoLabel || 'Piano non disponibile',
+          }));
         this.bookingsLoading = false;
         this.cdr.detectChanges();
       },
       error: (err) => {
         this.bookings = [];
         this.bookingsLoading = false;
-        this.bookingsError = err?.error?.message ?? 'Impossibile caricare le prenotazioni.';
+        this.bookingsError = apiErrorMessage(err, 'Impossibile caricare le prenotazioni.');
         this.cdr.detectChanges();
       },
     });
-  }
-
-  private loadStanzaToLocationMap() {
-    return this.api.listSedi().pipe(
-      switchMap((sedi) => {
-        if (!sedi.length) {
-          return of(new Map<number, StanzaLocationInfo>());
-        }
-
-        return forkJoin(
-          sedi.map((sede) =>
-            this.api.listEdifici(sede.id).pipe(
-              switchMap((edifici) =>
-                edifici.length
-                  ? forkJoin(
-                      edifici.map((edificio) =>
-                        this.api.listPiani(edificio.id).pipe(
-                          switchMap((piani) =>
-                            piani.length
-                              ? forkJoin(
-                                  piani.map((piano) =>
-                                    this.api.listStanze(piano.id).pipe(
-                                      map((stanze) =>
-                                        stanze.map((stanza) => ({
-                                          stanzaId: stanza.id,
-                                          sedeLabel: `${sede.nome} - ${sede.citta}`,
-                                          pianoLabel: piano.nome?.trim() || this.getPianoLabel(piano.numero),
-                                        })),
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              : of([]),
-                          ),
-                        ),
-                      ),
-                    )
-                  : of([]),
-              ),
-            ),
-          ),
-        ).pipe(
-          map((groups) => {
-            const mapping = new Map<number, StanzaLocationInfo>();
-            groups.flat(3).forEach((item) =>
-              mapping.set(item.stanzaId, {
-                sedeLabel: item.sedeLabel,
-                pianoLabel: item.pianoLabel,
-              }),
-            );
-            return mapping;
-          }),
-        );
-      }),
-    );
-  }
-
-  private getPianoLabel(numero: number): string {
-    if (numero === 0) return 'Piano terra';
-    if (numero === 1) return 'Primo piano';
-    if (numero === 2) return 'Secondo piano';
-    return `Piano ${numero}`;
   }
 
   private validateEditSelection(): string | null {

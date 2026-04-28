@@ -1,6 +1,7 @@
 package it.exprivia.prenotazioni.controller;
 
 import it.exprivia.prenotazioni.dto.CreatePrenotazioneRequest;
+import it.exprivia.prenotazioni.dto.DashboardPrenotazioneResponse;
 import it.exprivia.prenotazioni.dto.PrenotazioneResponse;
 import it.exprivia.prenotazioni.dto.UpdatePrenotazioneRequest;
 import it.exprivia.prenotazioni.service.PrenotazioneService;
@@ -52,6 +53,13 @@ public class PrenotazioneController {
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data) {
         return ResponseEntity.ok(prenotazioneService.findMine(authorizationHeader, data));
+    }
+
+    @GetMapping("/mie/dashboard")
+    public ResponseEntity<List<DashboardPrenotazioneResponse>> findMineForDashboard(
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data) {
+        return ResponseEntity.ok(prenotazioneService.findMineForDashboard(authorizationHeader, data));
     }
 
     @GetMapping("/{id}")
