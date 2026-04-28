@@ -85,10 +85,13 @@
                 <button
                   type="button"
                   class="room-pin"
+                  [class.meeting-room]="roomIsMeeting(room)"
+                  [class.booked]="meetingRoomIsBooked(room)"
+                  [class.partial]="meetingRoomIsPartiallyBooked(room)"
                   [style.left.%]="room.position.xPct"
                   [style.top.%]="room.position.yPct"
                   (click)="selectRoom(room)"
-                  [title]="room.label"
+                  [title]="roomPinTooltip(room)"
                 >
                   {{ room.label }}
                 </button>
@@ -134,8 +137,8 @@
         </div>
 
         <div class="selected-seat">
-          <span>Postazione selezionata</span>
-          <strong>{{ selectedPostazione?.codice || selectedStation?.label || 'Nessuna' }}</strong>
+          <span>{{ selectedResourceTypeLabel() }}</span>
+          <strong>{{ selectedResourceLabel() }}</strong>
         </div>
 
         <label>
@@ -164,21 +167,21 @@
 
         <p class="muted">Disponibilita calcolata per {{ selectedWindowSummary() }}. Le prenotazioni partono dal primo giorno lavorativo disponibile.</p>
 
-        @if (selectedStationIsPartiallyOccupied()) {
+        @if (selectedResourceIsPartiallyOccupied()) {
           <div class="selected-seat partial-note">
-            <span>Stato della postazione</span>
-            <strong>Questa postazione e parzialmente occupata nel giorno selezionato.</strong>
+            <span>Stato della risorsa</span>
+            <strong>{{ selectedResourceOccupiedLabel() }}</strong>
           </div>
         }
 
-        @if (selectedStationBookingsSummary().length) {
+        @if (selectedResourceBookingsSummary().length) {
           <div class="selected-seat booking-slots">
-            <span>Fasce gia occupate per questa postazione</span>
-            <strong>{{ selectedStationBookingsSummary().join(', ') }}</strong>
+            <span>{{ selectedResourceSlotsLabel() }}</span>
+            <strong>{{ selectedResourceBookingsSummary().join(', ') }}</strong>
           </div>
         }
 
-        @if (suggestedStartTime && selectedStation) {
+        @if (suggestedStartTime && (selectedStation || selectedMeetingRoom)) {
           <div class="selected-seat suggestion-box">
             <span>Prima disponibilita suggerita</span>
             <strong>Dalle {{ suggestedStartTime }}</strong>
@@ -188,8 +191,8 @@
           </div>
         }
 
-        <button class="btn btn-primary" type="submit" [disabled]="!selectedStationCanBeBooked()">
-          Prenota postazione
+        <button class="btn btn-primary" type="submit" [disabled]="!selectedResourceCanBeBooked()">
+          {{ bookingButtonLabel() }}
         </button>
 
         @if (message) {
@@ -204,6 +207,8 @@
 
         @if (!selectedRoomId) {
           <p class="muted">Clicca il nome di una stanza sulla planimetria, poi seleziona una postazione.</p>
+        } @else if (selectedMeetingRoom) {
+          <p class="muted">La sala selezionata verra prenotata direttamente nella fascia indicata.</p>
         } @else if (!selectedPostazione) {
           <p class="muted">Seleziona una postazione disponibile direttamente sulla planimetria.</p>
         }

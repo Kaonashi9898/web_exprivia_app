@@ -124,6 +124,21 @@
   border-color: var(--color-secondary-dark);
 }
 
+.room-pin.meeting-room {
+  background: #3b6c44;
+  border-color: #2c5734;
+}
+
+.room-pin.meeting-room.partial {
+  background: #cc8b14;
+  border-color: #9a6710;
+}
+
+.room-pin.meeting-room.booked {
+  background: #8a2d18;
+  border-color: #6f2413;
+}
+
 .station-pin {
   position: absolute;
   transform: translate(-50%, -50%);

@@ -82,14 +82,19 @@ export interface PostazioneRequest {
 }
 
 export type StatoPrenotazione = 'CONFERMATA' | 'ANNULLATA';
+export type TipoRisorsaPrenotata = 'POSTAZIONE' | 'MEETING_ROOM';
 
 export interface Prenotazione {
   id: number;
   utenteId: number;
   utenteEmail: string;
   utenteFullName: string;
-  postazioneId: number;
-  postazioneCodice: string;
+  tipoRisorsaPrenotata: TipoRisorsaPrenotata;
+  risorsaLabel: string;
+  postazioneId?: number | null;
+  postazioneCodice?: string | null;
+  meetingRoomStanzaId?: number | null;
+  meetingRoomNome?: string | null;
   stanzaId: number;
   stanzaNome: string;
   dataPrenotazione: string;
@@ -106,7 +111,8 @@ export interface DashboardPrenotazione extends Prenotazione {
 }
 
 export interface CreatePrenotazioneRequest {
-  postazioneId: number;
+  postazioneId?: number | null;
+  meetingRoomStanzaId?: number | null;
   dataPrenotazione: string;
   oraInizio: string;
   oraFine: string;

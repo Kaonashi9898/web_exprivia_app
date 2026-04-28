@@ -41,11 +41,22 @@ public class Prenotazione {
     @Column(name = "utente_full_name", nullable = false, length = 150)
     private String utenteFullName;
 
-    @Column(name = "postazione_id", nullable = false)
+    @Column(name = "postazione_id")
     private Long postazioneId;
 
-    @Column(name = "postazione_codice", nullable = false, length = 80)
+    @Column(name = "postazione_codice", length = 80)
     private String postazioneCodice;
+
+    @Column(name = "meeting_room_stanza_id")
+    private Long meetingRoomStanzaId;
+
+    @Column(name = "meeting_room_nome", length = 120)
+    private String meetingRoomNome;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "tipo_risorsa_prenotata", nullable = false, columnDefinition = "tipo_risorsa_prenotata")
+    private TipoRisorsaPrenotata tipoRisorsaPrenotata;
 
     @Column(name = "stanza_id", nullable = false)
     private Long stanzaId;

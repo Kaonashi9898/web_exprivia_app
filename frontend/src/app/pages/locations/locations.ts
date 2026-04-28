@@ -3,7 +3,7 @@ import { NgStyle } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin, Observable, of, Subscription, switchMap, map } from 'rxjs';
 import { ApiService } from '../../core/api.service';
-import { Edificio, Piano, PlanimetriaLayout, PlanimetriaResponse, Postazione, Prenotazione, Sede } from '../../core/app.models';
+import { Edificio, Piano, PlanimetriaLayout, PlanimetriaResponse, Postazione, Prenotazione, Sede, Stanza } from '../../core/app.models';
 import { apiErrorMessage } from '../../core/api-error.utils';
 import { AuthService } from '../../core/auth.service';
 import {
@@ -50,6 +50,8 @@ export class LocationsComponent implements OnInit, OnDestroy {
   sedi: Sede[] = [];
   edifici: Edificio[] = [];
   piani: Piano[] = [];
+  stanze: Stanza[] = [];
+  meetingRooms: Stanza[] = [];
   postazioni: Postazione[] = [];
   bookings: Prenotazione[] = [];
   selectedSedeId: number | null = null;
@@ -58,6 +60,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
   selectedRoomId: string | null = null;
   selectedStation: LayoutStation | null = null;
   selectedPostazione: Postazione | null = null;
+  selectedMeetingRoom: Stanza | null = null;
   suggestedStartTime: string | null = null;
 
   planimetria: PlanimetriaResponse | null = null;
@@ -171,6 +174,8 @@ export class LocationsComponent implements OnInit, OnDestroy {
     this.selectedRoomId = room.id;
     this.selectedStation = null;
     this.selectedPostazione = null;
+    this.selectedMeetingRoom = this.roomIsMeeting(room) ? this.findStanzaForRoom(room) : null;
+    this.suggestedStartTime = this.findSuggestedStartTimeForSelectedResource();
     this.refreshView();
   }
 
@@ -178,6 +183,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
     this.selectedRoomId = null;
     this.selectedStation = null;
     this.selectedPostazione = null;
+    this.selectedMeetingRoom = null;
     this.refreshView();
   }
 
@@ -190,6 +196,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
     this.selectedStation = station;
     this.selectedRoomId = station.roomId ?? this.selectedRoomId;
     this.selectedPostazione = postazione;
+    this.selectedMeetingRoom = null;
     if (!this.bookingsAreReady()) {
       this.suggestedStartTime = null;
       this.refreshView();
@@ -206,7 +213,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
   }
 
   createBooking(): void {
-    if (!this.selectedPostazione) {
+    if (!this.selectedPostazione && !this.selectedMeetingRoom) {
       return;
     }
 
@@ -228,13 +235,27 @@ export class LocationsComponent implements OnInit, OnDestroy {
 
     this.clearMessages();
     this.createBookingSubscription?.unsubscribe();
-    this.createBookingSubscription = this.api
-      .createBooking({
-        postazioneId: this.selectedPostazione.id,
+    const request = {
+      postazioneId: this.selectedPostazione?.id ?? null,
+      meetingRoomStanzaId: this.selectedMeetingRoom?.id ?? null,
+      dataPrenotazione: this.bookingDate,
+      oraInizio: this.startTime,
+      oraFine: this.endTime,
+    };
+    const booking$ = this.selectedMeetingRoom
+      ? this.api.createMeetingRoomBooking({
+        meetingRoomStanzaId: request.meetingRoomStanzaId,
         dataPrenotazione: this.bookingDate,
         oraInizio: this.startTime,
         oraFine: this.endTime,
       })
+      : this.api.createBooking({
+        postazioneId: request.postazioneId,
+        dataPrenotazione: this.bookingDate,
+        oraInizio: this.startTime,
+        oraFine: this.endTime,
+      });
+    this.createBookingSubscription = booking$
       .subscribe({
         next: () => {
           this.message = 'Prenotazione confermata.';
@@ -250,7 +271,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
 
   stationsForSelectedRoom(): LayoutStation[] {
     const stations = this.layout?.stations ?? [];
-    if (!this.selectedRoomId) {
+    if (!this.selectedRoomId || this.selectedMeetingRoom) {
       return [];
     }
     return stations.filter((station) => station.roomId === this.selectedRoomId);
@@ -306,6 +327,53 @@ export class LocationsComponent implements OnInit, OnDestroy {
     }
     const postazione = this.findPostazione(station);
     return !!postazione && postazione.stato === 'DISPONIBILE' && this.stationHasBookings(station);
+  }
+
+  roomIsMeeting(room: DisplayRoom): boolean {
+    return (this.layout?.meetings ?? []).some((meeting) => meeting.id === room.id);
+  }
+
+  roomPinTooltip(room: DisplayRoom): string {
+    if (!this.roomIsMeeting(room)) {
+      return room.label;
+    }
+
+    const stanza = this.findStanzaForRoom(room);
+    if (!stanza) {
+      return 'Sala riunioni non sincronizzata';
+    }
+
+    const dateError = this.validateBookingDateSelection(false);
+    if (dateError) {
+      return dateError;
+    }
+
+    const timeError = this.validateBookingTimeSelection();
+    if (timeError) {
+      return timeError;
+    }
+
+    if (!this.bookingsAreReady()) {
+      return this.availabilityStatusMessage();
+    }
+
+    const overlappingBooking = this.bookingsForMeetingRoom(stanza)
+      .find((booking) => this.bookingOverlapsSelectedWindow(booking));
+    if (overlappingBooking) {
+      return `Sala occupata nella fascia selezionata da ${overlappingBooking.utenteFullName}, dalle ${overlappingBooking.oraInizio} alle ${overlappingBooking.oraFine}`;
+    }
+
+    return stanza.nome;
+  }
+
+  meetingRoomIsBooked(room: DisplayRoom): boolean {
+    const stanza = this.findStanzaForRoom(room);
+    return !!stanza && this.bookingsAreReady() && this.meetingRoomHasOverlap(stanza);
+  }
+
+  meetingRoomIsPartiallyBooked(room: DisplayRoom): boolean {
+    const stanza = this.findStanzaForRoom(room);
+    return !!stanza && this.bookingsAreReady() && this.meetingRoomHasBookings(stanza);
   }
 
   bookingForStation(station: LayoutStation): Prenotazione | null {
@@ -372,6 +440,27 @@ export class LocationsComponent implements OnInit, OnDestroy {
       && !this.selectedStationHasOverlap();
   }
 
+  selectedResourceCanBeBooked(): boolean {
+    if (this.selectedMeetingRoom) {
+      return this.bookingsAreReady()
+        && this.hasValidBookingWindow()
+        && !this.selectedMeetingRoomHasOverlap();
+    }
+
+    return this.selectedStationCanBeBooked();
+  }
+
+  selectedResourceLabel(): string {
+    if (this.selectedMeetingRoom) {
+      return this.selectedMeetingRoom.nome;
+    }
+    return this.selectedPostazione?.codice || this.selectedStation?.label || 'Nessuna';
+  }
+
+  selectedResourceTypeLabel(): string {
+    return this.selectedMeetingRoom ? 'Sala selezionata' : 'Postazione selezionata';
+  }
+
   selectedStationBookingsSummary(): string[] {
     if (!this.selectedStation || !this.bookingsAreReady()) {
       return [];
@@ -385,6 +474,32 @@ export class LocationsComponent implements OnInit, OnDestroy {
     return this.selectedStationBookingsSummary().length > 0;
   }
 
+  selectedResourceBookingsSummary(): string[] {
+    if (this.selectedMeetingRoom && this.bookingsAreReady()) {
+      return this.bookingsForMeetingRoom(this.selectedMeetingRoom)
+        .map((booking) => `${booking.oraInizio}-${booking.oraFine}`)
+        .sort();
+    }
+
+    return this.selectedStationBookingsSummary();
+  }
+
+  selectedResourceIsPartiallyOccupied(): boolean {
+    return this.selectedResourceBookingsSummary().length > 0;
+  }
+
+  selectedResourceOccupiedLabel(): string {
+    return this.selectedMeetingRoom ? 'Questa sala e parzialmente occupata nel giorno selezionato.' : 'Questa postazione e parzialmente occupata nel giorno selezionato.';
+  }
+
+  selectedResourceSlotsLabel(): string {
+    return this.selectedMeetingRoom ? 'Fasce gia occupate per questa sala' : 'Fasce gia occupate per questa postazione';
+  }
+
+  bookingButtonLabel(): string {
+    return this.selectedMeetingRoom ? 'Prenota sala' : 'Prenota postazione';
+  }
+
   applySuggestedStartTime(): void {
     if (!this.suggestedStartTime || !this.bookingsAreReady()) {
       return;
@@ -394,7 +509,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
       this.endTime = nextBookingTimeOption(this.startTime) ?? BOOKING_DAY_END;
     }
     this.clearMessages();
-    this.suggestedStartTime = this.findSuggestedStartTime(this.selectedStation);
+    this.suggestedStartTime = this.findSuggestedStartTimeForSelectedResource();
     this.refreshView();
   }
 
@@ -416,7 +531,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
     if (timeError) {
       this.error = timeError;
     }
-    this.suggestedStartTime = this.findSuggestedStartTime(this.selectedStation);
+    this.suggestedStartTime = this.findSuggestedStartTimeForSelectedResource();
     this.refreshView();
   }
 
@@ -536,16 +651,24 @@ export class LocationsComponent implements OnInit, OnDestroy {
     this.seatsSubscription = this.api
       .listStanze(pianoId)
       .pipe(
-        switchMap((stanze) =>
-          stanze.length ? forkJoin(stanze.map((stanza) => this.api.listPostazioni(stanza.id))) : of([]),
-        ),
+        switchMap((stanze) => {
+          const seatGroups$ = stanze.length
+            ? forkJoin(stanze.map((stanza) => this.api.listPostazioni(stanza.id)))
+            : of([] as Postazione[][]);
+          return forkJoin({
+            stanze: of(stanze),
+            seatGroups: seatGroups$,
+          });
+        }),
       )
       .subscribe({
-        next: (groups) => {
+        next: ({ stanze, seatGroups }) => {
           if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
             return;
           }
-          this.postazioni = groups.flat();
+          this.stanze = stanze;
+          this.meetingRooms = stanze.filter((stanza) => stanza.tipo === 'MEETING_ROOM');
+          this.postazioni = seatGroups.flat();
           this.loadBookingsForCurrentPlan();
           this.refreshView();
         },
@@ -553,6 +676,8 @@ export class LocationsComponent implements OnInit, OnDestroy {
           if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
             return;
           }
+          this.stanze = [];
+          this.meetingRooms = [];
           this.postazioni = [];
           this.refreshView();
         },
@@ -571,6 +696,19 @@ export class LocationsComponent implements OnInit, OnDestroy {
     return fallbackByCodice.length === 1 ? fallbackByCodice[0] : null;
   }
 
+  private findStanzaForRoom(room: DisplayRoom): Stanza | null {
+    const tipo = this.roomIsMeeting(room) ? 'MEETING_ROOM' : 'ROOM';
+    const byLayoutElementId =
+      this.stanze.find((stanza) => stanza.tipo === tipo && stanza.layoutElementId && stanza.layoutElementId === room.id) ??
+      null;
+    if (byLayoutElementId) {
+      return byLayoutElementId;
+    }
+
+    const fallbackByName = this.stanze.filter((stanza) => stanza.tipo === tipo && stanza.nome === room.label);
+    return fallbackByName.length === 1 ? fallbackByName[0] : null;
+  }
+
   private resetPlan(): void {
     this.currentPlanRequestId += 1;
     this.currentBookingsRequestId += 1;
@@ -583,11 +721,14 @@ export class LocationsComponent implements OnInit, OnDestroy {
     this.clearAvailabilityState();
     this.planimetria = null;
     this.layout = null;
+    this.stanze = [];
+    this.meetingRooms = [];
     this.postazioni = [];
     this.bookings = [];
     this.selectedRoomId = null;
     this.selectedStation = null;
     this.selectedPostazione = null;
+    this.selectedMeetingRoom = null;
     this.suggestedStartTime = null;
     this.unavailableMessage = '';
     this.revokeImageUrl();
@@ -625,7 +766,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (!this.selectedPianoId || !this.postazioni.length) {
+    if (!this.selectedPianoId || (!this.postazioni.length && !this.meetingRooms.length)) {
       this.bookings = [];
       this.clearAvailabilityState();
       this.refreshView();
@@ -635,20 +776,24 @@ export class LocationsComponent implements OnInit, OnDestroy {
     const selectedPianoId = this.selectedPianoId;
     const requestId = ++this.currentBookingsRequestId;
     const postazioneIds = new Set(this.postazioni.map((postazione) => postazione.id));
+    const meetingRoomIds = new Set(this.meetingRooms.map((stanza) => stanza.id));
 
     this.bookingsSubscription?.unsubscribe();
     this.bookingsLoading = true;
     this.bookingsLoaded = false;
     this.availabilityError = '';
-    this.bookingsSubscription = this.loadBookingsForCurrentRole(this.bookingDate || undefined, this.postazioni).subscribe({
+    this.bookingsSubscription = this.loadBookingsForCurrentRole(this.bookingDate || undefined, this.postazioni, this.meetingRooms).subscribe({
       next: (bookings) => {
         if (requestId !== this.currentBookingsRequestId || this.selectedPianoId !== selectedPianoId) {
           return;
         }
-        this.bookings = bookings.filter((booking) => postazioneIds.has(booking.postazioneId));
+        this.bookings = bookings.filter((booking) =>
+          (booking.postazioneId != null && postazioneIds.has(booking.postazioneId))
+          || (booking.meetingRoomStanzaId != null && meetingRoomIds.has(booking.meetingRoomStanzaId)),
+        );
         this.bookingsLoading = false;
         this.bookingsLoaded = true;
-        this.suggestedStartTime = this.findSuggestedStartTime(this.selectedStation);
+        this.suggestedStartTime = this.findSuggestedStartTimeForSelectedResource();
         this.refreshView();
       },
       error: (err) => {
@@ -661,7 +806,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
         this.suggestedStartTime = null;
         this.availabilityError = apiErrorMessage(
           err,
-          "Impossibile verificare la disponibilita delle postazioni. Per evitare risultati falsati la mappa non mostra posti prenotabili.",
+          "Impossibile verificare la disponibilita delle risorse. Per evitare risultati falsati la mappa non mostra risorse prenotabili.",
         );
         this.refreshView();
       },
@@ -688,12 +833,50 @@ export class LocationsComponent implements OnInit, OnDestroy {
     return this.selectedStation ? this.stationHasOverlap(this.selectedStation) : false;
   }
 
+  private bookingsForMeetingRoom(stanza: Stanza): Prenotazione[] {
+    return this.bookings.filter((booking) =>
+      booking.stato === 'CONFERMATA' && booking.meetingRoomStanzaId === stanza.id,
+    );
+  }
+
+  private meetingRoomHasBookings(stanza: Stanza): boolean {
+    return this.bookingsForMeetingRoom(stanza).length > 0;
+  }
+
+  private meetingRoomHasOverlap(stanza: Stanza): boolean {
+    return this.bookingsForMeetingRoom(stanza).some((booking) => this.bookingOverlapsSelectedWindow(booking));
+  }
+
+  private selectedMeetingRoomHasOverlap(): boolean {
+    return this.selectedMeetingRoom ? this.meetingRoomHasOverlap(this.selectedMeetingRoom) : false;
+  }
+
   private findSuggestedStartTime(station: LayoutStation | null): string | null {
     if (!station || !this.bookingsAreReady() || !this.hasValidBookingWindow()) {
       return null;
     }
 
-    const overlappingBookings = this.bookingsForStation(station)
+    return this.findSuggestedStartTimeFromBookings(this.bookingsForStation(station));
+  }
+
+  private findSuggestedStartTimeForMeetingRoom(stanza: Stanza | null): string | null {
+    if (!stanza || !this.bookingsAreReady() || !this.hasValidBookingWindow()) {
+      return null;
+    }
+
+    return this.findSuggestedStartTimeFromBookings(this.bookingsForMeetingRoom(stanza));
+  }
+
+  private findSuggestedStartTimeForSelectedResource(): string | null {
+    if (this.selectedMeetingRoom) {
+      return this.findSuggestedStartTimeForMeetingRoom(this.selectedMeetingRoom);
+    }
+
+    return this.findSuggestedStartTime(this.selectedStation);
+  }
+
+  private findSuggestedStartTimeFromBookings(bookings: Prenotazione[]): string | null {
+    const overlappingBookings = bookings
       .filter((booking) => this.bookingOverlapsSelectedWindow(booking))
       .sort((left, right) => left.oraInizio.localeCompare(right.oraInizio));
 
@@ -717,12 +900,25 @@ export class LocationsComponent implements OnInit, OnDestroy {
     return this.startTime < booking.oraFine && this.endTime > booking.oraInizio;
   }
 
-  private loadBookingsForCurrentRole(data?: string, postazioni: Postazione[] = this.postazioni): Observable<Prenotazione[]> {
+  private loadBookingsForCurrentRole(
+    data?: string,
+    postazioni: Postazione[] = this.postazioni,
+    meetingRooms: Stanza[] = this.meetingRooms,
+  ): Observable<Prenotazione[]> {
     if (this.hasOperationalBookingAccess()) {
       return this.api.listBookings(data);
     }
 
-    return forkJoin(postazioni.map((postazione) => this.api.listBookingsByPostazione(postazione.id, data))).pipe(
+    const requests = [
+      ...postazioni.map((postazione) => this.api.listBookingsByPostazione(postazione.id, data)),
+      ...meetingRooms.map((stanza) => this.api.listBookingsByMeetingRoom(stanza.id, data)),
+    ];
+
+    if (!requests.length) {
+      return of([]);
+    }
+
+    return forkJoin(requests).pipe(
       map((groups) => groups.flat()),
     );
   }

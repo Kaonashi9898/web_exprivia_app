@@ -15,8 +15,9 @@ import java.time.LocalTime;
 @AllArgsConstructor
 public class CreatePrenotazioneRequest {
 
-    @NotNull
     private Long postazioneId;
+
+    private Long meetingRoomStanzaId;
 
     @NotNull
     private LocalDate dataPrenotazione;

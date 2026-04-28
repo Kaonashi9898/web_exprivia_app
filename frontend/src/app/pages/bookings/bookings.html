@@ -100,12 +100,18 @@
           <article class="room-card">
             <div>
               <strong>{{ room.stanza.nome }}</strong>
-              <span>{{ room.total }} postazioni</span>
+              <span>{{ room.meetingRoom ? 'Sala riunioni' : room.total + ' postazioni' }}</span>
             </div>
             <div class="room-metrics">
-              <span class="metric free">{{ room.free }} libere</span>
-              <span class="metric occupied">{{ room.occupied }} occupate</span>
-              <span class="metric blocked">{{ room.unavailable + room.maintenance }} bloccate</span>
+              @if (room.meetingRoom) {
+                <span class="metric" [class.occupied]="room.meetingRoomSlots.length" [class.free]="!room.meetingRoomSlots.length">
+                  {{ room.meetingRoomSlots.length ? 'Prenotata: ' + room.meetingRoomSlots.join(', ') : 'Libera' }}
+                </span>
+              } @else {
+                <span class="metric free">{{ room.free }} libere</span>
+                <span class="metric occupied">{{ room.occupied }} occupate</span>
+                <span class="metric blocked">{{ room.unavailable + room.maintenance }} bloccate</span>
+              }
             </div>
           </article>
         } @empty {
@@ -124,7 +130,7 @@
           <article class="booking-row">
             <div>
               <strong>{{ booking.utenteFullName }}</strong>
-              <span>{{ booking.postazioneCodice }} · {{ booking.stanzaNome }}</span>
+              <span>{{ bookingResourceLabel(booking) }} · {{ booking.stanzaNome }}</span>
             </div>
             <span>{{ booking.oraInizio }}-{{ booking.oraFine }}</span>
           </article>

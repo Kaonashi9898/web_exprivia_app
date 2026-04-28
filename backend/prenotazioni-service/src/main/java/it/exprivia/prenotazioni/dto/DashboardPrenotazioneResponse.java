@@ -1,6 +1,7 @@
 package it.exprivia.prenotazioni.dto;
 
 import it.exprivia.prenotazioni.entity.StatoPrenotazione;
+import it.exprivia.prenotazioni.entity.TipoRisorsaPrenotata;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -18,8 +19,12 @@ public class DashboardPrenotazioneResponse {
     private Long utenteId;
     private String utenteEmail;
     private String utenteFullName;
+    private TipoRisorsaPrenotata tipoRisorsaPrenotata;
+    private String risorsaLabel;
     private Long postazioneId;
     private String postazioneCodice;
+    private Long meetingRoomStanzaId;
+    private String meetingRoomNome;
     private Long stanzaId;
     private String stanzaNome;
     private String sedeLabel;

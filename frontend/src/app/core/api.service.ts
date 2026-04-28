@@ -129,6 +129,11 @@ export class ApiService {
     return this.http.get<Prenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni`, { params });
   }
 
+  listBookingsByMeetingRoom(stanzaId: number, data?: string) {
+    const params = data ? new HttpParams().set('data', data) : undefined;
+    return this.http.get<Prenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni/meeting-room/${stanzaId}`, { params });
+  }
+
   listBookingsByPostazione(postazioneId: number, data?: string) {
     const params = data ? new HttpParams().set('data', data) : undefined;
     return this.http.get<Prenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni/postazione/${postazioneId}`, { params });
@@ -136,6 +141,10 @@ export class ApiService {
 
   createBooking(request: CreatePrenotazioneRequest) {
     return this.http.post<Prenotazione>(`${PRENOTAZIONI_API}/api/prenotazioni`, request);
+  }
+
+  createMeetingRoomBooking(request: CreatePrenotazioneRequest) {
+    return this.http.post<Prenotazione>(`${PRENOTAZIONI_API}/api/prenotazioni/meeting-room`, request);
   }
 
   updateBooking(id: number, request: UpdatePrenotazioneRequest) {

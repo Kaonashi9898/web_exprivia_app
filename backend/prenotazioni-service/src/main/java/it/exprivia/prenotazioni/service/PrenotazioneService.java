@@ -13,6 +13,7 @@ import it.exprivia.prenotazioni.dto.UpdatePrenotazioneRequest;
 import it.exprivia.prenotazioni.entity.RuoloUtente;
 import it.exprivia.prenotazioni.entity.Prenotazione;
 import it.exprivia.prenotazioni.entity.StatoPrenotazione;
+import it.exprivia.prenotazioni.entity.TipoRisorsaPrenotata;
 import it.exprivia.prenotazioni.messaging.PrenotazioneEventPublisher;
 import it.exprivia.prenotazioni.repository.PrenotazioneRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -41,6 +42,7 @@ import java.util.Set;
 public class PrenotazioneService {
 
     private static final String STATO_POSTAZIONE_DISPONIBILE = "DISPONIBILE";
+    private static final String TIPO_STANZA_MEETING_ROOM = "MEETING_ROOM";
     private static final LocalTime ORA_INIZIO_PRENOTAZIONI = LocalTime.of(9, 0);
     private static final LocalTime ORA_FINE_PRENOTAZIONI = LocalTime.of(18, 0);
     private static final Set<RuoloUtente> RUOLI_ABILITATI_PRENOTAZIONE =
@@ -56,30 +58,20 @@ public class PrenotazioneService {
     public PrenotazioneResponse create(CreatePrenotazioneRequest request, String authorizationHeader) {
         ExternalUtenteResponse utente = utentiServiceClient.getCurrentUser(authorizationHeader);
         ensureRuoloPuoPrenotare(utente);
+        ensurePostazioneRequest(request);
+        validateBookableSlot(request.getDataPrenotazione(), request.getOraInizio(), request.getOraFine());
 
         ExternalPostazioneResponse postazione = locationServiceClient.getPostazione(request.getPostazioneId(), authorizationHeader);
         ensurePostazionePrenotabile(postazione);
         ensureAccessoGruppoConsentito(authorizationHeader, request.getPostazioneId());
-        validateBookableSlot(request.getDataPrenotazione(), request.getOraInizio(), request.getOraFine());
-
-        prenotazioneRepository.findFirstByUtenteIdAndDataPrenotazioneAndStatoOrderByOraInizioAsc(
+        ensureUtenteSenzaOverlap(
                 utente.id(),
                 request.getDataPrenotazione(),
-                StatoPrenotazione.CONFERMATA
-        ).ifPresent(existing -> {
-            throw new IllegalArgumentException(
-                    "Non puoi prenotare: hai gia' una prenotazione per il giorno selezionato dalle "
-                            + existing.getOraInizio()
-                            + " alle "
-                            + existing.getOraFine()
-                            + " per la postazione "
-                            + existing.getPostazioneCodice()
-                            + " nella stanza "
-                            + existing.getStanzaNome()
-            );
-        });
+                request.getOraInizio(),
+                request.getOraFine()
+        );
 
-        if (prenotazioneRepository.existsActiveOverlap(
+        if (prenotazioneRepository.existsActiveOverlapForPostazione(
                 request.getPostazioneId(),
                 request.getDataPrenotazione(),
                 request.getOraInizio(),
@@ -93,10 +85,65 @@ public class PrenotazioneService {
         prenotazione.setUtenteId(utente.id());
         prenotazione.setUtenteEmail(utente.email());
         prenotazione.setUtenteFullName(utente.fullName());
+        prenotazione.setTipoRisorsaPrenotata(TipoRisorsaPrenotata.POSTAZIONE);
         prenotazione.setPostazioneId(postazione.id());
         prenotazione.setPostazioneCodice(postazione.codice());
+        prenotazione.setMeetingRoomStanzaId(null);
+        prenotazione.setMeetingRoomNome(null);
         prenotazione.setStanzaId(postazione.stanzaId());
         prenotazione.setStanzaNome(postazione.stanzaNome());
+        prenotazione.setDataPrenotazione(request.getDataPrenotazione());
+        prenotazione.setOraInizio(request.getOraInizio());
+        prenotazione.setOraFine(request.getOraFine());
+        prenotazione.setStato(StatoPrenotazione.CONFERMATA);
+
+        try {
+            Prenotazione saved = prenotazioneRepository.saveAndFlush(prenotazione);
+            PrenotazioneResponse response = toResponse(saved);
+            prenotazioneEventPublisher.pubblicaConferma(response);
+            return response;
+        } catch (DataIntegrityViolationException ex) {
+            throw new IllegalArgumentException("Conflitto di prenotazione rilevato. Aggiorna la disponibilita' e riprova.");
+        }
+    }
+
+    @Transactional
+    public PrenotazioneResponse createMeetingRoom(CreatePrenotazioneRequest request, String authorizationHeader) {
+        ExternalUtenteResponse utente = utentiServiceClient.getCurrentUser(authorizationHeader);
+        ensureRuoloPuoPrenotare(utente);
+        ensureMeetingRoomRequest(request);
+        validateBookableSlot(request.getDataPrenotazione(), request.getOraInizio(), request.getOraFine());
+
+        ExternalStanzaResponse stanza = locationServiceClient.getStanza(request.getMeetingRoomStanzaId(), authorizationHeader);
+        ensureMeetingRoomPrenotabile(stanza);
+        ensureUtenteSenzaOverlap(
+                utente.id(),
+                request.getDataPrenotazione(),
+                request.getOraInizio(),
+                request.getOraFine()
+        );
+
+        if (prenotazioneRepository.existsActiveOverlapForMeetingRoom(
+                request.getMeetingRoomStanzaId(),
+                request.getDataPrenotazione(),
+                request.getOraInizio(),
+                request.getOraFine(),
+                StatoPrenotazione.CONFERMATA
+        )) {
+            throw new IllegalArgumentException("La sala riunioni e' gia' prenotata nella fascia oraria richiesta");
+        }
+
+        Prenotazione prenotazione = new Prenotazione();
+        prenotazione.setUtenteId(utente.id());
+        prenotazione.setUtenteEmail(utente.email());
+        prenotazione.setUtenteFullName(utente.fullName());
+        prenotazione.setTipoRisorsaPrenotata(TipoRisorsaPrenotata.MEETING_ROOM);
+        prenotazione.setPostazioneId(null);
+        prenotazione.setPostazioneCodice(null);
+        prenotazione.setMeetingRoomStanzaId(stanza.id());
+        prenotazione.setMeetingRoomNome(stanza.nome());
+        prenotazione.setStanzaId(stanza.id());
+        prenotazione.setStanzaNome(stanza.nome());
         prenotazione.setDataPrenotazione(request.getDataPrenotazione());
         prenotazione.setOraInizio(request.getOraInizio());
         prenotazione.setOraFine(request.getOraFine());
@@ -128,35 +175,14 @@ public class PrenotazioneService {
         }
 
         validateBookableSlot(request.getDataPrenotazione(), request.getOraInizio(), request.getOraFine());
-
-        prenotazioneRepository.findFirstByUtenteIdAndDataPrenotazioneAndStatoAndIdNotOrderByOraInizioAsc(
+        ensureUtenteSenzaOverlap(
+                prenotazione.getId(),
                 prenotazione.getUtenteId(),
                 request.getDataPrenotazione(),
-                StatoPrenotazione.CONFERMATA,
-                prenotazione.getId()
-        ).ifPresent(existing -> {
-            throw new IllegalArgumentException(
-                    "Non puoi spostare la prenotazione: hai gia' una prenotazione per il giorno selezionato dalle "
-                            + existing.getOraInizio()
-                            + " alle "
-                            + existing.getOraFine()
-                            + " per la postazione "
-                            + existing.getPostazioneCodice()
-                            + " nella stanza "
-                            + existing.getStanzaNome()
-            );
-        });
-
-        if (prenotazioneRepository.existsActiveOverlapExcludingId(
-                prenotazione.getId(),
-                prenotazione.getPostazioneId(),
-                request.getDataPrenotazione(),
                 request.getOraInizio(),
-                request.getOraFine(),
-                StatoPrenotazione.CONFERMATA
-        )) {
-            throw new IllegalArgumentException("La postazione e' gia' prenotata nella fascia oraria richiesta");
-        }
+                request.getOraFine()
+        );
+        ensureRisorsaSenzaOverlap(prenotazione, request.getDataPrenotazione(), request.getOraInizio(), request.getOraFine());
 
         prenotazione.setDataPrenotazione(request.getDataPrenotazione());
         prenotazione.setOraInizio(request.getOraInizio());
@@ -202,7 +228,9 @@ public class PrenotazioneService {
         return toResponse(prenotazione);
     }
 
-    public List<PrenotazioneResponse> findAll(LocalDate dataPrenotazione, Long postazioneId) {
+    public List<PrenotazioneResponse> findAll(LocalDate dataPrenotazione,
+                                              Long postazioneId,
+                                              Long meetingRoomStanzaId) {
         Specification<Prenotazione> specification = (root, query, cb) -> cb.conjunction();
 
         if (dataPrenotazione != null) {
@@ -212,6 +240,10 @@ public class PrenotazioneService {
         if (postazioneId != null) {
             specification = specification.and((root, query, cb) ->
                     cb.equal(root.get("postazioneId"), postazioneId));
+        }
+        if (meetingRoomStanzaId != null) {
+            specification = specification.and((root, query, cb) ->
+                    cb.equal(root.get("meetingRoomStanzaId"), meetingRoomStanzaId));
         }
 
         Sort sort = Sort.by(
@@ -231,10 +263,34 @@ public class PrenotazioneService {
                 .toList();
     }
 
+    public List<PrenotazioneResponse> findByMeetingRoomAndData(Long meetingRoomStanzaId, LocalDate dataPrenotazione) {
+        return prenotazioneRepository.findByMeetingRoomStanzaIdAndDataPrenotazioneOrderByOraInizioAsc(
+                        meetingRoomStanzaId,
+                        dataPrenotazione
+                )
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     public boolean isDisponibile(Long postazioneId, LocalDate dataPrenotazione, LocalTime oraInizio, LocalTime oraFine) {
         validateBookableSlot(dataPrenotazione, oraInizio, oraFine);
-        return !prenotazioneRepository.existsActiveOverlap(
+        return !prenotazioneRepository.existsActiveOverlapForPostazione(
                 postazioneId,
+                dataPrenotazione,
+                oraInizio,
+                oraFine,
+                StatoPrenotazione.CONFERMATA
+        );
+    }
+
+    public boolean isMeetingRoomDisponibile(Long meetingRoomStanzaId,
+                                            LocalDate dataPrenotazione,
+                                            LocalTime oraInizio,
+                                            LocalTime oraFine) {
+        validateBookableSlot(dataPrenotazione, oraInizio, oraFine);
+        return !prenotazioneRepository.existsActiveOverlapForMeetingRoom(
+                meetingRoomStanzaId,
                 dataPrenotazione,
                 oraInizio,
                 oraFine,
@@ -304,6 +360,86 @@ public class PrenotazioneService {
     private void ensurePostazionePrenotabile(ExternalPostazioneResponse postazione) {
         if (!STATO_POSTAZIONE_DISPONIBILE.equals(postazione.stato())) {
             throw new IllegalArgumentException("La postazione non e' prenotabile nello stato attuale");
+        }
+    }
+
+    private void ensureMeetingRoomPrenotabile(ExternalStanzaResponse stanza) {
+        if (!TIPO_STANZA_MEETING_ROOM.equals(stanza.tipo())) {
+            throw new IllegalArgumentException("La stanza selezionata non e' una sala riunioni prenotabile");
+        }
+    }
+
+    private void ensurePostazioneRequest(CreatePrenotazioneRequest request) {
+        if (request.getPostazioneId() == null || request.getMeetingRoomStanzaId() != null) {
+            throw new IllegalArgumentException("La prenotazione postazione richiede una sola postazione");
+        }
+    }
+
+    private void ensureMeetingRoomRequest(CreatePrenotazioneRequest request) {
+        if (request.getMeetingRoomStanzaId() == null || request.getPostazioneId() != null) {
+            throw new IllegalArgumentException("La prenotazione sala richiede una sola sala riunioni");
+        }
+    }
+
+    private void ensureUtenteSenzaOverlap(Long utenteId,
+                                           LocalDate dataPrenotazione,
+                                           LocalTime oraInizio,
+                                           LocalTime oraFine) {
+        if (prenotazioneRepository.existsActiveOverlapForUser(
+                utenteId,
+                dataPrenotazione,
+                oraInizio,
+                oraFine,
+                StatoPrenotazione.CONFERMATA
+        )) {
+            throw new IllegalArgumentException("Hai gia' una prenotazione nella fascia oraria richiesta");
+        }
+    }
+
+    private void ensureUtenteSenzaOverlap(Long prenotazioneId,
+                                           Long utenteId,
+                                           LocalDate dataPrenotazione,
+                                           LocalTime oraInizio,
+                                           LocalTime oraFine) {
+        if (prenotazioneRepository.existsActiveOverlapForUserExcludingId(
+                prenotazioneId,
+                utenteId,
+                dataPrenotazione,
+                oraInizio,
+                oraFine,
+                StatoPrenotazione.CONFERMATA
+        )) {
+            throw new IllegalArgumentException("Hai gia' una prenotazione nella fascia oraria richiesta");
+        }
+    }
+
+    private void ensureRisorsaSenzaOverlap(Prenotazione prenotazione,
+                                           LocalDate dataPrenotazione,
+                                           LocalTime oraInizio,
+                                           LocalTime oraFine) {
+        if (prenotazione.getTipoRisorsaPrenotata() == TipoRisorsaPrenotata.MEETING_ROOM) {
+            if (prenotazioneRepository.existsActiveOverlapForMeetingRoomExcludingId(
+                    prenotazione.getId(),
+                    prenotazione.getMeetingRoomStanzaId(),
+                    dataPrenotazione,
+                    oraInizio,
+                    oraFine,
+                    StatoPrenotazione.CONFERMATA
+            )) {
+                throw new IllegalArgumentException("La sala riunioni e' gia' prenotata nella fascia oraria richiesta");
+            }
+            return;
+        }
+
+        if (prenotazioneRepository.existsActiveOverlapForPostazioneExcludingId(
+                prenotazione.getId(),
+                prenotazione.getPostazioneId(),
+                dataPrenotazione,
+                oraInizio,
+                oraFine,
+                StatoPrenotazione.CONFERMATA
+        )) {
+            throw new IllegalArgumentException("La postazione e' gia' prenotata nella fascia oraria richiesta");
         }
     }
 
@@ -416,8 +552,12 @@ public class PrenotazioneService {
                 prenotazione.getUtenteId(),
                 prenotazione.getUtenteEmail(),
                 prenotazione.getUtenteFullName(),
+                prenotazione.getTipoRisorsaPrenotata(),
+                getRisorsaLabel(prenotazione),
                 prenotazione.getPostazioneId(),
                 prenotazione.getPostazioneCodice(),
+                prenotazione.getMeetingRoomStanzaId(),
+                prenotazione.getMeetingRoomNome(),
                 prenotazione.getStanzaId(),
                 prenotazione.getStanzaNome(),
                 prenotazione.getDataPrenotazione(),
@@ -436,8 +576,12 @@ public class PrenotazioneService {
                 prenotazione.getUtenteId(),
                 prenotazione.getUtenteEmail(),
                 prenotazione.getUtenteFullName(),
+                prenotazione.getTipoRisorsaPrenotata(),
+                getRisorsaLabel(prenotazione),
                 prenotazione.getPostazioneId(),
                 prenotazione.getPostazioneCodice(),
+                prenotazione.getMeetingRoomStanzaId(),
+                prenotazione.getMeetingRoomNome(),
                 prenotazione.getStanzaId(),
                 prenotazione.getStanzaNome(),
                 locationInfo.sedeLabel(),
@@ -449,6 +593,13 @@ public class PrenotazioneService {
                 prenotazione.getCreatedAt(),
                 prenotazione.getUpdatedAt()
         );
+    }
+
+    private String getRisorsaLabel(Prenotazione prenotazione) {
+        if (prenotazione.getTipoRisorsaPrenotata() == TipoRisorsaPrenotata.MEETING_ROOM) {
+            return prenotazione.getMeetingRoomNome();
+        }
+        return prenotazione.getPostazioneCodice();
     }
 
     private record DashboardLocationInfo(String sedeLabel, String pianoLabel) {

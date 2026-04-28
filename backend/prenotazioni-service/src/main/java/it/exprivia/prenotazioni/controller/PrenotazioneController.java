@@ -40,6 +40,12 @@ public class PrenotazioneController {
         return ResponseEntity.status(HttpStatus.CREATED).body(prenotazioneService.create(request, authorizationHeader));
     }
 
+    @PostMapping("/meeting-room")
+    public ResponseEntity<PrenotazioneResponse> createMeetingRoom(@Valid @RequestBody CreatePrenotazioneRequest request,
+                                                                  @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(prenotazioneService.createMeetingRoom(request, authorizationHeader));
+    }
+
     @PutMapping("/{id}")
     public ResponseEntity<PrenotazioneResponse> update(@PathVariable Long id,
                                                        @Valid @RequestBody UpdatePrenotazioneRequest request,
@@ -72,8 +78,9 @@ public class PrenotazioneController {
     @GetMapping
     public ResponseEntity<List<PrenotazioneResponse>> findAll(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data,
-            @RequestParam(required = false) Long postazioneId) {
-        return ResponseEntity.ok(prenotazioneService.findAll(data, postazioneId));
+            @RequestParam(required = false) Long postazioneId,
+            @RequestParam(required = false) Long meetingRoomStanzaId) {
+        return ResponseEntity.ok(prenotazioneService.findAll(data, postazioneId, meetingRoomStanzaId));
     }
 
     @GetMapping("/postazione/{postazioneId}")
@@ -90,6 +97,22 @@ public class PrenotazioneController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime oraInizio,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime oraFine) {
         return ResponseEntity.ok(prenotazioneService.isDisponibile(postazioneId, data, oraInizio, oraFine));
+    }
+
+    @GetMapping("/meeting-room/{stanzaId}")
+    public ResponseEntity<List<PrenotazioneResponse>> findByMeetingRoomAndData(
+            @PathVariable Long stanzaId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data) {
+        return ResponseEntity.ok(prenotazioneService.findByMeetingRoomAndData(stanzaId, data));
+    }
+
+    @GetMapping("/meeting-room/{stanzaId}/disponibile")
+    public ResponseEntity<Boolean> isMeetingRoomDisponibile(
+            @PathVariable Long stanzaId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime oraInizio,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime oraFine) {
+        return ResponseEntity.ok(prenotazioneService.isMeetingRoomDisponibile(stanzaId, data, oraInizio, oraFine));
     }
 
     @DeleteMapping("/{id}")

@@ -9,11 +9,13 @@ import { nextBookableIsoDate } from '../../core/date.utils';
 
 interface RoomStats {
   stanza: Stanza;
+  meetingRoom: boolean;
   total: number;
   free: number;
   occupied: number;
   unavailable: number;
   maintenance: number;
+  meetingRoomSlots: string[];
   freeCodes: string[];
   occupiedCodes: string[];
   blockedCodes: string[];
@@ -502,6 +504,10 @@ export class BookingsComponent implements OnInit, OnDestroy {
     return this.postazioni.filter((seat) => seat.stato === stato).length;
   }
 
+  bookingResourceLabel(booking: Prenotazione): string {
+    return booking.risorsaLabel || booking.meetingRoomNome || booking.postazioneCodice || 'Risorsa non disponibile';
+  }
+
   private resetSelection(level: 'sede' | 'edificio' | 'piano'): void {
     this.error = '';
     if (level === 'sede') {
@@ -524,26 +530,41 @@ export class BookingsComponent implements OnInit, OnDestroy {
 
   private filterBookingsForCurrentFloor(bookings: Prenotazione[]): Prenotazione[] {
     const stationIds = new Set(this.postazioni.map((seat) => seat.id));
+    const meetingRoomIds = new Set(this.stanze.filter((stanza) => stanza.tipo === 'MEETING_ROOM').map((stanza) => stanza.id));
     return bookings.filter((booking) =>
-      booking.stato === 'CONFERMATA' && stationIds.has(booking.postazioneId),
+      booking.stato === 'CONFERMATA'
+      && (
+        (booking.postazioneId != null && stationIds.has(booking.postazioneId))
+        || (booking.meetingRoomStanzaId != null && meetingRoomIds.has(booking.meetingRoomStanzaId))
+      ),
     );
   }
 
   private buildRoomStats(): RoomStats[] {
-    const bookedIds = new Set(this.bookings.filter((booking) => booking.stato === 'CONFERMATA').map((booking) => booking.postazioneId));
+    const bookedIds = new Set(
+      this.bookings
+        .filter((booking) => booking.stato === 'CONFERMATA' && booking.postazioneId != null)
+        .map((booking) => booking.postazioneId as number),
+    );
 
     return this.stanze.map((stanza) => {
+      const meetingRoomSlots = this.bookings
+        .filter((booking) => booking.meetingRoomStanzaId === stanza.id)
+        .map((booking) => `${booking.oraInizio}-${booking.oraFine}`)
+        .sort();
       const seats = this.postazioni.filter((seat) => seat.stanzaId === stanza.id);
       const freeSeats = seats.filter((seat) => seat.stato === 'DISPONIBILE' && !bookedIds.has(seat.id));
       const occupiedSeats = seats.filter((seat) => bookedIds.has(seat.id));
       const blockedSeats = seats.filter((seat) => seat.stato !== 'DISPONIBILE');
       return {
         stanza,
+        meetingRoom: stanza.tipo === 'MEETING_ROOM',
         total: seats.length,
         free: freeSeats.length,
         occupied: occupiedSeats.length,
         unavailable: seats.filter((seat) => seat.stato === 'NON_DISPONIBILE' || seat.stato === 'CAMBIO_DESTINAZIONE').length,
         maintenance: seats.filter((seat) => seat.stato === 'MANUTENZIONE').length,
+        meetingRoomSlots,
         freeCodes: freeSeats.map((seat) => seat.codice),
         occupiedCodes: occupiedSeats.map((seat) => seat.codice),
         blockedCodes: blockedSeats.map((seat) => seat.codice),

@@ -75,7 +75,7 @@ export class DashboardComponent implements OnInit {
   }
 
   cancelBooking(booking: DashboardPrenotazione): void {
-    if (this.deletingBookingId || !confirm(`Eliminare la prenotazione per ${booking.postazioneCodice}?`)) {
+    if (this.deletingBookingId || !confirm(`Eliminare la prenotazione per ${this.bookingResourceLabel(booking)}?`)) {
       return;
     }
 
@@ -114,6 +114,14 @@ export class DashboardComponent implements OnInit {
 
   canEditBooking(booking: DashboardPrenotazione): boolean {
     return booking.dataPrenotazione >= this.minBookingDate;
+  }
+
+  bookingResourceLabel(booking: DashboardPrenotazione): string {
+    return booking.risorsaLabel || booking.meetingRoomNome || booking.postazioneCodice || 'Risorsa non disponibile';
+  }
+
+  bookingResourceTypeLabel(booking: DashboardPrenotazione): string {
+    return booking.tipoRisorsaPrenotata === 'MEETING_ROOM' ? 'Sala riunioni' : 'Postazione';
   }
 
   availableEditStartTimes(): readonly string[] {
