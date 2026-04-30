@@ -23,6 +23,13 @@ export interface Gruppo {
   nome: string;
 }
 
+export interface GruppoPostazione {
+  id: number;
+  gruppoId: number;
+  postazioneId: number;
+  postazioneCodice: string;
+}
+
 export interface Sede {
   id: number;
   nome: string;

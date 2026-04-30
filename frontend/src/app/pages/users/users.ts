@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, inject, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, ViewChild, inject, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { finalize, forkJoin, of, retry, switchMap, timer, timeout } from 'rxjs';
 import { ApiService } from '../../core/api.service';
@@ -28,6 +28,7 @@ export class UsersComponent implements OnInit, OnDestroy {
   private readonly cdr = inject(ChangeDetectorRef);
   private createRefreshTimers: number[] = [];
   private initialRefreshTimers: number[] = [];
+  @ViewChild('groupsManagerPanel') private groupsManagerPanel?: ElementRef<HTMLElement>;
 
   roles: RuoloUtente[] = ['USER', 'BUILDING_MANAGER', 'RECEPTION', 'ADMIN', 'GUEST'];
   users: UserWithGroups[] = [];
@@ -48,6 +49,7 @@ export class UsersComponent implements OnInit, OnDestroy {
   renamingGroupId: number | null = null;
   renameGroupName = '';
   groupMembershipAction = '';
+  showCreateUserModal = false;
 
   ngOnInit(): void {
     this.loadUsers();
@@ -150,6 +152,7 @@ export class UsersComponent implements OnInit, OnDestroy {
           this.clearCreateRefreshTimers();
           this.form = this.emptyForm();
           this.ensureFormRoleAllowed();
+          this.showCreateUserModal = false;
           this.message = 'Utente creato correttamente.';
           this.refreshView();
           this.loadUsers();
@@ -252,7 +255,7 @@ export class UsersComponent implements OnInit, OnDestroy {
   }
 
   setActiveFilter(filter: UserFilter): void {
-    this.activeFilter = filter;
+    this.activeFilter = this.activeFilter === filter ? 'all' : filter;
     this.refreshView();
   }
 
@@ -285,6 +288,9 @@ export class UsersComponent implements OnInit, OnDestroy {
     this.groupMembershipAction = '';
     this.message = '';
     this.refreshView();
+    window.setTimeout(() => {
+      this.groupsManagerPanel?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
   }
 
   closeGroupsManager(): void {
@@ -471,6 +477,43 @@ export class UsersComponent implements OnInit, OnDestroy {
 
   trackByGroupId(_: number, group: Gruppo): number {
     return group.id;
+  }
+
+  openCreateUserModal(): void {
+    this.form = this.emptyForm();
+    this.ensureFormRoleAllowed();
+    this.showPassword = false;
+    this.showCreateUserModal = true;
+    this.error = '';
+    this.message = '';
+    this.refreshView();
+  }
+
+  closeCreateUserModal(): void {
+    if (this.saving) {
+      return;
+    }
+    this.showCreateUserModal = false;
+    this.form = this.emptyForm();
+    this.ensureFormRoleAllowed();
+    this.showPassword = false;
+    this.refreshView();
+  }
+
+  activeFilterLabel(): string {
+    if (this.activeFilter === 'all') {
+      return 'Tutti gli account';
+    }
+    if (String(this.activeFilter).startsWith('group:')) {
+      const groupId = Number(String(this.activeFilter).split(':')[1]);
+      return this.groups.find((group) => group.id === groupId)?.nome ?? 'Gruppo selezionato';
+    }
+    return this.activeFilter;
+  }
+
+  clearActiveFilter(): void {
+    this.activeFilter = 'all';
+    this.refreshView();
   }
 
   private emptyForm(): RegisterRequest {

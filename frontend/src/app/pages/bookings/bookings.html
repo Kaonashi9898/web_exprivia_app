@@ -59,9 +59,12 @@
     }
   </label>
 
-  <label>
+  <label class="picker-date-field">
     Giorno
     <input type="date" name="reportDate" [(ngModel)]="reportDate" [min]="minReportDate" (change)="loadReport()" />
+    @if (isAdmin()) {
+      <div class="management-actions management-actions-placeholder" aria-hidden="true"></div>
+    }
   </label>
 </section>
 
@@ -130,6 +133,13 @@
         <h2>Prenotazioni del giorno</h2>
       </div>
 
+      @if (bookingActionMessage) {
+        <div class="notice success modal-notice">{{ bookingActionMessage }}</div>
+      }
+      @if (bookingActionError) {
+        <div class="notice error modal-notice">{{ bookingActionError }}</div>
+      }
+
       <div class="booking-list">
         @for (booking of bookings; track booking.id) {
           <article class="booking-row">
@@ -137,7 +147,29 @@
               <strong>{{ booking.utenteFullName }}</strong>
               <span>{{ bookingResourceLabel(booking) }} · {{ booking.stanzaNome }}</span>
             </div>
-            <span>{{ booking.oraInizio }}-{{ booking.oraFine }}</span>
+            <div class="booking-row-side">
+              <span class="booking-time">{{ booking.oraInizio }}-{{ booking.oraFine }}</span>
+              @if (isAdmin()) {
+                <div class="booking-row-actions">
+                  <button
+                    class="ghost-button"
+                    type="button"
+                    [disabled]="!canEditBooking(booking) || deletingBookingId === booking.id || savingBookingId === booking.id"
+                    (click)="startEditBooking(booking)"
+                  >
+                    Modifica
+                  </button>
+                  <button
+                    class="danger-button"
+                    type="button"
+                    [disabled]="deletingBookingId === booking.id || savingBookingId === booking.id"
+                    (click)="askCancelBooking(booking)"
+                  >
+                    {{ deletingBookingId === booking.id ? 'Eliminazione...' : 'Elimina' }}
+                  </button>
+                </div>
+              }
+            </div>
           </article>
         } @empty {
           <p class="muted">{{ loading ? 'Caricamento prenotazioni...' : 'Nessuna prenotazione per il giorno selezionato.' }}</p>
@@ -145,6 +177,83 @@
       </div>
     </div>
   </section>
+}
+
+@if (editingBooking) {
+  <div class="modal-backdrop" (click)="closeEditBookingModal()">
+    <section class="modal-card booking-edit-card" role="dialog" aria-modal="true" aria-labelledby="editBookingTitle" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div>
+          <p class="eyebrow">Modifica prenotazione</p>
+          <h2 id="editBookingTitle">{{ bookingResourceTypeLabel(editingBooking) }} {{ bookingResourceLabel(editingBooking) }}</h2>
+          <p class="muted">Utente: {{ editingBooking.utenteFullName }}</p>
+        </div>
+      </header>
+
+      <div class="modal-form">
+        <div class="modal-grid">
+          <label>
+            Data
+            <input type="date" [(ngModel)]="editBookingDate" [min]="minReportDate" />
+          </label>
+          <label>
+            Inizio
+            <select [(ngModel)]="editStartTime" (ngModelChange)="onEditTimeChange()">
+              @for (time of availableEditStartTimes(); track time) {
+                <option [ngValue]="time">{{ time }}</option>
+              }
+            </select>
+          </label>
+          <label>
+            Fine
+            <select [(ngModel)]="editEndTime" (ngModelChange)="onEditTimeChange()">
+              @for (time of availableEditEndTimes(); track time) {
+                <option [ngValue]="time">{{ time }}</option>
+              }
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <footer class="modal-actions">
+        <button class="ghost-button" type="button" [disabled]="savingBookingId !== null" (click)="closeEditBookingModal()">
+          Annulla
+        </button>
+        <button class="primary-button" type="button" [disabled]="savingBookingId !== null" (click)="saveBookingEdit()">
+          {{ savingBookingId !== null ? 'Salvataggio...' : 'Salva modifica' }}
+        </button>
+      </footer>
+    </section>
+  </div>
+}
+
+@if (bookingPendingDeletion) {
+  <div class="modal-backdrop" (click)="closeCancelBookingModal()">
+    <section class="modal-card confirm-card" role="dialog" aria-modal="true" aria-labelledby="deleteBookingTitle" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div>
+          <p class="eyebrow">Conferma eliminazione</p>
+          <h2 id="deleteBookingTitle">Eliminare questa prenotazione?</h2>
+        </div>
+      </header>
+
+      <p class="modal-copy">
+        Stai per eliminare la prenotazione di {{ bookingResourceTypeLabel(bookingPendingDeletion).toLowerCase() }}
+        <strong>{{ bookingResourceLabel(bookingPendingDeletion) }}</strong>
+        per il giorno <strong>{{ formatDate(bookingPendingDeletion.dataPrenotazione) }}</strong>
+        nella fascia <strong>{{ bookingPendingDeletion.oraInizio }} - {{ bookingPendingDeletion.oraFine }}</strong>.
+      </p>
+
+      <footer class="modal-actions">
+        <button class="ghost-button" type="button" [disabled]="deletingBookingId !== null" (click)="closeCancelBookingModal()">
+          Annulla
+        </button>
+        <button class="danger-button" type="button" [disabled]="deletingBookingId !== null" (click)="cancelBooking()">
+          {{ deletingBookingId !== null ? 'Eliminazione...' : 'Conferma eliminazione' }}
+        </button>
+      </footer>
+    </section>
+  </div>
 }
 
 @if (showSeatStateModal && selectedRoomForState) {
@@ -163,6 +272,72 @@
       @if (seatStateError) {
         <div class="notice error modal-notice">{{ seatStateError }}</div>
       }
+      @if (seatGroupMessage) {
+        <div class="notice success modal-notice">{{ seatGroupMessage }}</div>
+      }
+      @if (seatGroupError) {
+        <div class="notice error modal-notice">{{ seatGroupError }}</div>
+      }
+
+      <section class="room-group-bulk-panel">
+        <div class="room-group-bulk-header">
+          <div>
+            <strong>Gestione gruppi per tutta la stanza</strong>
+            <p class="muted">Applica o rimuovi rapidamente un gruppo su tutte le postazioni della stanza.</p>
+          </div>
+        </div>
+
+        <div class="room-group-bulk-actions">
+          <label>
+            Applica gruppo a tutte le postazioni
+            <select [(ngModel)]="roomGroupDraft" [disabled]="loadingSeatGroups || !!updatingSeatGroupKey || !!updatingRoomGroupAction">
+              <option [ngValue]="null">
+                {{
+                  loadingSeatGroups
+                    ? 'Caricamento gruppi...'
+                    : (availableGroupsForRoom().length ? 'Seleziona gruppo' : 'Nessun gruppo disponibile')
+                }}
+              </option>
+              @for (group of availableGroupsForRoom(); track group.id) {
+                <option [ngValue]="group.id">{{ group.nome }}</option>
+              }
+            </select>
+          </label>
+          <button
+            class="primary-button"
+            type="button"
+            [disabled]="loadingSeatGroups || !roomGroupDraft || !!updatingSeatGroupKey || !!updatingRoomGroupAction"
+            (click)="applyGroupToRoom()"
+          >
+            {{
+              roomGroupBusy('add', roomGroupDraft ?? 0)
+                ? 'Applicazione...'
+                : 'Applica alla stanza'
+            }}
+          </button>
+        </div>
+
+        <div class="room-group-summary">
+          @for (item of roomGroupsSummary(); track item.group.id) {
+            <div class="room-group-summary-card">
+              <div>
+                <strong>{{ item.group.nome }}</strong>
+                <span>{{ item.assignedCount }}/{{ item.totalSeats }} postazioni</span>
+              </div>
+              <button
+                class="danger-button"
+                type="button"
+                [disabled]="!!updatingSeatGroupKey || !!updatingRoomGroupAction"
+                (click)="removeGroupFromRoom(item.group)"
+              >
+                {{ roomGroupBusy('remove', item.group.id) ? 'Rimozione...' : 'Rimuovi dalla stanza' }}
+              </button>
+            </div>
+          } @empty {
+            <p class="muted">Nessun gruppo ancora applicato a questa stanza.</p>
+          }
+        </div>
+      </section>
 
       <div class="seat-state-list">
         @for (seat of postazioniForRoom(selectedRoomForState.stanza.id); track seat.id) {
@@ -173,12 +348,33 @@
               @if (isSeatBookedToday(seat.id)) {
                 <span class="metric occupied">Prenotata nel giorno selezionato</span>
               }
+              <div class="seat-groups-block">
+                <span class="seat-group-label">Gruppi autorizzati</span>
+                <div class="seat-group-list">
+                  @for (group of seatGroupsForSeat(seat.id); track group.id) {
+                    <span class="seat-group-pill">
+                      {{ group.nome }}
+                      <button
+                        class="seat-group-remove"
+                        type="button"
+                        [disabled]="seatGroupBusy('remove', seat.id, group.id)"
+                        (click)="removeGroupFromSeat(seat, group)"
+                        aria-label="Rimuovi gruppo {{ group.nome }}"
+                      >
+                        {{ seatGroupBusy('remove', seat.id, group.id) ? '...' : '×' }}
+                      </button>
+                    </span>
+                  } @empty {
+                    <span class="muted">Nessun vincolo gruppo: postazione aperta a tutti.</span>
+                  }
+                </div>
+              </div>
             </div>
 
             <div class="seat-state-actions">
               <label>
                 Nuovo stato
-                <select [(ngModel)]="seatStateDrafts[seat.id]" [disabled]="updatingSeatId === seat.id">
+                <select [(ngModel)]="seatStateDrafts[seat.id]" [disabled]="updatingSeatId === seat.id || !!updatingRoomGroupAction">
                   @for (stato of statoOptions(); track stato) {
                     <option [ngValue]="stato">{{ statoLabel(stato) }}</option>
                   }
@@ -187,10 +383,38 @@
               <button
                 class="primary-button"
                 type="button"
-                [disabled]="updatingSeatId === seat.id || seatStateDrafts[seat.id] === seat.stato"
+                [disabled]="updatingSeatId === seat.id || !!updatingRoomGroupAction || seatStateDrafts[seat.id] === seat.stato"
                 (click)="saveSeatState(seat)"
               >
                 {{ updatingSeatId === seat.id ? 'Salvataggio...' : 'Salva stato' }}
+              </button>
+
+              <label>
+                Aggiungi gruppo
+                <select [(ngModel)]="seatGroupDrafts[seat.id]" [disabled]="loadingSeatGroups || !!updatingSeatGroupKey || !!updatingRoomGroupAction">
+                  <option [ngValue]="null">
+                    {{
+                      loadingSeatGroups
+                        ? 'Caricamento gruppi...'
+                        : (availableGroupsForSeat(seat.id).length ? 'Seleziona gruppo' : 'Nessun gruppo disponibile')
+                    }}
+                  </option>
+                  @for (group of availableGroupsForSeat(seat.id); track group.id) {
+                    <option [ngValue]="group.id">{{ group.nome }}</option>
+                  }
+                </select>
+              </label>
+              <button
+                class="ghost-button"
+                type="button"
+                [disabled]="loadingSeatGroups || !seatGroupDrafts[seat.id] || !!updatingSeatGroupKey || !!updatingRoomGroupAction"
+                (click)="assignGroupToSeat(seat)"
+              >
+                {{
+                  seatGroupBusy('add', seat.id, seatGroupDrafts[seat.id] ?? 0)
+                    ? 'Assegnazione...'
+                    : 'Aggiungi gruppo'
+                }}
               </button>
             </div>
           </article>
@@ -200,7 +424,7 @@
       </div>
 
       <footer class="modal-actions">
-        <button class="ghost-button" type="button" [disabled]="updatingSeatId !== null" (click)="closeSeatStateModal()">
+        <button class="ghost-button" type="button" [disabled]="updatingSeatId !== null || !!updatingSeatGroupKey || !!updatingRoomGroupAction" (click)="closeSeatStateModal()">
           Chiudi
         </button>
       </footer>

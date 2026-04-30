@@ -143,13 +143,21 @@
 
         <label>
           Data
-          <input type="date" name="bookingDate" [(ngModel)]="bookingDate" [min]="minBookingDate" (change)="onBookingDateChange()" required />
+          <input
+            type="date"
+            name="bookingDate"
+            [(ngModel)]="bookingDate"
+            [min]="minBookingDate"
+            [disabled]="bookingControlsLocked()"
+            (change)="onBookingDateChange()"
+            required
+          />
         </label>
 
         <div class="time-grid">
           <label>
             Inizio
-            <select name="startTime" [(ngModel)]="startTime" (ngModelChange)="onBookingTimeChange()" required>
+            <select name="startTime" [(ngModel)]="startTime" [disabled]="bookingControlsLocked()" (ngModelChange)="onBookingTimeChange()" required>
               @for (time of availableStartTimes(); track time) {
                 <option [ngValue]="time">{{ time }}</option>
               }
@@ -157,15 +165,13 @@
           </label>
           <label>
             Fine
-            <select name="endTime" [(ngModel)]="endTime" (ngModelChange)="onBookingTimeChange()" required>
+            <select name="endTime" [(ngModel)]="endTime" [disabled]="bookingControlsLocked()" (ngModelChange)="onBookingTimeChange()" required>
               @for (time of availableEndTimes(); track time) {
                 <option [ngValue]="time">{{ time }}</option>
               }
             </select>
           </label>
         </div>
-
-        <p class="muted">Disponibilita calcolata per {{ selectedWindowSummary() }}. Le prenotazioni partono dal primo giorno lavorativo disponibile.</p>
 
         @if (selectedResourceIsPartiallyOccupied()) {
           <div class="selected-seat partial-note">
@@ -187,6 +193,16 @@
             <strong>Dalle {{ suggestedStartTime }}</strong>
             <button class="ghost-button" type="button" (click)="applySuggestedStartTime()">
               Usa questa fascia
+            </button>
+          </div>
+        }
+
+        @if (bookingControlsLocked()) {
+          <div class="selected-seat booking-lock-note">
+            <span>Fascia bloccata</span>
+            <strong>Hai gia confermato una prenotazione per {{ bookingDate }}.</strong>
+            <button class="ghost-button" type="button" (click)="unlockBookingControls()">
+              Scegli un altro giorno
             </button>
           </div>
         }

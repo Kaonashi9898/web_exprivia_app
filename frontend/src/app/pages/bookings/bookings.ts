@@ -2,10 +2,18 @@ import { ChangeDetectorRef, Component, computed, inject, OnDestroy, OnInit } fro
 import { FormsModule } from '@angular/forms';
 import { forkJoin, of, Subscription, switchMap } from 'rxjs';
 import { ApiService } from '../../core/api.service';
-import { Edificio, Piano, Postazione, Prenotazione, Sede, Stanza, StatoPostazione } from '../../core/app.models';
+import { Edificio, Gruppo, GruppoPostazione, Piano, Postazione, Prenotazione, Sede, Stanza, StatoPostazione } from '../../core/app.models';
 import { apiErrorMessage } from '../../core/api-error.utils';
 import { AuthService } from '../../core/auth.service';
-import { nextBookableIsoDate } from '../../core/date.utils';
+import {
+  BOOKING_DAY_END,
+  BOOKING_DAY_START,
+  BOOKING_END_OPTIONS,
+  BOOKING_START_OPTIONS,
+  isWithinBookingWindow,
+  nextBookingTimeOption,
+} from '../../core/booking-time.utils';
+import { isWeekendIsoDate, nextBookableIsoDate } from '../../core/date.utils';
 
 interface RoomStats {
   stanza: Stanza;
@@ -87,6 +95,26 @@ export class BookingsComponent implements OnInit, OnDestroy {
   seatStateDrafts: Record<number, StatoPostazione> = {};
   seatStateError = '';
   seatStateMessage = '';
+  availableSeatGroups: Gruppo[] = [];
+  seatGroupsBySeatId: Record<number, GruppoPostazione[]> = {};
+  seatGroupDrafts: Record<number, number | null> = {};
+  roomGroupDraft: number | null = null;
+  loadingSeatGroups = false;
+  updatingSeatGroupKey = '';
+  updatingRoomGroupAction = '';
+  seatGroupError = '';
+  seatGroupMessage = '';
+  bookingActionError = '';
+  bookingActionMessage = '';
+  bookingPendingDeletion: Prenotazione | null = null;
+  editingBooking: Prenotazione | null = null;
+  deletingBookingId: number | null = null;
+  savingBookingId: number | null = null;
+  editBookingDate = this.minReportDate;
+  editStartTime = BOOKING_DAY_START;
+  editEndTime = BOOKING_DAY_END;
+  readonly bookingStartOptions = BOOKING_START_OPTIONS;
+  readonly bookingEndOptions = BOOKING_END_OPTIONS;
 
   ngOnInit(): void {
     this.loadSedi();
@@ -450,6 +478,12 @@ export class BookingsComponent implements OnInit, OnDestroy {
     if (!this.selectedPianoId) return;
     this.loading = true;
     this.error = '';
+    this.bookingActionError = '';
+    this.bookingActionMessage = '';
+    this.bookingPendingDeletion = null;
+    this.editingBooking = null;
+    this.deletingBookingId = null;
+    this.savingBookingId = null;
 
     this.reportSubscription?.unsubscribe();
     this.reportSubscription = this.api
@@ -517,6 +551,153 @@ export class BookingsComponent implements OnInit, OnDestroy {
     return booking.risorsaLabel || booking.meetingRoomNome || booking.postazioneCodice || 'Risorsa non disponibile';
   }
 
+  bookingResourceTypeLabel(booking: Prenotazione): string {
+    return booking.tipoRisorsaPrenotata === 'MEETING_ROOM' ? 'Sala riunioni' : 'Postazione';
+  }
+
+  formatDate(value: string): string {
+    const date = new Date(`${value}T00:00:00`);
+    return date.toLocaleDateString('it-IT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  }
+
+  canEditBooking(booking: Prenotazione): boolean {
+    return booking.stato === 'CONFERMATA' && booking.dataPrenotazione >= this.minReportDate;
+  }
+
+  askCancelBooking(booking: Prenotazione): void {
+    if (!this.isAdmin() || this.deletingBookingId !== null || this.savingBookingId !== null) {
+      return;
+    }
+
+    this.bookingActionError = '';
+    this.bookingActionMessage = '';
+    this.bookingPendingDeletion = booking;
+    this.refreshView();
+  }
+
+  closeCancelBookingModal(): void {
+    if (this.deletingBookingId !== null) {
+      return;
+    }
+
+    this.bookingPendingDeletion = null;
+    this.refreshView();
+  }
+
+  cancelBooking(): void {
+    const booking = this.bookingPendingDeletion;
+    if (!this.isAdmin() || !booking || this.deletingBookingId !== null) {
+      return;
+    }
+
+    this.deletingBookingId = booking.id;
+    this.bookingActionError = '';
+    this.bookingActionMessage = '';
+
+    this.api.cancelBooking(booking.id).subscribe({
+      next: () => {
+        this.bookings = this.bookings.filter((item) => item.id !== booking.id);
+        this.roomStats = this.buildRoomStats();
+        this.deletingBookingId = null;
+        this.bookingPendingDeletion = null;
+        this.bookingActionMessage = 'Prenotazione eliminata.';
+        this.refreshView();
+      },
+      error: (err) => {
+        this.deletingBookingId = null;
+        this.bookingPendingDeletion = null;
+        this.bookingActionError = apiErrorMessage(err, 'Eliminazione prenotazione non riuscita.');
+        this.refreshView();
+      },
+    });
+  }
+
+  startEditBooking(booking: Prenotazione): void {
+    if (!this.isAdmin() || !this.canEditBooking(booking) || this.deletingBookingId !== null || this.savingBookingId !== null) {
+      return;
+    }
+
+    this.editingBooking = booking;
+    this.editBookingDate = booking.dataPrenotazione;
+    this.editStartTime = booking.oraInizio;
+    this.editEndTime = booking.oraFine;
+    this.bookingActionError = '';
+    this.bookingActionMessage = '';
+    this.refreshView();
+  }
+
+  closeEditBookingModal(): void {
+    if (this.savingBookingId !== null) {
+      return;
+    }
+
+    this.editingBooking = null;
+    this.bookingActionError = '';
+    this.refreshView();
+  }
+
+  availableEditStartTimes(): readonly string[] {
+    return this.bookingStartOptions.filter((time) => time < this.editEndTime);
+  }
+
+  availableEditEndTimes(): readonly string[] {
+    return this.bookingEndOptions.filter((time) => time > this.editStartTime);
+  }
+
+  onEditTimeChange(): void {
+    this.normalizeEditTimeWindow();
+    this.bookingActionError = '';
+    this.bookingActionMessage = '';
+    this.refreshView();
+  }
+
+  saveBookingEdit(): void {
+    const booking = this.editingBooking;
+    if (!this.isAdmin() || !booking || this.savingBookingId !== null) {
+      return;
+    }
+
+    const validationError = this.validateEditSelection();
+    if (validationError) {
+      this.bookingActionError = validationError;
+      this.bookingActionMessage = '';
+      this.refreshView();
+      return;
+    }
+
+    this.savingBookingId = booking.id;
+    this.bookingActionError = '';
+    this.bookingActionMessage = '';
+
+    this.api.updateBooking(booking.id, {
+      dataPrenotazione: this.editBookingDate,
+      oraInizio: this.editStartTime,
+      oraFine: this.editEndTime,
+    }).subscribe({
+      next: (updatedBooking) => {
+        this.bookings = updatedBooking.dataPrenotazione === this.reportDate
+          ? this.bookings
+            .map((item) => item.id === updatedBooking.id ? { ...item, ...updatedBooking } : item)
+            .sort((left, right) => `${left.dataPrenotazione} ${left.oraInizio}`.localeCompare(`${right.dataPrenotazione} ${right.oraInizio}`))
+          : this.bookings.filter((item) => item.id !== updatedBooking.id);
+        this.roomStats = this.buildRoomStats();
+        this.savingBookingId = null;
+        this.editingBooking = null;
+        this.bookingActionMessage = 'Prenotazione aggiornata.';
+        this.refreshView();
+      },
+      error: (err) => {
+        this.savingBookingId = null;
+        this.bookingActionError = apiErrorMessage(err, 'Aggiornamento prenotazione non riuscito.');
+        this.refreshView();
+      },
+    });
+  }
+
   canManageRoomSeats(room: RoomStats): boolean {
     return this.canManageDeskStates() && !room.meetingRoom;
   }
@@ -534,11 +715,23 @@ export class BookingsComponent implements OnInit, OnDestroy {
     this.seatStateDrafts = Object.fromEntries(
       this.postazioniForRoom(room.stanza.id).map((seat) => [seat.id, seat.stato]),
     );
+    this.availableSeatGroups = [];
+    this.seatGroupsBySeatId = {};
+    this.seatGroupDrafts = Object.fromEntries(
+      this.postazioniForRoom(room.stanza.id).map((seat) => [seat.id, null]),
+    );
+    this.roomGroupDraft = null;
+    this.loadingSeatGroups = false;
+    this.updatingSeatGroupKey = '';
+    this.updatingRoomGroupAction = '';
+    this.seatGroupError = '';
+    this.seatGroupMessage = '';
     this.refreshView();
+    this.loadSeatGroupsForSelectedRoom();
   }
 
   closeSeatStateModal(): void {
-    if (this.updatingSeatId !== null) {
+    if (this.updatingSeatId !== null || !!this.updatingSeatGroupKey || !!this.updatingRoomGroupAction) {
       return;
     }
 
@@ -547,6 +740,15 @@ export class BookingsComponent implements OnInit, OnDestroy {
     this.seatStateError = '';
     this.seatStateMessage = '';
     this.seatStateDrafts = {};
+    this.availableSeatGroups = [];
+    this.seatGroupsBySeatId = {};
+    this.seatGroupDrafts = {};
+    this.roomGroupDraft = null;
+    this.loadingSeatGroups = false;
+    this.updatingSeatGroupKey = '';
+    this.updatingRoomGroupAction = '';
+    this.seatGroupError = '';
+    this.seatGroupMessage = '';
     this.refreshView();
   }
 
@@ -612,6 +814,158 @@ export class BookingsComponent implements OnInit, OnDestroy {
     });
   }
 
+  seatGroupsForSeat(seatId: number): Gruppo[] {
+    const assignedIds = new Set((this.seatGroupsBySeatId[seatId] ?? []).map((item) => item.gruppoId));
+    return this.availableSeatGroups.filter((group) => assignedIds.has(group.id));
+  }
+
+  roomGroupsSummary(): Array<{ group: Gruppo; assignedCount: number; totalSeats: number }> {
+    const seats = this.selectedRoomForState ? this.postazioniForRoom(this.selectedRoomForState.stanza.id) : [];
+    const totalSeats = seats.length;
+    return this.availableSeatGroups
+      .map((group) => ({
+        group,
+        assignedCount: seats.filter((seat) => this.hasSeatGroup(seat.id, group.id)).length,
+        totalSeats,
+      }))
+      .filter((item) => item.assignedCount > 0);
+  }
+
+  availableGroupsForRoom(): Gruppo[] {
+    return this.availableSeatGroups;
+  }
+
+  availableGroupsForSeat(seatId: number): Gruppo[] {
+    const assignedIds = new Set((this.seatGroupsBySeatId[seatId] ?? []).map((item) => item.gruppoId));
+    return this.availableSeatGroups.filter((group) => !assignedIds.has(group.id));
+  }
+
+  assignGroupToSeat(seat: Postazione): void {
+    const groupId = this.seatGroupDrafts[seat.id];
+    if (!groupId || this.updatingSeatGroupKey) {
+      return;
+    }
+
+    this.updatingSeatGroupKey = `add-${seat.id}-${groupId}`;
+    this.seatGroupError = '';
+    this.seatGroupMessage = '';
+
+    this.api.addGroupToSeat(groupId, seat.id).subscribe({
+      next: () => {
+        this.seatGroupDrafts[seat.id] = null;
+        this.seatGroupMessage = `Gruppo assegnato a ${seat.codice}.`;
+        this.updatingSeatGroupKey = '';
+        this.loadSeatGroupAssignmentsForCurrentRoom();
+      },
+      error: (err) => {
+        this.updatingSeatGroupKey = '';
+        this.seatGroupError = apiErrorMessage(err, 'Associazione gruppo-postazione non riuscita.');
+        this.refreshView();
+      },
+    });
+  }
+
+  removeGroupFromSeat(seat: Postazione, group: Gruppo): void {
+    if (this.updatingSeatGroupKey) {
+      return;
+    }
+
+    this.updatingSeatGroupKey = `remove-${seat.id}-${group.id}`;
+    this.seatGroupError = '';
+    this.seatGroupMessage = '';
+
+    this.api.removeGroupFromSeat(group.id, seat.id).subscribe({
+      next: () => {
+        this.seatGroupMessage = `Gruppo rimosso da ${seat.codice}.`;
+        this.updatingSeatGroupKey = '';
+        this.loadSeatGroupAssignmentsForCurrentRoom();
+      },
+      error: (err) => {
+        this.updatingSeatGroupKey = '';
+        this.seatGroupError = apiErrorMessage(err, 'Rimozione gruppo-postazione non riuscita.');
+        this.refreshView();
+      },
+    });
+  }
+
+  seatGroupBusy(action: 'add' | 'remove', seatId: number, groupId: number): boolean {
+    return this.updatingSeatGroupKey === `${action}-${seatId}-${groupId}`;
+  }
+
+  roomGroupBusy(action: 'add' | 'remove', groupId: number): boolean {
+    return this.updatingRoomGroupAction === `${action}-${groupId}`;
+  }
+
+  applyGroupToRoom(): void {
+    const room = this.selectedRoomForState;
+    const groupId = this.roomGroupDraft;
+    if (!room || !groupId || this.updatingSeatGroupKey || this.updatingRoomGroupAction) {
+      return;
+    }
+
+    const seatsToUpdate = this.postazioniForRoom(room.stanza.id)
+      .filter((seat) => !this.hasSeatGroup(seat.id, groupId));
+
+    if (!seatsToUpdate.length) {
+      this.seatGroupMessage = 'Tutte le postazioni della stanza hanno gia\' questo gruppo.';
+      this.seatGroupError = '';
+      this.refreshView();
+      return;
+    }
+
+    this.updatingRoomGroupAction = `add-${groupId}`;
+    this.seatGroupError = '';
+    this.seatGroupMessage = '';
+
+    forkJoin(seatsToUpdate.map((seat) => this.api.addGroupToSeat(groupId, seat.id))).subscribe({
+      next: () => {
+        this.roomGroupDraft = null;
+        this.seatGroupMessage = `Gruppo assegnato a ${seatsToUpdate.length} postazioni della stanza.`;
+        this.updatingRoomGroupAction = '';
+        this.loadSeatGroupAssignmentsForCurrentRoom();
+      },
+      error: (err) => {
+        this.updatingRoomGroupAction = '';
+        this.seatGroupError = apiErrorMessage(err, 'Associazione gruppo alla stanza non riuscita.');
+        this.refreshView();
+      },
+    });
+  }
+
+  removeGroupFromRoom(group: Gruppo): void {
+    const room = this.selectedRoomForState;
+    if (!room || this.updatingSeatGroupKey || this.updatingRoomGroupAction) {
+      return;
+    }
+
+    const seatsToUpdate = this.postazioniForRoom(room.stanza.id)
+      .filter((seat) => this.hasSeatGroup(seat.id, group.id));
+
+    if (!seatsToUpdate.length) {
+      this.seatGroupMessage = 'Nessuna postazione della stanza ha questo gruppo.';
+      this.seatGroupError = '';
+      this.refreshView();
+      return;
+    }
+
+    this.updatingRoomGroupAction = `remove-${group.id}`;
+    this.seatGroupError = '';
+    this.seatGroupMessage = '';
+
+    forkJoin(seatsToUpdate.map((seat) => this.api.removeGroupFromSeat(group.id, seat.id))).subscribe({
+      next: () => {
+        this.seatGroupMessage = `Gruppo rimosso da ${seatsToUpdate.length} postazioni della stanza.`;
+        this.updatingRoomGroupAction = '';
+        this.loadSeatGroupAssignmentsForCurrentRoom();
+      },
+      error: (err) => {
+        this.updatingRoomGroupAction = '';
+        this.seatGroupError = apiErrorMessage(err, 'Rimozione gruppo dalla stanza non riuscita.');
+        this.refreshView();
+      },
+    });
+  }
+
   private resetSelection(level: 'sede' | 'edificio' | 'piano'): void {
     this.error = '';
     if (level === 'sede') {
@@ -629,6 +983,16 @@ export class BookingsComponent implements OnInit, OnDestroy {
     this.postazioni = [];
     this.bookings = [];
     this.roomStats = [];
+    this.bookingActionError = '';
+    this.bookingActionMessage = '';
+    this.bookingPendingDeletion = null;
+    this.editingBooking = null;
+    this.deletingBookingId = null;
+    this.savingBookingId = null;
+    this.availableSeatGroups = [];
+    this.seatGroupsBySeatId = {};
+    this.seatGroupDrafts = {};
+    this.roomGroupDraft = null;
     this.refreshView();
   }
 
@@ -687,6 +1051,68 @@ export class BookingsComponent implements OnInit, OnDestroy {
     }
   }
 
+  private loadSeatGroupsForSelectedRoom(): void {
+    const room = this.selectedRoomForState;
+    if (!room) {
+      return;
+    }
+
+    const seats = this.postazioniForRoom(room.stanza.id);
+    this.loadingSeatGroups = true;
+    this.seatGroupError = '';
+
+    forkJoin({
+      groups: this.api.listGroups(),
+      assignments: seats.length
+        ? forkJoin(seats.map((seat) => this.api.listSeatGroups(seat.id)))
+        : of([] as GruppoPostazione[][]),
+    }).subscribe({
+      next: ({ groups, assignments }) => {
+        this.availableSeatGroups = groups;
+        this.seatGroupsBySeatId = Object.fromEntries(
+          seats.map((seat, index) => [seat.id, assignments[index] ?? []]),
+        );
+        this.roomGroupDraft = null;
+        this.loadingSeatGroups = false;
+        this.refreshView();
+      },
+      error: (err) => {
+        this.loadingSeatGroups = false;
+        this.seatGroupError = apiErrorMessage(err, 'Impossibile caricare i gruppi associati alle postazioni.');
+        this.refreshView();
+      },
+    });
+  }
+
+  private loadSeatGroupAssignmentsForCurrentRoom(): void {
+    const room = this.selectedRoomForState;
+    if (!room) {
+      return;
+    }
+
+    const seats = this.postazioniForRoom(room.stanza.id);
+    this.loadingSeatGroups = true;
+
+    (seats.length
+      ? forkJoin(seats.map((seat) => this.api.listSeatGroups(seat.id)))
+      : of([] as GruppoPostazione[][])
+    ).subscribe({
+      next: (assignments) => {
+        this.seatGroupsBySeatId = Object.fromEntries(
+          seats.map((seat, index) => [seat.id, assignments[index] ?? []]),
+        );
+        this.roomGroupDraft = null;
+        this.loadingSeatGroups = false;
+        this.refreshView();
+      },
+      error: (err) => {
+        this.loadingSeatGroups = false;
+        this.seatGroupError = apiErrorMessage(err, 'Impossibile aggiornare i gruppi delle postazioni.');
+        this.refreshView();
+      },
+    });
+  }
+
   private buildEmptySedeForm(): CreateSedeForm {
     return {
       nome: '',
@@ -730,7 +1156,45 @@ export class BookingsComponent implements OnInit, OnDestroy {
     return { value: parsed, error: null };
   }
 
+  private hasSeatGroup(seatId: number, groupId: number): boolean {
+    return (this.seatGroupsBySeatId[seatId] ?? []).some((item) => item.gruppoId === groupId);
+  }
+
   private refreshView(): void {
     this.cdr.detectChanges();
+  }
+
+  private validateEditSelection(): string | null {
+    if (!this.editBookingDate) {
+      return 'Seleziona una data valida.';
+    }
+    if (this.editBookingDate < this.minReportDate) {
+      return 'Le prenotazioni sono modificabili solo a partire dal primo giorno lavorativo disponibile.';
+    }
+    if (isWeekendIsoDate(this.editBookingDate)) {
+      return 'Le prenotazioni non sono consentite il sabato e la domenica.';
+    }
+    if (!this.editStartTime || !this.editEndTime) {
+      return 'Seleziona una fascia oraria valida.';
+    }
+    if (!isWithinBookingWindow(this.editStartTime, this.editEndTime)) {
+      if (this.editStartTime >= this.editEndTime) {
+        return "L'ora di inizio deve essere precedente all'ora di fine.";
+      }
+      return 'Le prenotazioni sono consentite solo tra le 09:00 e le 18:00.';
+    }
+    return null;
+  }
+
+  private normalizeEditTimeWindow(): void {
+    if (this.editStartTime < BOOKING_DAY_START) {
+      this.editStartTime = BOOKING_DAY_START;
+    }
+    if (this.editEndTime > BOOKING_DAY_END) {
+      this.editEndTime = BOOKING_DAY_END;
+    }
+    if (this.editStartTime >= this.editEndTime) {
+      this.editEndTime = nextBookingTimeOption(this.editStartTime) ?? BOOKING_DAY_END;
+    }
   }
 }

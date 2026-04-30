@@ -8,7 +8,7 @@
 
 <section class="users-layout">
   <aside class="panel users-sidebar">
-    <button class="btn btn-primary sidebar-create" type="button" (click)="setActiveFilter('all')">
+    <button class="btn btn-primary sidebar-create" type="button" (click)="openCreateUserModal()">
       + Nuovo account
     </button>
 
@@ -97,78 +97,6 @@
   </aside>
 
   <div class="users-workspace">
-    <form class="panel form-panel" autocomplete="off" (ngSubmit)="createUser()">
-      <div class="panel-header">
-        <h2>Nuova utenza</h2>
-        <span class="section-hint">
-          {{ isAdmin() ? 'Admin: ruoli completi' : 'Reception: solo USER e GUEST' }}
-        </span>
-      </div>
-
-      <div class="form-grid">
-        <label>
-          Nome completo
-          <input
-            name="new-user-full-name"
-            autocomplete="off"
-            placeholder="Nome e Cognome"
-            [(ngModel)]="form.fullName"
-            maxlength="50"
-            required
-          />
-        </label>
-
-        <label>
-          Email
-          <input
-            type="email"
-            name="new-user-email-field"
-            autocomplete="off"
-            placeholder="nome.cognome@exprivia.com"
-            [(ngModel)]="form.email"
-            required
-          />
-        </label>
-
-        <label>
-          Password
-          <span class="password-field">
-            <input
-              [type]="showPassword ? 'text' : 'password'"
-              name="new-user-password-field"
-              autocomplete="new-password"
-              placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;"
-              [(ngModel)]="form.password"
-              minlength="8"
-              required
-            />
-            <button
-              class="password-toggle"
-              type="button"
-              (click)="togglePasswordVisibility()"
-              [attr.aria-label]="showPassword ? 'Nascondi password' : 'Mostra password'"
-              [title]="showPassword ? 'Nascondi password' : 'Mostra password'"
-            >
-              &#128065;
-            </button>
-          </span>
-        </label>
-
-        <label>
-          Ruolo
-          <select name="role" [(ngModel)]="form.ruolo" required>
-            @for (role of availableRoleOptionsForNewUser(); track role) {
-              <option [ngValue]="role">{{ role }}</option>
-            }
-          </select>
-        </label>
-      </div>
-
-      <button class="btn btn-primary" type="submit" [disabled]="saving">
-        {{ saving ? 'Creazione...' : 'Crea utenza' }}
-      </button>
-    </form>
-
     <div class="panel">
       <div class="panel-header users-toolbar">
         <div>
@@ -191,6 +119,12 @@
       }
       @if (error) {
         <div class="notice error">{{ error }}</div>
+      }
+      @if (activeFilter !== 'all') {
+        <div class="active-filter-banner">
+          <span>Filtro attivo: <strong>{{ activeFilterLabel() }}</strong></span>
+          <button class="ghost-button" type="button" (click)="clearActiveFilter()">Mostra tutti</button>
+        </div>
       }
 
       <div class="table-wrap">
@@ -260,7 +194,7 @@
     </div>
 
     @if (selectedUserForGroups) {
-      <div class="panel">
+      <div class="panel" #groupsManagerPanel>
         <div class="panel-header">
           <div>
             <h2>Gruppi di {{ selectedUserForGroups.fullName }}</h2>
@@ -318,3 +252,86 @@
     }
   </div>
 </section>
+
+@if (showCreateUserModal) {
+  <div class="modal-backdrop" (click)="closeCreateUserModal()">
+    <section class="modal-card users-modal-card" role="dialog" aria-modal="true" aria-labelledby="createUserTitle" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div>
+          <h2 id="createUserTitle">Nuova utenza</h2>
+          <p class="section-hint">
+            {{ isAdmin() ? 'Admin: ruoli completi' : 'Reception: solo USER e GUEST' }}
+          </p>
+        </div>
+      </header>
+
+      <form class="form-panel users-modal-form" autocomplete="off" (ngSubmit)="createUser()">
+        <div class="form-grid">
+          <label>
+            Nome completo
+            <input
+              name="new-user-full-name"
+              autocomplete="off"
+              placeholder="Nome e Cognome"
+              [(ngModel)]="form.fullName"
+              maxlength="50"
+              required
+            />
+          </label>
+
+          <label>
+            Email
+            <input
+              type="email"
+              name="new-user-email-field"
+              autocomplete="off"
+              placeholder="nome.cognome@exprivia.com"
+              [(ngModel)]="form.email"
+              required
+            />
+          </label>
+
+          <label>
+            Password
+            <span class="password-field">
+              <input
+                [type]="showPassword ? 'text' : 'password'"
+                name="new-user-password-field"
+                autocomplete="new-password"
+                placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;"
+                [(ngModel)]="form.password"
+                minlength="8"
+                required
+              />
+              <button
+                class="password-toggle"
+                type="button"
+                (click)="togglePasswordVisibility()"
+                [attr.aria-label]="showPassword ? 'Nascondi password' : 'Mostra password'"
+                [title]="showPassword ? 'Nascondi password' : 'Mostra password'"
+              >
+                &#128065;
+              </button>
+            </span>
+          </label>
+
+          <label>
+            Ruolo
+            <select name="role" [(ngModel)]="form.ruolo" required>
+              @for (role of availableRoleOptionsForNewUser(); track role) {
+                <option [ngValue]="role">{{ role }}</option>
+              }
+            </select>
+          </label>
+        </div>
+
+        <footer class="modal-actions">
+          <button class="ghost-button" type="button" (click)="closeCreateUserModal()" [disabled]="saving">Annulla</button>
+          <button class="btn btn-primary" type="submit" [disabled]="saving">
+            {{ saving ? 'Creazione...' : 'Crea utenza' }}
+          </button>
+        </footer>
+      </form>
+    </section>
+  </div>
+}

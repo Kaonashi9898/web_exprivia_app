@@ -80,6 +80,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
   bookingDate = this.minBookingDate;
   startTime = BOOKING_DAY_START;
   endTime = BOOKING_DAY_END;
+  lockedBookingDate: string | null = null;
 
   ngOnInit(): void {
     this.sediLoading = true;
@@ -214,6 +215,9 @@ export class LocationsComponent implements OnInit, OnDestroy {
     if (!this.selectedPostazione && !this.selectedMeetingRoom) {
       return;
     }
+    if (this.bookingControlsLocked()) {
+      return;
+    }
 
     const dateError = this.validateBookingDateSelection();
     if (dateError) {
@@ -263,7 +267,10 @@ export class LocationsComponent implements OnInit, OnDestroy {
     this.createBookingSubscription = booking$
       .subscribe({
         next: () => {
+          this.lockedBookingDate = this.bookingDate;
           this.message = 'Prenotazione confermata.';
+          this.error = '';
+          this.suggestedStartTime = null;
           this.loadBookingsForCurrentPlan();
           this.refreshView();
         },
@@ -442,7 +449,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
     return !!this.selectedPostazione
       && this.bookingsAreReady()
       && this.hasValidBookingWindow()
-      && !this.selectedUserHasOverlap()
+      && !this.bookingControlsLocked()
       && !this.selectedStationHasOverlap();
   }
 
@@ -450,7 +457,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
     if (this.selectedMeetingRoom) {
       return this.bookingsAreReady()
         && this.hasValidBookingWindow()
-        && !this.selectedUserHasOverlap()
+        && !this.bookingControlsLocked()
         && !this.selectedMeetingRoomHasOverlap();
     }
 
@@ -492,7 +499,15 @@ export class LocationsComponent implements OnInit, OnDestroy {
   }
 
   selectedResourceIsPartiallyOccupied(): boolean {
-    return this.selectedResourceBookingsSummary().length > 0;
+    if (!this.selectedResourceBookingsSummary().length) {
+      return false;
+    }
+
+    if (this.selectedMeetingRoom) {
+      return !this.selectedMeetingRoomHasOverlap();
+    }
+
+    return !this.selectedStationHasOverlap();
   }
 
   selectedResourceOccupiedLabel(): string {
@@ -508,7 +523,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
   }
 
   applySuggestedStartTime(): void {
-    if (!this.suggestedStartTime || !this.bookingsAreReady()) {
+    if (!this.suggestedStartTime || !this.bookingsAreReady() || this.bookingControlsLocked()) {
       return;
     }
     this.startTime = this.suggestedStartTime;
@@ -521,6 +536,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
   }
 
   onBookingDateChange(): void {
+    this.lockedBookingDate = null;
     this.clearMessages();
     const dateError = this.validateBookingDateSelection();
     if (dateError) {
@@ -566,6 +582,10 @@ export class LocationsComponent implements OnInit, OnDestroy {
   }
 
   availableStartTimes(): readonly string[] {
+    if (this.bookingControlsLocked()) {
+      return this.bookingStartOptions.filter((time) => time === this.startTime);
+    }
+
     if (!this.selectedPostazione && !this.selectedMeetingRoom) {
       return this.bookingStartOptions.filter((time) => time < this.endTime);
     }
@@ -578,6 +598,10 @@ export class LocationsComponent implements OnInit, OnDestroy {
   }
 
   availableEndTimes(): readonly string[] {
+    if (this.bookingControlsLocked()) {
+      return this.bookingEndOptions.filter((time) => time === this.endTime);
+    }
+
     if (!this.selectedPostazione && !this.selectedMeetingRoom) {
       return this.bookingEndOptions.filter((time) => time > this.startTime);
     }
@@ -751,6 +775,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
     this.selectedPostazione = null;
     this.selectedMeetingRoom = null;
     this.suggestedStartTime = null;
+    this.lockedBookingDate = null;
     this.unavailableMessage = '';
     this.revokeImageUrl();
   }
@@ -1106,9 +1131,8 @@ export class LocationsComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (this.selectedUserHasOverlap()) {
-      this.message = '';
-      this.error = `Hai gia una prenotazione nella fascia selezionata. Prima disponibilita suggerita dalle ${this.suggestedStartTime ?? '09:00'}.`;
+    if (this.bookingControlsLocked()) {
+      this.error = '';
       return;
     }
 
@@ -1125,5 +1149,17 @@ export class LocationsComponent implements OnInit, OnDestroy {
     }
 
     this.clearMessages();
+  }
+
+  bookingControlsLocked(): boolean {
+    return this.lockedBookingDate === this.bookingDate;
+  }
+
+  unlockBookingControls(): void {
+    this.lockedBookingDate = null;
+    this.message = '';
+    this.error = '';
+    this.suggestedStartTime = this.findSuggestedStartTimeForSelectedResource();
+    this.refreshView();
   }
 }

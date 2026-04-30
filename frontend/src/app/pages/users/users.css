@@ -91,6 +91,18 @@
   gap: 1rem;
 }
 
+.active-filter-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.8rem 0.9rem;
+  background: rgba(0, 65, 102, 0.06);
+  border: 1px solid rgba(0, 65, 102, 0.12);
+  border-radius: var(--radius-sm);
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -216,6 +228,52 @@
   background: rgba(0, 65, 102, 0.08);
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(8, 15, 28, 0.45);
+}
+
+.modal-card {
+  width: min(860px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 1.1rem;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+
+.modal-header {
+  margin-bottom: 0.8rem;
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: var(--color-primary-dark);
+  font-size: 1.2rem;
+}
+
+.users-modal-card {
+  width: min(920px, 100%);
+}
+
+.users-modal-form {
+  gap: 1rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  margin-top: 0.2rem;
+}
+
 @media (max-width: 1080px) {
   .users-layout {
     grid-template-columns: 1fr;
@@ -232,6 +290,8 @@
 }
 
 @media (max-width: 720px) {
+  .active-filter-banner,
+  .modal-actions,
   .toolbar-actions,
   .actions-cell,
   .membership-row,

@@ -51,7 +51,7 @@ public class PrenotazioneController {
                                                        @Valid @RequestBody UpdatePrenotazioneRequest request,
                                                        @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader,
                                                        Authentication authentication) {
-        return ResponseEntity.ok(prenotazioneService.update(id, request, authorizationHeader, hasOperationalAccess(authentication)));
+        return ResponseEntity.ok(prenotazioneService.update(id, request, authorizationHeader, hasAdminOverride(authentication)));
     }
 
     @GetMapping("/mie")
@@ -72,7 +72,7 @@ public class PrenotazioneController {
     public ResponseEntity<PrenotazioneResponse> findById(@PathVariable Long id,
                                                          @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader,
                                                          Authentication authentication) {
-        return ResponseEntity.ok(prenotazioneService.findById(id, authorizationHeader, hasOperationalAccess(authentication)));
+        return ResponseEntity.ok(prenotazioneService.findById(id, authorizationHeader, hasAdminOverride(authentication)));
     }
 
     @GetMapping
@@ -119,15 +119,13 @@ public class PrenotazioneController {
     public ResponseEntity<Void> annulla(@PathVariable Long id,
                                         @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader,
                                         Authentication authentication) {
-        prenotazioneService.annulla(id, authorizationHeader, hasOperationalAccess(authentication));
+        prenotazioneService.annulla(id, authorizationHeader, hasAdminOverride(authentication));
         return ResponseEntity.noContent().build();
     }
 
-    private boolean hasOperationalAccess(Authentication authentication) {
+    private boolean hasAdminOverride(Authentication authentication) {
         return authentication.getAuthorities().stream()
                 .map(authority -> authority.getAuthority())
-                .anyMatch(authority -> authority.equals("ROLE_ADMIN")
-                        || authority.equals("ROLE_RECEPTION")
-                        || authority.equals("ROLE_BUILDING_MANAGER"));
+                .anyMatch(authority -> authority.equals("ROLE_ADMIN"));
     }
 }

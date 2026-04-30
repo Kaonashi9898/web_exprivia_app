@@ -6,6 +6,7 @@ import {
   DashboardPrenotazione,
   Edificio,
   Gruppo,
+  GruppoPostazione,
   Piano,
   PlanimetriaLayout,
   PlanimetriaResponse,
@@ -72,6 +73,18 @@ export class ApiService {
 
   removeUserFromGroup(groupId: number, userId: number) {
     return this.http.delete<void>(`${UTENTI_API}/api/gruppi/${groupId}/utenti/${userId}`);
+  }
+
+  listSeatGroups(postazioneId: number) {
+    return this.http.get<GruppoPostazione[]>(`${LOCATION_API}/api/gruppi-postazioni/postazione/${postazioneId}`);
+  }
+
+  addGroupToSeat(groupId: number, postazioneId: number) {
+    return this.http.post<GruppoPostazione>(`${LOCATION_API}/api/gruppi-postazioni/gruppo/${groupId}/postazione/${postazioneId}`, null);
+  }
+
+  removeGroupFromSeat(groupId: number, postazioneId: number) {
+    return this.http.delete<void>(`${LOCATION_API}/api/gruppi-postazioni/gruppo/${groupId}/postazione/${postazioneId}`);
   }
 
   listSedi() {

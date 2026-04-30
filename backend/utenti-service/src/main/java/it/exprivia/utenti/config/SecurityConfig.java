@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -56,6 +57,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/utenti").hasAnyRole("ADMIN", "RECEPTION")
                 .requestMatchers("/api/utenti/**").hasAnyRole("ADMIN", "RECEPTION")
                 .requestMatchers("/api/gruppi/me").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/gruppi").hasAnyRole("ADMIN", "RECEPTION", "BUILDING_MANAGER")
                 .requestMatchers("/api/gruppi/**").hasAnyRole("ADMIN", "RECEPTION")
                 .anyRequest().authenticated()
             )

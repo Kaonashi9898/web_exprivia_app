@@ -54,6 +54,7 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/prenotazioni").hasAnyRole("USER", "BUILDING_MANAGER", "RECEPTION", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/prenotazioni/meeting-room").hasAnyRole("USER", "BUILDING_MANAGER", "RECEPTION", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/prenotazioni/**").hasAnyRole("USER", "BUILDING_MANAGER", "RECEPTION", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/prenotazioni/mie").hasAnyRole("USER", "BUILDING_MANAGER", "RECEPTION", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/prenotazioni").hasAnyRole("RECEPTION", "BUILDING_MANAGER", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/prenotazioni/postazione/**").hasAnyRole("USER", "BUILDING_MANAGER", "RECEPTION", "ADMIN")
