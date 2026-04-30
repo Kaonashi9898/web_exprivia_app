@@ -1,6 +1,9 @@
 package it.exprivia.utentiservice.service;
 
 import it.exprivia.utenti.entity.Gruppo;
+import it.exprivia.utenti.entity.GruppoUtente;
+import it.exprivia.utenti.entity.RuoloUtente;
+import it.exprivia.utenti.entity.Utente;
 import it.exprivia.utenti.messaging.GruppoEventPublisher;
 import it.exprivia.utenti.repository.GruppoRepository;
 import it.exprivia.utenti.repository.GruppoUtenteRepository;
@@ -12,11 +15,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,6 +33,94 @@ class GruppoServiceTest {
     @Mock GruppoEventPublisher gruppoEventPublisher;
 
     @InjectMocks GruppoService gruppoService;
+
+    @Test
+    void aggiungiUtente_receptionNonPuoGestireAdminOBuildingManagerOReception() {
+        Gruppo gruppo = new Gruppo();
+        gruppo.setId(3L);
+        gruppo.setNome("ITS");
+        when(gruppoRepository.existsById(3L)).thenReturn(true);
+        when(utenteRepository.findByEmail("reception@exprivia.com"))
+                .thenReturn(Optional.of(buildUser(10L, "Reception", "reception@exprivia.com", RuoloUtente.RECEPTION)));
+        when(utenteRepository.findById(20L))
+                .thenReturn(Optional.of(buildUser(20L, "Admin", "admin@exprivia.com", RuoloUtente.ADMIN)));
+
+        assertThatThrownBy(() -> gruppoService.aggiungiUtente(3L, 20L, "reception@exprivia.com"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("USER o GUEST");
+
+        verify(gruppoUtenteRepository, never()).save(any(GruppoUtente.class));
+    }
+
+    @Test
+    void aggiungiUtente_receptionPuoGestireUserEGuest() {
+        when(gruppoRepository.existsById(3L)).thenReturn(true);
+        when(utenteRepository.findByEmail("reception@exprivia.com"))
+                .thenReturn(Optional.of(buildUser(10L, "Reception", "reception@exprivia.com", RuoloUtente.RECEPTION)));
+        when(utenteRepository.findById(20L))
+                .thenReturn(Optional.of(buildUser(20L, "Guest", "guest@exprivia.com", RuoloUtente.GUEST)));
+        when(gruppoUtenteRepository.existsByIdGruppoAndIdUtente(3L, 20L)).thenReturn(false);
+
+        gruppoService.aggiungiUtente(3L, 20L, "reception@exprivia.com");
+
+        verify(gruppoUtenteRepository).save(any(GruppoUtente.class));
+    }
+
+    @Test
+    void crea_normalizzaNomeESalvaGruppo() {
+        when(gruppoRepository.existsByNomeIgnoreCase("Team Alpha")).thenReturn(false);
+        when(gruppoRepository.save(any(Gruppo.class))).thenAnswer(invocation -> {
+            Gruppo gruppo = invocation.getArgument(0);
+            gruppo.setId(3L);
+            return gruppo;
+        });
+
+        Gruppo gruppo = gruppoService.crea("  Team Alpha  ");
+
+        assertThat(gruppo.getId()).isEqualTo(3L);
+        assertThat(gruppo.getNome()).isEqualTo("Team Alpha");
+        verify(gruppoRepository).save(argThat(saved -> "Team Alpha".equals(saved.getNome())));
+    }
+
+    @Test
+    void crea_rifiutaNomeDuplicato() {
+        when(gruppoRepository.existsByNomeIgnoreCase("Team Alpha")).thenReturn(true);
+
+        assertThatThrownBy(() -> gruppoService.crea("Team Alpha"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Esiste gia'");
+
+        verify(gruppoRepository, never()).save(any(Gruppo.class));
+    }
+
+    @Test
+    void aggiorna_modificaNomeGruppoEsistente() {
+        Gruppo gruppo = new Gruppo();
+        gruppo.setId(7L);
+        gruppo.setNome("Team Old");
+        when(gruppoRepository.findById(7L)).thenReturn(Optional.of(gruppo));
+        when(gruppoRepository.existsByNomeIgnoreCaseAndIdNot("Team New", 7L)).thenReturn(false);
+        when(gruppoRepository.save(gruppo)).thenReturn(gruppo);
+
+        Gruppo aggiornato = gruppoService.aggiorna(7L, " Team New ");
+
+        assertThat(aggiornato.getNome()).isEqualTo("Team New");
+    }
+
+    @Test
+    void aggiorna_rifiutaNomeDuplicato() {
+        Gruppo gruppo = new Gruppo();
+        gruppo.setId(7L);
+        gruppo.setNome("Team Old");
+        when(gruppoRepository.findById(7L)).thenReturn(Optional.of(gruppo));
+        when(gruppoRepository.existsByNomeIgnoreCaseAndIdNot("Team New", 7L)).thenReturn(true);
+
+        assertThatThrownBy(() -> gruppoService.aggiorna(7L, "Team New"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Esiste gia'");
+
+        verify(gruppoRepository, never()).save(any(Gruppo.class));
+    }
 
     @Test
     void elimina_pubblicaEventoDopoEliminazione() {
@@ -74,5 +167,15 @@ class GruppoServiceTest {
         try { gruppoService.elimina(1L); } catch (EntityNotFoundException ignored) {}
 
         verify(gruppoEventPublisher, never()).pubblicaEliminazione(any());
+    }
+
+    private Utente buildUser(Long id, String fullName, String email, RuoloUtente ruolo) {
+        Utente utente = new Utente();
+        utente.setId(id);
+        utente.setFullName(fullName);
+        utente.setEmail(email);
+        utente.setRuolo(ruolo);
+        utente.setPasswordHash("hash");
+        return utente;
     }
 }

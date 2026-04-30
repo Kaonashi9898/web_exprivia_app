@@ -5,6 +5,7 @@ import {
   CreatePrenotazioneRequest,
   DashboardPrenotazione,
   Edificio,
+  Gruppo,
   Piano,
   PlanimetriaLayout,
   PlanimetriaResponse,
@@ -42,6 +43,35 @@ export class ApiService {
 
   deleteUser(id: number) {
     return this.http.delete<void>(`${UTENTI_API}/api/utenti/${id}`);
+  }
+
+  listGroups() {
+    return this.http.get<Gruppo[]>(`${UTENTI_API}/api/gruppi`);
+  }
+
+  createGroup(nome: string) {
+    const params = new HttpParams().set('nome', nome);
+    return this.http.post<Gruppo>(`${UTENTI_API}/api/gruppi`, null, { params });
+  }
+
+  updateGroup(id: number, nome: string) {
+    return this.http.put<Gruppo>(`${UTENTI_API}/api/gruppi/${id}`, { nome });
+  }
+
+  deleteGroup(id: number) {
+    return this.http.delete<void>(`${UTENTI_API}/api/gruppi/${id}`);
+  }
+
+  listUsersByGroup(groupId: number) {
+    return this.http.get<Utente[]>(`${UTENTI_API}/api/gruppi/${groupId}/utenti`);
+  }
+
+  addUserToGroup(groupId: number, userId: number) {
+    return this.http.post<void>(`${UTENTI_API}/api/gruppi/${groupId}/utenti/${userId}`, null);
+  }
+
+  removeUserFromGroup(groupId: number, userId: number) {
+    return this.http.delete<void>(`${UTENTI_API}/api/gruppi/${groupId}/utenti/${userId}`);
   }
 
   listSedi() {

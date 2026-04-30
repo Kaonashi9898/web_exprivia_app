@@ -10,6 +10,7 @@ import it.exprivia.prenotazioni.entity.RuoloUtente;
 import it.exprivia.prenotazioni.entity.StatoPrenotazione;
 import it.exprivia.prenotazioni.entity.TipoRisorsaPrenotata;
 import it.exprivia.prenotazioni.messaging.PrenotazioneEventPublisher;
+import it.exprivia.prenotazioni.repository.PrenotazioneGroupAccessCacheRepository;
 import it.exprivia.prenotazioni.repository.PrenotazioneRepository;
 import it.exprivia.prenotazioni.service.LocationServiceClient;
 import it.exprivia.prenotazioni.service.PrenotazioneService;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -46,6 +48,9 @@ class PrenotazioneServiceTest {
     PrenotazioneRepository prenotazioneRepository;
 
     @Mock
+    PrenotazioneGroupAccessCacheRepository prenotazioneGroupAccessCacheRepository;
+
+    @Mock
     UtentiServiceClient utentiServiceClient;
 
     @Mock
@@ -65,6 +70,7 @@ class PrenotazioneServiceTest {
     void setUp() {
         prenotazioneService = new PrenotazioneService(
                 prenotazioneRepository,
+                prenotazioneGroupAccessCacheRepository,
                 utentiServiceClient,
                 locationServiceClient,
                 prenotazioneEventPublisher,
@@ -114,6 +120,7 @@ class PrenotazioneServiceTest {
         when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(10L, RuoloUtente.USER));
         when(locationServiceClient.getPostazione(7L, "Bearer token")).thenReturn(buildPostazione(7L, "PS-007", "DISPONIBILE"));
         when(locationServiceClient.getGruppiAbilitati(7L, "Bearer token")).thenReturn(List.of());
+        when(utentiServiceClient.getCurrentUserGroupIds("Bearer token")).thenReturn(List.of());
         when(prenotazioneRepository.existsActiveOverlapForUser(
                 10L,
                 request.getDataPrenotazione(),
@@ -142,6 +149,7 @@ class PrenotazioneServiceTest {
         )).thenReturn(false);
         when(locationServiceClient.getPostazione(7L, "Bearer token")).thenReturn(buildPostazione(7L, "PS-007", "DISPONIBILE"));
         when(locationServiceClient.getGruppiAbilitati(7L, "Bearer token")).thenReturn(List.of());
+        when(utentiServiceClient.getCurrentUserGroupIds("Bearer token")).thenReturn(List.of());
         when(prenotazioneRepository.existsActiveOverlapForPostazione(
                 7L,
                 request.getDataPrenotazione(),
@@ -170,6 +178,7 @@ class PrenotazioneServiceTest {
         )).thenReturn(false);
         when(locationServiceClient.getPostazione(7L, "Bearer token")).thenReturn(buildPostazione(7L, "PS-007", "DISPONIBILE"));
         when(locationServiceClient.getGruppiAbilitati(7L, "Bearer token")).thenReturn(List.of());
+        when(utentiServiceClient.getCurrentUserGroupIds("Bearer token")).thenReturn(List.of(101L));
         when(prenotazioneRepository.existsActiveOverlapForPostazione(
                 7L,
                 request.getDataPrenotazione(),
@@ -195,6 +204,23 @@ class PrenotazioneServiceTest {
         assertThat(response.getOraFine()).isEqualTo(LocalTime.of(18, 0));
         assertThat(response.getStato()).isEqualTo(StatoPrenotazione.CONFERMATA);
         verify(prenotazioneEventPublisher).pubblicaConferma(response);
+    }
+
+    @Test
+    void create_rifiutaPrenotazioneQuandoUtenteENonCondivideGruppiConLaPostazione() {
+        CreatePrenotazioneRequest request = buildCreateRequest(7L, LocalDate.of(2026, 4, 28), LocalTime.of(13, 0), LocalTime.of(18, 0));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.USER));
+        when(locationServiceClient.getPostazione(7L, "Bearer token")).thenReturn(buildPostazione(7L, "PS-007", "DISPONIBILE"));
+        when(locationServiceClient.getGruppiAbilitati(7L, "Bearer token")).thenReturn(List.of(10L, 20L));
+        when(utentiServiceClient.getCurrentUserGroupIds("Bearer token")).thenReturn(List.of(30L, 40L));
+
+        assertThatThrownBy(() -> prenotazioneService.create(request, "Bearer token"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Non sei autorizzato");
+
+        verify(prenotazioneRepository, never()).saveAndFlush(any(Prenotazione.class));
+        verify(prenotazioneGroupAccessCacheRepository).replacePostazioneGroups(7L, List.of(10L, 20L));
+        verify(prenotazioneGroupAccessCacheRepository).replaceUserGroups(11L, List.of(30L, 40L));
     }
 
     @Test

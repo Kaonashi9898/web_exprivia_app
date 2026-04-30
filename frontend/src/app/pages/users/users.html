@@ -1,136 +1,320 @@
 <section class="page-hero compact">
   <div>
-    <p class="eyebrow">Admin</p>
+    <p class="eyebrow">{{ isAdmin() ? 'Admin' : 'Reception' }}</p>
     <h1>Gestione utenti</h1>
-    <p class="hero-copy">Creazione credenziali e ruoli applicativi.</p>
+    <p class="hero-copy">Account, ruoli applicativi e gruppi gestiti da un'unica vista operativa.</p>
   </div>
 </section>
 
-<section class="two-column">
-  <form class="panel form-panel" autocomplete="off" (ngSubmit)="createUser()">
-    <div class="panel-header">
-      <h2>Nuova utenza</h2>
-    </div>
-
-    <label>
-      Nome completo
-      <input
-        name="new-user-full-name"
-        autocomplete="off"
-        placeholder="Nome e Cognome"
-        [(ngModel)]="form.fullName"
-        maxlength="50"
-        required
-      />
-    </label>
-
-    <label>
-      Email
-      <input
-        type="email"
-        name="new-user-email-field"
-        autocomplete="off"
-        placeholder="nome.cognome@exprivia.com"
-        [(ngModel)]="form.email"
-        required
-      />
-    </label>
-
-    <label>
-      Password
-      <span class="password-field">
-        <input
-          [type]="showPassword ? 'text' : 'password'"
-          name="new-user-password-field"
-          autocomplete="new-password"
-          placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;"
-          [(ngModel)]="form.password"
-          minlength="8"
-          required
-        />
-        <button
-          class="password-toggle"
-          type="button"
-          (click)="togglePasswordVisibility()"
-          [attr.aria-label]="showPassword ? 'Nascondi password' : 'Mostra password'"
-          [title]="showPassword ? 'Nascondi password' : 'Mostra password'"
-        >
-          &#128065;
-        </button>
-      </span>
-    </label>
-
-    <label>
-      Ruolo
-      <select name="role" [(ngModel)]="form.ruolo" required>
-        @for (role of roles; track role) {
-          <option [ngValue]="role">{{ role }}</option>
-        }
-      </select>
-    </label>
-
-    <button class="btn btn-primary" type="submit" [disabled]="saving">
-      {{ saving ? 'Creazione...' : 'Crea utenza' }}
+<section class="users-layout">
+  <aside class="panel users-sidebar">
+    <button class="btn btn-primary sidebar-create" type="button" (click)="setActiveFilter('all')">
+      + Nuovo account
     </button>
-  </form>
 
-  <div class="panel">
-    <div class="panel-header">
-      <h2>Utenti</h2>
-      <button class="ghost-button" type="button" (click)="loadUsers()">Aggiorna</button>
+    <div class="sidebar-section">
+      <button class="sidebar-filter" type="button" [class.active]="isFilterActive('all')" (click)="setActiveFilter('all')">
+        <span>Tutti gli account</span>
+        <strong>{{ countForFilter('all') }}</strong>
+      </button>
+      <button class="sidebar-filter" type="button" [class.active]="isFilterActive('ADMIN')" (click)="setActiveFilter('ADMIN')">
+        <span>Admins</span>
+        <strong>{{ countByRole('ADMIN') }}</strong>
+      </button>
+      <button class="sidebar-filter" type="button" [class.active]="isFilterActive('RECEPTION')" (click)="setActiveFilter('RECEPTION')">
+        <span>Reception</span>
+        <strong>{{ countByRole('RECEPTION') }}</strong>
+      </button>
+      <button class="sidebar-filter" type="button" [class.active]="isFilterActive('BUILDING_MANAGER')" (click)="setActiveFilter('BUILDING_MANAGER')">
+        <span>Building manager</span>
+        <strong>{{ countByRole('BUILDING_MANAGER') }}</strong>
+      </button>
+      <button class="sidebar-filter" type="button" [class.active]="isFilterActive('USER')" (click)="setActiveFilter('USER')">
+        <span>Users</span>
+        <strong>{{ countByRole('USER') }}</strong>
+      </button>
+      <button class="sidebar-filter" type="button" [class.active]="isFilterActive('GUEST')" (click)="setActiveFilter('GUEST')">
+        <span>Guests</span>
+        <strong>{{ countByRole('GUEST') }}</strong>
+      </button>
     </div>
 
-    @if (message) {
-      <div class="notice success">{{ message }}</div>
-    }
-    @if (error) {
-      <div class="notice error">{{ error }}</div>
-    }
+    <div class="sidebar-section">
+      <div class="panel-header compact-header">
+        <h2>Gruppi</h2>
+      </div>
 
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Nome</th>
-            <th>Email</th>
-            <th>Ruolo</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (user of users; track user.id) {
-            <tr>
-              <td>{{ user.fullName }}</td>
-              <td>{{ user.email }}</td>
-              <td>
-                <select
-                  class="compact-select"
-                  [ngModel]="user.ruolo"
-                  (ngModelChange)="updateRole(user, $event)"
-                  [name]="'role-' + user.id"
-                >
-                  @for (role of roles; track role) {
-                    <option [ngValue]="role">{{ role }}</option>
-                  }
-                </select>
-              </td>
-              <td class="actions-cell">
-                <button class="danger-button" type="button" (click)="deleteUser(user)">Elimina</button>
-              </td>
-            </tr>
-          } @empty {
-            <tr>
-              <td colspan="4">
-                {{
-                  loading
-                    ? 'Caricamento utenti registrati...'
-                    : 'Nessun utente registrato alla piattaforma.'
-                }}
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
+      <input
+        type="search"
+        name="group-search"
+        placeholder="Cerca gruppi..."
+        [(ngModel)]="groupSearch"
+      />
+
+      <div class="inline-form">
+        <input
+          name="new-group-name"
+          placeholder="Nuovo gruppo"
+          [(ngModel)]="newGroupName"
+          maxlength="50"
+        />
+        <button class="ghost-button" type="button" (click)="createGroup()" [disabled]="creatingGroup || !newGroupName.trim()">
+          {{ creatingGroup ? 'Creazione...' : 'Crea' }}
+        </button>
+      </div>
+
+      <div class="group-list">
+        @for (group of filteredGroups(); track trackByGroupId($index, group)) {
+          <div class="group-card" [class.active]="isFilterActive(`group:${group.id}`)">
+            @if (renamingGroupId === group.id) {
+              <div class="group-edit-row">
+                <input
+                  [name]="'rename-group-' + group.id"
+                  [(ngModel)]="renameGroupName"
+                  maxlength="50"
+                />
+                <div class="group-card-actions">
+                  <button class="ghost-button" type="button" (click)="saveRenameGroup(group)" [disabled]="groupActionInFlightId === group.id || !renameGroupName.trim()">Salva</button>
+                  <button class="ghost-button" type="button" (click)="cancelRenameGroup()">Annulla</button>
+                </div>
+              </div>
+            } @else {
+              <button class="group-filter" type="button" (click)="setActiveFilter(`group:${group.id}`)">
+                <span>{{ group.nome }}</span>
+                <strong>{{ group.users.length }}</strong>
+              </button>
+              <div class="group-card-actions">
+                <button class="ghost-button" type="button" (click)="startRenameGroup(group)">Rinomina</button>
+                <button class="danger-button" type="button" (click)="deleteGroup(group)" [disabled]="groupActionInFlightId === group.id">Elimina</button>
+              </div>
+            }
+          </div>
+        } @empty {
+          <p class="empty-copy">Nessun gruppo disponibile.</p>
+        }
+      </div>
     </div>
+  </aside>
+
+  <div class="users-workspace">
+    <form class="panel form-panel" autocomplete="off" (ngSubmit)="createUser()">
+      <div class="panel-header">
+        <h2>Nuova utenza</h2>
+        <span class="section-hint">
+          {{ isAdmin() ? 'Admin: ruoli completi' : 'Reception: solo USER e GUEST' }}
+        </span>
+      </div>
+
+      <div class="form-grid">
+        <label>
+          Nome completo
+          <input
+            name="new-user-full-name"
+            autocomplete="off"
+            placeholder="Nome e Cognome"
+            [(ngModel)]="form.fullName"
+            maxlength="50"
+            required
+          />
+        </label>
+
+        <label>
+          Email
+          <input
+            type="email"
+            name="new-user-email-field"
+            autocomplete="off"
+            placeholder="nome.cognome@exprivia.com"
+            [(ngModel)]="form.email"
+            required
+          />
+        </label>
+
+        <label>
+          Password
+          <span class="password-field">
+            <input
+              [type]="showPassword ? 'text' : 'password'"
+              name="new-user-password-field"
+              autocomplete="new-password"
+              placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;"
+              [(ngModel)]="form.password"
+              minlength="8"
+              required
+            />
+            <button
+              class="password-toggle"
+              type="button"
+              (click)="togglePasswordVisibility()"
+              [attr.aria-label]="showPassword ? 'Nascondi password' : 'Mostra password'"
+              [title]="showPassword ? 'Nascondi password' : 'Mostra password'"
+            >
+              &#128065;
+            </button>
+          </span>
+        </label>
+
+        <label>
+          Ruolo
+          <select name="role" [(ngModel)]="form.ruolo" required>
+            @for (role of availableRoleOptionsForNewUser(); track role) {
+              <option [ngValue]="role">{{ role }}</option>
+            }
+          </select>
+        </label>
+      </div>
+
+      <button class="btn btn-primary" type="submit" [disabled]="saving">
+        {{ saving ? 'Creazione...' : 'Crea utenza' }}
+      </button>
+    </form>
+
+    <div class="panel">
+      <div class="panel-header users-toolbar">
+        <div>
+          <h2>Account e gruppi</h2>
+          <p class="section-hint">Filtra per ruolo o gruppo dalla sidebar e gestisci gli account abilitati.</p>
+        </div>
+        <div class="toolbar-actions">
+          <input
+            type="search"
+            name="user-search"
+            placeholder="Cerca nome, email o gruppo"
+            [(ngModel)]="userSearch"
+          />
+          <button class="ghost-button" type="button" (click)="loadUsers()">Aggiorna</button>
+        </div>
+      </div>
+
+      @if (message) {
+        <div class="notice success">{{ message }}</div>
+      }
+      @if (error) {
+        <div class="notice error">{{ error }}</div>
+      }
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Email</th>
+              <th>Ruolo</th>
+              <th>Gruppi</th>
+              <th>Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (user of filteredUsers(); track trackByUserId($index, user)) {
+              <tr>
+                <td>
+                  <div class="user-cell">
+                    <strong>{{ user.fullName }}</strong>
+                    <span>#{{ user.id }}</span>
+                  </div>
+                </td>
+                <td>{{ user.email }}</td>
+                <td>
+                  <select
+                    class="compact-select"
+                    [ngModel]="user.ruolo"
+                    (ngModelChange)="updateRole(user, $event)"
+                    [name]="'role-' + user.id"
+                    [disabled]="!canEditRole(user)"
+                  >
+                    @for (role of availableRoleOptionsForUser(user); track role) {
+                      <option [ngValue]="role">{{ role }}</option>
+                    }
+                  </select>
+                </td>
+                <td>
+                  <div class="group-badges">
+                    @for (group of user.groups; track trackByGroupId($index, group)) {
+                      <button class="group-pill" type="button" (click)="setActiveFilter(`group:${group.id}`)">{{ group.nome }}</button>
+                    } @empty {
+                      <span class="muted-copy">Nessun gruppo</span>
+                    }
+                  </div>
+                </td>
+                <td class="actions-cell">
+                  <button class="ghost-button" type="button" (click)="openGroupsManager(user)" [disabled]="!canManageGroups(user)">
+                    {{ groupButtonLabel(user) }}
+                  </button>
+                  <button class="danger-button" type="button" (click)="deleteUser(user)" [disabled]="!canDeleteUser(user)">Elimina</button>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="5">
+                  {{
+                    loading
+                      ? 'Caricamento utenti registrati...'
+                      : 'Nessun account corrisponde ai filtri selezionati.'
+                  }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    @if (selectedUserForGroups) {
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Gruppi di {{ selectedUserForGroups.fullName }}</h2>
+            <p class="section-hint">{{ selectedUserForGroups.email }} • {{ selectedUserForGroups.ruolo }}</p>
+          </div>
+          <button class="ghost-button" type="button" (click)="closeGroupsManager()">Chiudi</button>
+        </div>
+
+        <div class="group-membership-grid">
+          <div>
+            <h3>Gruppi assegnati</h3>
+            <div class="group-membership-list">
+              @for (group of selectedUserForGroups.groups; track trackByGroupId($index, group)) {
+                <div class="membership-row">
+                  <span>{{ group.nome }}</span>
+                  <button
+                    class="danger-button"
+                    type="button"
+                    (click)="removeSelectedUserFromGroup(group)"
+                    [disabled]="groupMembershipBusy('remove', group.id)"
+                  >
+                    {{ groupMembershipBusy('remove', group.id) ? 'Rimozione...' : 'Rimuovi' }}
+                  </button>
+                </div>
+              } @empty {
+                <p class="empty-copy">Nessun gruppo assegnato.</p>
+              }
+            </div>
+          </div>
+
+          <div>
+            <h3>Gruppi disponibili</h3>
+            <div class="group-membership-list">
+              @for (group of groups; track trackByGroupId($index, group)) {
+                @if (!isGroupAssignedToSelectedUser(group.id)) {
+                  <div class="membership-row">
+                    <span>{{ group.nome }}</span>
+                    <button
+                      class="ghost-button"
+                      type="button"
+                      (click)="addSelectedUserToGroup(group)"
+                      [disabled]="groupMembershipBusy('add', group.id)"
+                    >
+                      {{ groupMembershipBusy('add', group.id) ? 'Assegnazione...' : 'Aggiungi' }}
+                    </button>
+                  </div>
+                }
+              } @empty {
+                <p class="empty-copy">Nessun gruppo disponibile.</p>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    }
   </div>
 </section>

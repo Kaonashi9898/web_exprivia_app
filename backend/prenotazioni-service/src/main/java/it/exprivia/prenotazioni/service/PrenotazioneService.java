@@ -15,9 +15,11 @@ import it.exprivia.prenotazioni.entity.Prenotazione;
 import it.exprivia.prenotazioni.entity.StatoPrenotazione;
 import it.exprivia.prenotazioni.entity.TipoRisorsaPrenotata;
 import it.exprivia.prenotazioni.messaging.PrenotazioneEventPublisher;
+import it.exprivia.prenotazioni.repository.PrenotazioneGroupAccessCacheRepository;
 import it.exprivia.prenotazioni.repository.PrenotazioneRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.NestedExceptionUtils;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -49,6 +51,7 @@ public class PrenotazioneService {
             EnumSet.of(RuoloUtente.USER, RuoloUtente.BUILDING_MANAGER, RuoloUtente.RECEPTION, RuoloUtente.ADMIN);
 
     private final PrenotazioneRepository prenotazioneRepository;
+    private final PrenotazioneGroupAccessCacheRepository prenotazioneGroupAccessCacheRepository;
     private final UtentiServiceClient utentiServiceClient;
     private final LocationServiceClient locationServiceClient;
     private final PrenotazioneEventPublisher prenotazioneEventPublisher;
@@ -63,7 +66,7 @@ public class PrenotazioneService {
 
         ExternalPostazioneResponse postazione = locationServiceClient.getPostazione(request.getPostazioneId(), authorizationHeader);
         ensurePostazionePrenotabile(postazione);
-        ensureAccessoGruppoConsentito(authorizationHeader, request.getPostazioneId());
+        ensureAccessoGruppoConsentito(utente.id(), authorizationHeader, request.getPostazioneId());
         ensureUtenteSenzaOverlap(
                 utente.id(),
                 request.getDataPrenotazione(),
@@ -103,7 +106,7 @@ public class PrenotazioneService {
             prenotazioneEventPublisher.pubblicaConferma(response);
             return response;
         } catch (DataIntegrityViolationException ex) {
-            throw new IllegalArgumentException("Conflitto di prenotazione rilevato. Aggiorna la disponibilita' e riprova.");
+            throw mapWriteIntegrityViolation(ex);
         }
     }
 
@@ -155,7 +158,7 @@ public class PrenotazioneService {
             prenotazioneEventPublisher.pubblicaConferma(response);
             return response;
         } catch (DataIntegrityViolationException ex) {
-            throw new IllegalArgumentException("Conflitto di prenotazione rilevato. Aggiorna la disponibilita' e riprova.");
+            throw mapWriteIntegrityViolation(ex);
         }
     }
 
@@ -192,7 +195,7 @@ public class PrenotazioneService {
             Prenotazione saved = prenotazioneRepository.saveAndFlush(prenotazione);
             return toResponse(saved);
         } catch (DataIntegrityViolationException ex) {
-            throw new IllegalArgumentException("Conflitto di prenotazione rilevato. Aggiorna la disponibilita' e riprova.");
+            throw mapWriteIntegrityViolation(ex);
         }
     }
 
@@ -443,17 +446,28 @@ public class PrenotazioneService {
         }
     }
 
-    private void ensureAccessoGruppoConsentito(String authorizationHeader, Long postazioneId) {
+    private void ensureAccessoGruppoConsentito(Long utenteId, String authorizationHeader, Long postazioneId) {
         List<Long> gruppiAbilitati = locationServiceClient.getGruppiAbilitati(postazioneId, authorizationHeader);
+        List<Long> gruppiUtente = utentiServiceClient.getCurrentUserGroupIds(authorizationHeader);
+        prenotazioneGroupAccessCacheRepository.replacePostazioneGroups(postazioneId, gruppiAbilitati);
+        prenotazioneGroupAccessCacheRepository.replaceUserGroups(utenteId, gruppiUtente);
+
         if (gruppiAbilitati.isEmpty()) {
             return;
         }
 
-        List<Long> gruppiUtente = utentiServiceClient.getCurrentUserGroupIds(authorizationHeader);
         boolean autorizzato = gruppiUtente.stream().anyMatch(gruppiAbilitati::contains);
         if (!autorizzato) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Non sei autorizzato a prenotare questa postazione");
         }
+    }
+
+    private RuntimeException mapWriteIntegrityViolation(DataIntegrityViolationException ex) {
+        String message = NestedExceptionUtils.getMostSpecificCause(ex).getMessage();
+        if (message != null && message.contains("nessun gruppo condiviso")) {
+            return new ResponseStatusException(HttpStatus.FORBIDDEN, "Non sei autorizzato a prenotare questa postazione");
+        }
+        return new IllegalArgumentException("Conflitto di prenotazione rilevato. Aggiorna la disponibilita' e riprova.");
     }
 
     private void validateTimeRange(LocalTime oraInizio, LocalTime oraFine) {

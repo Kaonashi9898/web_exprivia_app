@@ -39,8 +39,9 @@ public class UtenteController {
     }
 
     @PostMapping
-    public ResponseEntity<UtenteDTO> create(@Valid @RequestBody RegisterRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(utenteService.create(request));
+    public ResponseEntity<UtenteDTO> create(@Valid @RequestBody RegisterRequest request,
+                                            @AuthenticationPrincipal String email) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(utenteService.create(request, email));
     }
 
     @GetMapping("/{id}")
@@ -49,19 +50,22 @@ public class UtenteController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<UtenteDTO> update(@PathVariable Long id, @Valid @RequestBody UtenteDTO dto) {
-        return ResponseEntity.ok(utenteService.update(id, dto));
+    public ResponseEntity<UtenteDTO> update(@PathVariable Long id,
+                                            @Valid @RequestBody UtenteDTO dto,
+                                            @AuthenticationPrincipal String email) {
+        return ResponseEntity.ok(utenteService.update(id, dto, email));
     }
 
     @PatchMapping("/{id}/ruolo")
     public ResponseEntity<UtenteDTO> updateRole(@PathVariable Long id,
-                                                @Valid @RequestBody UpdateUserRoleRequest request) {
-        return ResponseEntity.ok(utenteService.updateRole(id, request.getRuolo()));
+                                                @Valid @RequestBody UpdateUserRoleRequest request,
+                                                @AuthenticationPrincipal String email) {
+        return ResponseEntity.ok(utenteService.updateRole(id, request.getRuolo(), email));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        utenteService.delete(id);
+    public ResponseEntity<Void> delete(@PathVariable Long id, @AuthenticationPrincipal String email) {
+        utenteService.delete(id, email);
         return ResponseEntity.noContent().build();
     }
 }

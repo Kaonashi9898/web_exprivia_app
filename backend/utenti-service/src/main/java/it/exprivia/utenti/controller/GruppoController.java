@@ -1,8 +1,10 @@
 package it.exprivia.utenti.controller;
 
+import it.exprivia.utenti.dto.UpdateGruppoRequest;
 import it.exprivia.utenti.dto.UtenteDTO;
 import it.exprivia.utenti.entity.Gruppo;
 import it.exprivia.utenti.service.GruppoService;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,12 +20,13 @@ import java.util.List;
  * I gruppi servono per organizzare gli utenti (es. team o reparti aziendali).
  * Endpoint esposti:
  * - GET  /api/gruppi/me              → gruppi dell'utente autenticato
- * - GET  /api/gruppi                 → tutti i gruppi (solo ADMIN)
- * - POST /api/gruppi                 → crea un nuovo gruppo (solo ADMIN)
- * - DELETE /api/gruppi/{id}          → elimina un gruppo (solo ADMIN)
- * - POST /api/gruppi/{id}/utenti/{id} → aggiunge un utente a un gruppo (solo ADMIN)
- * - DELETE /api/gruppi/{id}/utenti/{id} → rimuove un utente da un gruppo (solo ADMIN)
- * - GET /api/gruppi/{id}/utenti      → lista utenti di un gruppo (solo ADMIN)
+ * - GET  /api/gruppi                 → tutti i gruppi (ADMIN, RECEPTION)
+ * - POST /api/gruppi                 → crea un nuovo gruppo (ADMIN, RECEPTION)
+ * - PUT  /api/gruppi/{id}            → aggiorna il nome di un gruppo (ADMIN, RECEPTION)
+ * - DELETE /api/gruppi/{id}          → elimina un gruppo (ADMIN, RECEPTION)
+ * - POST /api/gruppi/{id}/utenti/{id} → aggiunge un utente a un gruppo (ADMIN, RECEPTION)
+ * - DELETE /api/gruppi/{id}/utenti/{id} → rimuove un utente da un gruppo (ADMIN, RECEPTION)
+ * - GET /api/gruppi/{id}/utenti      → lista utenti di un gruppo (ADMIN, RECEPTION)
  */
 @RestController
 @RequestMapping("/api/gruppi")
@@ -52,6 +55,14 @@ public class GruppoController {
     }
 
     /**
+     * Aggiorna il nome di un gruppo esistente.
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<Gruppo> aggiorna(@PathVariable Long id, @RequestBody @Valid UpdateGruppoRequest request) {
+        return ResponseEntity.ok(gruppoService.aggiorna(id, request.nome()));
+    }
+
+    /**
      * Restituisce la lista di tutti i gruppi presenti nel sistema.
      */
     @GetMapping
@@ -74,8 +85,10 @@ public class GruppoController {
      * Restituisce 400 se l'utente è già nel gruppo.
      */
     @PostMapping("/{idGruppo}/utenti/{idUtente}")
-    public ResponseEntity<Void> aggiungiUtente(@PathVariable Long idGruppo, @PathVariable Long idUtente) {
-        gruppoService.aggiungiUtente(idGruppo, idUtente);
+    public ResponseEntity<Void> aggiungiUtente(@PathVariable Long idGruppo,
+                                               @PathVariable Long idUtente,
+                                               @AuthenticationPrincipal String email) {
+        gruppoService.aggiungiUtente(idGruppo, idUtente, email);
         return ResponseEntity.ok().build();
     }
 
@@ -84,8 +97,10 @@ public class GruppoController {
      * Restituisce 204 No Content se l'operazione va a buon fine.
      */
     @DeleteMapping("/{idGruppo}/utenti/{idUtente}")
-    public ResponseEntity<Void> rimuoviUtente(@PathVariable Long idGruppo, @PathVariable Long idUtente) {
-        gruppoService.rimuoviUtente(idGruppo, idUtente);
+    public ResponseEntity<Void> rimuoviUtente(@PathVariable Long idGruppo,
+                                              @PathVariable Long idUtente,
+                                              @AuthenticationPrincipal String email) {
+        gruppoService.rimuoviUtente(idGruppo, idUtente, email);
         return ResponseEntity.noContent().build();
     }
 

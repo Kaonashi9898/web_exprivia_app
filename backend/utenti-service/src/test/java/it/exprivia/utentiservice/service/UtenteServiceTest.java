@@ -16,6 +16,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.server.ResponseStatusException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,6 +39,7 @@ class UtenteServiceTest {
 
     @Test
     void create_normalizzaEmailPrimaDiSalvarla() {
+        when(utenteRepository.findByEmail("admin@exprivia.com")).thenReturn(java.util.Optional.of(buildUser(100L, "Admin", "admin@exprivia.com", RuoloUtente.ADMIN)));
         RegisterRequest request = new RegisterRequest();
         request.setFullName("Mario Rossi");
         request.setEmail("  Mario.De-Santis@Exprivia.com  ");
@@ -48,7 +50,7 @@ class UtenteServiceTest {
         when(passwordEncoder.encode("password123")).thenReturn("hash");
         when(utenteRepository.save(any(Utente.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        var response = utenteService.create(request);
+        var response = utenteService.create(request, "admin@exprivia.com");
 
         ArgumentCaptor<Utente> captor = ArgumentCaptor.forClass(Utente.class);
         verify(utenteRepository).save(captor.capture());
@@ -57,10 +59,66 @@ class UtenteServiceTest {
     }
 
     @Test
-    void delete_utenteInesistente_lanceEntityNotFoundException() {
-        when(utenteRepository.existsById(1L)).thenReturn(false);
+    void create_receptionPuoCreareSoloUserOGuest() {
+        when(utenteRepository.findByEmail("reception@exprivia.com"))
+                .thenReturn(java.util.Optional.of(buildUser(101L, "Reception", "reception@exprivia.com", RuoloUtente.RECEPTION)));
+        RegisterRequest request = new RegisterRequest();
+        request.setFullName("Manager");
+        request.setEmail("manager@exprivia.com");
+        request.setPassword("password123");
+        request.setRuolo(RuoloUtente.BUILDING_MANAGER);
 
-        assertThatThrownBy(() -> utenteService.delete(1L))
+        assertThatThrownBy(() -> utenteService.create(request, "reception@exprivia.com"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("USER o GUEST");
+
+        verify(utenteRepository, never()).save(any(Utente.class));
+    }
+
+    @Test
+    void updateRole_receptionNonPuoModificareAdminReceptionOBuildingManager() {
+        when(utenteRepository.findByEmail("reception@exprivia.com"))
+                .thenReturn(java.util.Optional.of(buildUser(101L, "Reception", "reception@exprivia.com", RuoloUtente.RECEPTION)));
+        when(utenteRepository.findById(5L))
+                .thenReturn(java.util.Optional.of(buildUser(5L, "Boss", "boss@exprivia.com", RuoloUtente.ADMIN)));
+
+        assertThatThrownBy(() -> utenteService.updateRole(5L, RuoloUtente.USER, "reception@exprivia.com"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("USER o GUEST");
+    }
+
+    @Test
+    void updateRole_receptionNonPuoPromuovereUserARuoliElevati() {
+        when(utenteRepository.findByEmail("reception@exprivia.com"))
+                .thenReturn(java.util.Optional.of(buildUser(101L, "Reception", "reception@exprivia.com", RuoloUtente.RECEPTION)));
+        when(utenteRepository.findById(7L))
+                .thenReturn(java.util.Optional.of(buildUser(7L, "Guest User", "guest@exprivia.com", RuoloUtente.GUEST)));
+
+        assertThatThrownBy(() -> utenteService.updateRole(7L, RuoloUtente.ADMIN, "reception@exprivia.com"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("USER o GUEST");
+    }
+
+    @Test
+    void delete_receptionPuoEliminareSoloUserOGuest() {
+        when(utenteRepository.findByEmail("reception@exprivia.com"))
+                .thenReturn(java.util.Optional.of(buildUser(101L, "Reception", "reception@exprivia.com", RuoloUtente.RECEPTION)));
+        when(utenteRepository.findById(9L))
+                .thenReturn(java.util.Optional.of(buildUser(9L, "Building", "building@exprivia.com", RuoloUtente.BUILDING_MANAGER)));
+
+        assertThatThrownBy(() -> utenteService.delete(9L, "reception@exprivia.com"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("USER o GUEST");
+
+        verify(gruppoUtenteRepository, never()).deleteByIdUtente(any());
+    }
+
+    @Test
+    void delete_utenteInesistente_lanceEntityNotFoundException() {
+        when(utenteRepository.findByEmail("admin@exprivia.com")).thenReturn(java.util.Optional.of(buildUser(100L, "Admin", "admin@exprivia.com", RuoloUtente.ADMIN)));
+        when(utenteRepository.findById(1L)).thenReturn(java.util.Optional.empty());
+
+        assertThatThrownBy(() -> utenteService.delete(1L, "admin@exprivia.com"))
                 .isInstanceOf(EntityNotFoundException.class);
 
         verifyNoInteractions(gruppoUtenteRepository, gruppoEventPublisher);
@@ -68,9 +126,10 @@ class UtenteServiceTest {
 
     @Test
     void delete_pulisceGruppiUtentePrimaDiEliminareUtente() {
-        when(utenteRepository.existsById(5L)).thenReturn(true);
+        when(utenteRepository.findByEmail("admin@exprivia.com")).thenReturn(java.util.Optional.of(buildUser(100L, "Admin", "admin@exprivia.com", RuoloUtente.ADMIN)));
+        when(utenteRepository.findById(5L)).thenReturn(java.util.Optional.of(buildUser(5L, "User", "user@exprivia.com", RuoloUtente.USER)));
 
-        utenteService.delete(5L);
+        utenteService.delete(5L, "admin@exprivia.com");
 
         var ordine = inOrder(gruppoUtenteRepository, utenteRepository);
         ordine.verify(gruppoUtenteRepository).deleteByIdUtente(5L);
@@ -79,9 +138,10 @@ class UtenteServiceTest {
 
     @Test
     void delete_pubblicaEventoDopoEliminazione() {
-        when(utenteRepository.existsById(7L)).thenReturn(true);
+        when(utenteRepository.findByEmail("admin@exprivia.com")).thenReturn(java.util.Optional.of(buildUser(100L, "Admin", "admin@exprivia.com", RuoloUtente.ADMIN)));
+        when(utenteRepository.findById(7L)).thenReturn(java.util.Optional.of(buildUser(7L, "User", "user7@exprivia.com", RuoloUtente.USER)));
 
-        utenteService.delete(7L);
+        utenteService.delete(7L, "admin@exprivia.com");
 
         var ordine = inOrder(utenteRepository, gruppoEventPublisher);
         ordine.verify(utenteRepository).deleteById(7L);
@@ -90,9 +150,10 @@ class UtenteServiceTest {
 
     @Test
     void delete_eventoContieneSoloIdUtente() {
-        when(utenteRepository.existsById(9L)).thenReturn(true);
+        when(utenteRepository.findByEmail("admin@exprivia.com")).thenReturn(java.util.Optional.of(buildUser(100L, "Admin", "admin@exprivia.com", RuoloUtente.ADMIN)));
+        when(utenteRepository.findById(9L)).thenReturn(java.util.Optional.of(buildUser(9L, "User", "user9@exprivia.com", RuoloUtente.USER)));
 
-        utenteService.delete(9L);
+        utenteService.delete(9L, "admin@exprivia.com");
 
         ArgumentCaptor<UtenteEliminatoEvent> captor = ArgumentCaptor.forClass(UtenteEliminatoEvent.class);
         verify(gruppoEventPublisher).pubblicaEliminazioneUtente(captor.capture());
@@ -101,10 +162,21 @@ class UtenteServiceTest {
 
     @Test
     void delete_utenteInesistente_nonPubblicaEvento() {
-        when(utenteRepository.existsById(99L)).thenReturn(false);
+        when(utenteRepository.findByEmail("admin@exprivia.com")).thenReturn(java.util.Optional.of(buildUser(100L, "Admin", "admin@exprivia.com", RuoloUtente.ADMIN)));
+        when(utenteRepository.findById(99L)).thenReturn(java.util.Optional.empty());
 
-        try { utenteService.delete(99L); } catch (EntityNotFoundException ignored) {}
+        try { utenteService.delete(99L, "admin@exprivia.com"); } catch (EntityNotFoundException ignored) {}
 
         verify(gruppoEventPublisher, never()).pubblicaEliminazioneUtente(any());
+    }
+
+    private Utente buildUser(Long id, String fullName, String email, RuoloUtente ruolo) {
+        Utente utente = new Utente();
+        utente.setId(id);
+        utente.setFullName(fullName);
+        utente.setEmail(email);
+        utente.setRuolo(ruolo);
+        utente.setPasswordHash("hash");
+        return utente;
     }
 }

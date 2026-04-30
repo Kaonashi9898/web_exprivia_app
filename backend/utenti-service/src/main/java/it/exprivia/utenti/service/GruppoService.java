@@ -3,6 +3,8 @@ package it.exprivia.utenti.service;
 import it.exprivia.utenti.dto.UtenteDTO;
 import it.exprivia.utenti.entity.Gruppo;
 import it.exprivia.utenti.entity.GruppoUtente;
+import it.exprivia.utenti.entity.RuoloUtente;
+import it.exprivia.utenti.entity.Utente;
 import it.exprivia.utenti.messaging.GruppoEventPublisher;
 import it.exprivia.utenti.repository.GruppoRepository;
 import it.exprivia.utenti.repository.GruppoUtenteRepository;
@@ -10,8 +12,14 @@ import it.exprivia.utenti.repository.UtenteRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+
+import static org.springframework.http.HttpStatus.FORBIDDEN;
 
 /**
  * Service che contiene la logica di business per la gestione dei gruppi.
@@ -22,6 +30,9 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class GruppoService {
+
+    private static final Set<RuoloUtente> RUOLI_GESTIBILI_DA_RECEPTION =
+            EnumSet.of(RuoloUtente.USER, RuoloUtente.GUEST);
 
     private final GruppoRepository gruppoRepository;
     private final GruppoUtenteRepository gruppoUtenteRepository;
@@ -49,8 +60,28 @@ public class GruppoService {
      * Crea un nuovo gruppo con il nome fornito e lo persiste nel database.
      */
     public Gruppo crea(String nome) {
+        String normalizedNome = normalizeNome(nome);
+        if (gruppoRepository.existsByNomeIgnoreCase(normalizedNome)) {
+            throw new IllegalArgumentException("Esiste gia' un gruppo con questo nome");
+        }
+
         Gruppo gruppo = new Gruppo();
-        gruppo.setNome(nome);
+        gruppo.setNome(normalizedNome);
+        return gruppoRepository.save(gruppo);
+    }
+
+    /**
+     * Aggiorna il nome di un gruppo esistente.
+     */
+    public Gruppo aggiorna(Long id, String nome) {
+        Gruppo gruppo = gruppoRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Gruppo non trovato con id: " + id));
+        String normalizedNome = normalizeNome(nome);
+        if (gruppoRepository.existsByNomeIgnoreCaseAndIdNot(normalizedNome, id)) {
+            throw new IllegalArgumentException("Esiste gia' un gruppo con questo nome");
+        }
+
+        gruppo.setNome(normalizedNome);
         return gruppoRepository.save(gruppo);
     }
 
@@ -79,13 +110,13 @@ public class GruppoService {
      * Aggiunge un utente a un gruppo creando una nuova riga nella tabella gruppi_utente.
      * Verifica che: il gruppo esista, l'utente esista e l'utente non sia già nel gruppo.
      */
-    public void aggiungiUtente(Long idGruppo, Long idUtente) {
+    public void aggiungiUtente(Long idGruppo, Long idUtente, String operatorEmail) {
         if (!gruppoRepository.existsById(idGruppo)) {
             throw new EntityNotFoundException("Gruppo non trovato con id: " + idGruppo);
         }
-        if (!utenteRepository.existsById(idUtente)) {
-            throw new EntityNotFoundException("Utente non trovato con id: " + idUtente);
-        }
+        Utente target = utenteRepository.findById(idUtente)
+                .orElseThrow(() -> new EntityNotFoundException("Utente non trovato con id: " + idUtente));
+        ensureOperatorePuoGestireTarget(getOperatore(operatorEmail), target);
         if (gruppoUtenteRepository.existsByIdGruppoAndIdUtente(idGruppo, idUtente)) {
             throw new IllegalArgumentException("L'utente è già nel gruppo");
         }
@@ -101,7 +132,10 @@ public class GruppoService {
      * Rimuove un utente da un gruppo eliminando la riga corrispondente
      * nella tabella di join gruppi_utente.
      */
-    public void rimuoviUtente(Long idGruppo, Long idUtente) {
+    public void rimuoviUtente(Long idGruppo, Long idUtente, String operatorEmail) {
+        Utente target = utenteRepository.findById(idUtente)
+                .orElseThrow(() -> new EntityNotFoundException("Utente non trovato con id: " + idUtente));
+        ensureOperatorePuoGestireTarget(getOperatore(operatorEmail), target);
         GruppoUtente gu = gruppoUtenteRepository.findByIdGruppoAndIdUtente(idGruppo, idUtente)
                 .orElseThrow(() -> new EntityNotFoundException("L'utente non appartiene a questo gruppo"));
         gruppoUtenteRepository.delete(gu);
@@ -127,5 +161,37 @@ public class GruppoService {
                 .stream()
                 .map(u -> new UtenteDTO(u.getId(), u.getFullName(), u.getEmail(), u.getRuolo()))
                 .toList();
+    }
+
+    private Utente getOperatore(String operatorEmail) {
+        String normalizedEmail = operatorEmail == null ? null : operatorEmail.trim().toLowerCase(Locale.ROOT);
+        return utenteRepository.findByEmail(normalizedEmail)
+                .orElseThrow(() -> new EntityNotFoundException("Operatore non trovato con email: " + normalizedEmail));
+    }
+
+    private void ensureOperatorePuoGestireTarget(Utente operatore, Utente target) {
+        if (operatore.getRuolo() == RuoloUtente.ADMIN) {
+            return;
+        }
+        if (operatore.getRuolo() != RuoloUtente.RECEPTION) {
+            throw new ResponseStatusException(FORBIDDEN, "Permessi insufficienti per gestire i gruppi utente");
+        }
+        if (!RUOLI_GESTIBILI_DA_RECEPTION.contains(target.getRuolo())) {
+            throw new ResponseStatusException(
+                    FORBIDDEN,
+                    "RECEPTION puo' gestire gruppi solo per utenti con ruolo USER o GUEST"
+            );
+        }
+    }
+
+    private String normalizeNome(String nome) {
+        String normalized = nome == null ? "" : nome.trim();
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException("Il nome del gruppo e' obbligatorio");
+        }
+        if (normalized.length() > 50) {
+            throw new IllegalArgumentException("Il nome del gruppo non puo' superare i 50 caratteri");
+        }
+        return normalized;
     }
 }

@@ -15,5 +15,6 @@ import it.exprivia.utenti.entity.Gruppo;
  */
 @Repository
 public interface GruppoRepository extends JpaRepository<Gruppo, Long> {
-
+    boolean existsByNomeIgnoreCase(String nome);
+    boolean existsByNomeIgnoreCaseAndIdNot(String nome, Long id);
 }
