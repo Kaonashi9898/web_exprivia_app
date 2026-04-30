@@ -442,7 +442,15 @@ export class LocationsComponent implements OnInit, OnDestroy {
   }
 
   selectedWindowSummary(): string {
-    return `${this.bookingDate} dalle ${this.startTime} alle ${this.endTime}`;
+    return `${this.formatBookingDate(this.bookingDate)} dalle ${this.startTime} alle ${this.endTime}`;
+  }
+
+  private formatBookingDate(value: string): string {
+    return new Date(`${value}T00:00:00`).toLocaleDateString('it-IT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
   }
 
   selectedStationCanBeBooked(): boolean {
