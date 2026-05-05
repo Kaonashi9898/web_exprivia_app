@@ -72,6 +72,7 @@
                   [name]="'rename-group-' + group.id"
                   [(ngModel)]="renameGroupName"
                   maxlength="50"
+                  placeholder="Nuovo nome gruppo"
                 />
                 <div class="group-card-actions">
                   <button class="ghost-button" type="button" (click)="saveRenameGroup(group)" [disabled]="groupActionInFlightId === group.id || !renameGroupName.trim()">Salva</button>
@@ -149,7 +150,7 @@
                 </td>
                 <td>{{ user.email }}</td>
                 <td>
-                  <select
+                  <select title="Ruolo applicativo dell'utente"
                     class="compact-select"
                     [ngModel]="user.ruolo"
                     (ngModelChange)="updateRole(user, $event)"
