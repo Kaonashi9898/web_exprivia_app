@@ -100,6 +100,20 @@ class UtenteServiceTest {
     }
 
     @Test
+    void updateRole_adminNonPuoModificareIlProprioRuolo() {
+        when(utenteRepository.findByEmail("admin.bootstrap@exprivia.com"))
+                .thenReturn(java.util.Optional.of(buildUser(100L, "Admin", "admin.bootstrap@exprivia.com", RuoloUtente.ADMIN)));
+        when(utenteRepository.findById(100L))
+                .thenReturn(java.util.Optional.of(buildUser(100L, "Admin", "admin.bootstrap@exprivia.com", RuoloUtente.ADMIN)));
+
+        assertThatThrownBy(() -> utenteService.updateRole(100L, RuoloUtente.USER, "admin.bootstrap@exprivia.com"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("tuo ruolo");
+
+        verify(utenteRepository, never()).save(any(Utente.class));
+    }
+
+    @Test
     void delete_receptionPuoEliminareSoloUserOGuest() {
         when(utenteRepository.findByEmail("reception@exprivia.com"))
                 .thenReturn(java.util.Optional.of(buildUser(101L, "Reception", "reception@exprivia.com", RuoloUtente.RECEPTION)));
@@ -111,6 +125,34 @@ class UtenteServiceTest {
                 .hasMessageContaining("USER o GUEST");
 
         verify(gruppoUtenteRepository, never()).deleteByIdUtente(any());
+    }
+
+    @Test
+    void delete_adminPuoEliminareUnAltroAdmin() {
+        when(utenteRepository.findByEmail("admin@exprivia.com"))
+                .thenReturn(java.util.Optional.of(buildUser(100L, "Admin", "admin@exprivia.com", RuoloUtente.ADMIN)));
+        when(utenteRepository.findById(101L))
+                .thenReturn(java.util.Optional.of(buildUser(101L, "Altro Admin", "altro.admin@exprivia.com", RuoloUtente.ADMIN)));
+
+        utenteService.delete(101L, "admin@exprivia.com");
+
+        verify(gruppoUtenteRepository).deleteByIdUtente(101L);
+        verify(utenteRepository).deleteById(101L);
+    }
+
+    @Test
+    void delete_adminNonPuoAutoEliminarsi() {
+        when(utenteRepository.findByEmail("admin.bootstrap@exprivia.com"))
+                .thenReturn(java.util.Optional.of(buildUser(100L, "Admin", "admin.bootstrap@exprivia.com", RuoloUtente.ADMIN)));
+        when(utenteRepository.findById(100L))
+                .thenReturn(java.util.Optional.of(buildUser(100L, "Admin", "admin.bootstrap@exprivia.com", RuoloUtente.ADMIN)));
+
+        assertThatThrownBy(() -> utenteService.delete(100L, "admin.bootstrap@exprivia.com"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("tuo account");
+
+        verify(gruppoUtenteRepository, never()).deleteByIdUtente(any());
+        verify(utenteRepository, never()).deleteById(any());
     }
 
     @Test

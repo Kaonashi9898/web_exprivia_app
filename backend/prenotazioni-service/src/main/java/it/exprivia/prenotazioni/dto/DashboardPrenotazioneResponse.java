@@ -29,6 +29,7 @@ public class DashboardPrenotazioneResponse {
     private String stanzaNome;
     private String sedeLabel;
     private String pianoLabel;
+    private Long pianoId;
     private LocalDate dataPrenotazione;
     private LocalTime oraInizio;
     private LocalTime oraFine;

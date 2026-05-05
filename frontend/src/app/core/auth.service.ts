@@ -2,7 +2,7 @@ import { computed, inject, Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { catchError, Observable, of, switchMap, tap } from 'rxjs';
-import { LoginResponse, RuoloUtente, Utente } from './app.models';
+import { LoginResponse, RegisterRequest, RuoloUtente, Utente } from './app.models';
 import { environment } from '../../environments/environment';
 
 const TOKEN_KEY = 'exprivia-booking-token';
@@ -18,11 +18,28 @@ export class AuthService {
   readonly isAuthenticated = computed(() => this.isTokenValid(this.token()));
   readonly ruolo = computed(() => this.currentUser()?.ruolo ?? this.roleFromToken(this.token()));
 
+  constructor() {
+    window.addEventListener('storage', (event) => {
+      if (event.key !== TOKEN_KEY) {
+        return;
+      }
+
+      this.applyStoredToken(event.newValue);
+      if (!event.newValue) {
+        this.router.navigateByUrl('/');
+      }
+    });
+  }
+
   login(email: string, password: string): Observable<Utente> {
     return this.http.post<LoginResponse>(`${UTENTI_API}/api/auth/login`, { email, password }).pipe(
       tap((response) => this.setToken(response.token)),
       switchMap(() => this.loadProfile() as Observable<Utente>),
     );
+  }
+
+  register(request: RegisterRequest): Observable<Utente> {
+    return this.http.post<Utente>(`${UTENTI_API}/api/auth/register`, request);
   }
 
   loadProfile(): Observable<Utente | null> {
@@ -61,7 +78,15 @@ export class AuthService {
   }
 
   getValidToken(): string | null {
-    const token = this.token();
+    let token = this.token();
+    if (!this.isTokenValid(token)) {
+      const storedToken = this.readStoredToken();
+      if (storedToken && storedToken !== token) {
+        this.applyStoredToken(storedToken);
+        token = storedToken;
+      }
+    }
+
     if (!this.isTokenValid(token)) {
       this.logout(false);
       return null;
@@ -104,6 +129,21 @@ export class AuthService {
       return null;
     }
     return token;
+  }
+
+  private applyStoredToken(token: string | null): void {
+    if (!this.isTokenValid(token)) {
+      this.token.set(null);
+      this.currentUser.set(null);
+      if (token) {
+        localStorage.removeItem(TOKEN_KEY);
+      }
+      return;
+    }
+
+    this.token.set(token);
+    this.currentUser.set(this.userFromToken(token));
+    this.loadProfile().subscribe();
   }
 
   private isTokenValid(token: string | null): boolean {

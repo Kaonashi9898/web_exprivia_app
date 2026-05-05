@@ -34,7 +34,7 @@
         <strong>{{ countByRole('USER') }}</strong>
       </button>
       <button class="sidebar-filter" type="button" [class.active]="isFilterActive('GUEST')" (click)="setActiveFilter('GUEST')">
-        <span>Guests</span>
+        <span>In sospeso</span>
         <strong>{{ countByRole('GUEST') }}</strong>
       </button>
     </div>
@@ -170,11 +170,16 @@
                     }
                   </div>
                 </td>
-                <td class="actions-cell">
-                  <button class="ghost-button" type="button" (click)="openGroupsManager(user)" [disabled]="!canManageGroups(user)">
-                    {{ groupButtonLabel(user) }}
-                  </button>
-                  <button class="danger-button" type="button" (click)="deleteUser(user)" [disabled]="!canDeleteUser(user)">Elimina</button>
+                <td>
+                  <div class="actions-cell">
+                    <button class="ghost-button" type="button" (click)="openGroupsManager(user)" [disabled]="!canManageGroups(user)">
+                      {{ groupButtonLabel(user) }}
+                    </button>
+                    @if (canApproveGuest(user)) {
+                      <button class="btn btn-secondary" type="button" (click)="approveGuest(user)">Accetta</button>
+                    }
+                    <button class="danger-button" type="button" (click)="deleteUser(user)" [disabled]="!canDeleteUser(user)">Elimina</button>
+                  </div>
                 </td>
               </tr>
             } @empty {

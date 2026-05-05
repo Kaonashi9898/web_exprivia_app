@@ -115,6 +115,7 @@ export interface Prenotazione {
 export interface DashboardPrenotazione extends Prenotazione {
   sedeLabel: string;
   pianoLabel: string;
+  pianoId?: number | null;
 }
 
 export interface CreatePrenotazioneRequest {

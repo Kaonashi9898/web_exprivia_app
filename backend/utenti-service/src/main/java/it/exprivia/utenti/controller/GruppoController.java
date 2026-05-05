@@ -50,24 +50,27 @@ public class GruppoController {
      * Esempio: POST /api/gruppi?nome=TeamAlpha
      */
     @PostMapping
-    public ResponseEntity<Gruppo> crea(@RequestParam @NotBlank String nome) {
-        return ResponseEntity.ok(gruppoService.crea(nome));
+    public ResponseEntity<Gruppo> crea(@RequestParam @NotBlank String nome,
+                                       @AuthenticationPrincipal String email) {
+        return ResponseEntity.ok(gruppoService.crea(nome, email));
     }
 
     /**
      * Aggiorna il nome di un gruppo esistente.
      */
     @PutMapping("/{id}")
-    public ResponseEntity<Gruppo> aggiorna(@PathVariable Long id, @RequestBody @Valid UpdateGruppoRequest request) {
-        return ResponseEntity.ok(gruppoService.aggiorna(id, request.nome()));
+    public ResponseEntity<Gruppo> aggiorna(@PathVariable Long id,
+                                           @RequestBody @Valid UpdateGruppoRequest request,
+                                           @AuthenticationPrincipal String email) {
+        return ResponseEntity.ok(gruppoService.aggiorna(id, request.nome(), email));
     }
 
     /**
      * Restituisce la lista di tutti i gruppi presenti nel sistema.
      */
     @GetMapping
-    public ResponseEntity<List<Gruppo>> findAll() {
-        return ResponseEntity.ok(gruppoService.findAll());
+    public ResponseEntity<List<Gruppo>> findAll(@AuthenticationPrincipal String email) {
+        return ResponseEntity.ok(gruppoService.findAll(email));
     }
 
     /**
@@ -75,8 +78,9 @@ public class GruppoController {
      * Pubblica un evento RabbitMQ per notificare gli altri servizi dell'eliminazione.
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> elimina(@PathVariable Long id) {
-        gruppoService.elimina(id);
+    public ResponseEntity<Void> elimina(@PathVariable Long id,
+                                        @AuthenticationPrincipal String email) {
+        gruppoService.elimina(id, email);
         return ResponseEntity.noContent().build();
     }
 
@@ -108,7 +112,8 @@ public class GruppoController {
      * Restituisce la lista degli utenti appartenenti a un gruppo specifico.
      */
     @GetMapping("/{idGruppo}/utenti")
-    public ResponseEntity<List<UtenteDTO>> getUtenti(@PathVariable Long idGruppo) {
-        return ResponseEntity.ok(gruppoService.getUtentiDelGruppo(idGruppo));
+    public ResponseEntity<List<UtenteDTO>> getUtenti(@PathVariable Long idGruppo,
+                                                     @AuthenticationPrincipal String email) {
+        return ResponseEntity.ok(gruppoService.getUtentiDelGruppo(idGruppo, email));
     }
 }

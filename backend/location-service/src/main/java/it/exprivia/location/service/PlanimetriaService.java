@@ -112,15 +112,28 @@ public class PlanimetriaService {
 
     @Transactional
     public PlanimetriaResponse uploadImage(Long pianoId, MultipartFile file) {
+        return uploadImage(pianoId, file, null);
+    }
+
+    @Transactional
+    public PlanimetriaResponse uploadImage(Long pianoId, MultipartFile file, MultipartFile previewSvg) {
         validateImageFile(file);
+        validatePreviewSvgFile(previewSvg);
 
         Piano piano = getPianoOrThrow(pianoId);
         try {
             Path pianoDir = ensurePianoDirectory(pianoId);
             String extension = getExtension(file.getOriginalFilename(), "png");
             String baseName = buildBaseName(file.getOriginalFilename(), pianoId);
-            Path imagePath = pianoDir.resolve(baseName + "." + extension);
-            writeMultipartFile(imagePath, file);
+            Path originalPath = pianoDir.resolve(baseName + "." + extension);
+            writeMultipartFile(originalPath, file);
+
+            Path previewPath = null;
+            if (previewSvg != null && !previewSvg.isEmpty()) {
+                previewPath = pianoDir.resolve(baseName + "-preview.svg");
+                writeMultipartFile(previewPath, previewSvg);
+            }
+            Path imagePath = previewPath != null ? previewPath : originalPath;
 
             Planimetria existing = planimetriaRepository.findByPianoId(pianoId).orElse(null);
             String oldOriginalPath = existing != null ? existing.getFileOriginalePath() : null;
@@ -128,7 +141,7 @@ public class PlanimetriaService {
 
             Planimetria planimetria = existing != null ? existing : new Planimetria();
             planimetria.setPiano(piano);
-            planimetria.setFileOriginalePath(normalizePath(imagePath));
+            planimetria.setFileOriginalePath(normalizePath(originalPath));
             planimetria.setImagePath(normalizePath(imagePath));
             planimetria.setImageName(imagePath.getFileName().toString());
             planimetria.setFormatoOriginale(resolveFormato(extension));
@@ -317,6 +330,15 @@ public class PlanimetriaService {
         String extension = getExtension(file.getOriginalFilename(), "");
         if (!SUPPORTED_IMAGE_EXTENSIONS.contains(extension)) {
             throw new IllegalArgumentException("Formato planimetria non supportato. Usa PNG, JPG/JPEG, SVG, DXF o DWG");
+        }
+    }
+
+    private void validatePreviewSvgFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return;
+        }
+        if (!"svg".equalsIgnoreCase(getExtension(file.getOriginalFilename(), ""))) {
+            throw new IllegalArgumentException("L'anteprima della planimetria deve essere un file SVG");
         }
     }
 
@@ -595,7 +617,7 @@ public class PlanimetriaService {
     }
 
     private Path resolveImagePath(Planimetria planimetria) {
-        String preferredPath = firstNonBlank(planimetria.getFileOriginalePath(), planimetria.getImagePath());
+        String preferredPath = firstNonBlank(planimetria.getImagePath(), planimetria.getFileOriginalePath());
         return preferredPath != null ? resolvePath(preferredPath) : null;
     }
 

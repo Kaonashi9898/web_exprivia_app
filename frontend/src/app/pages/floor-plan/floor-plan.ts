@@ -6,6 +6,7 @@ import { ApiService } from '../../core/api.service';
 import { Edificio, Piano, PlanimetriaLayout, PlanimetriaResponse, Sede } from '../../core/app.models';
 import { apiErrorMessage } from '../../core/api-error.utils';
 import { environment } from '../../../environments/environment';
+import { DxfConverterService } from '../../core/dxf-converter.service';
 
 const EXPRIVIA_ITALIA_SEDI: Sede[] = [];
 
@@ -25,6 +26,7 @@ type PositionedStation = LayoutStation & { position: { xPct: number; yPct: numbe
 export class FloorPlanComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly dxfConverter = inject(DxfConverterService);
   private sediSubscription: Subscription | null = null;
   private edificiSubscription: Subscription | null = null;
   private pianiSubscription: Subscription | null = null;
@@ -52,6 +54,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
   layout: PlanimetriaLayout | null = null;
   imageSrc = '';
   imageFile: File | null = null;
+  imagePreviewFile: File | null = null;
   planFileName = '';
   imageFileRenamed = false;
   jsonFile: File | null = null;
@@ -151,6 +154,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
 
   setImageFile(event: Event): void {
     this.imageFile = (event.target as HTMLInputElement).files?.[0] ?? null;
+    this.imagePreviewFile = null;
     this.planFileName = this.imageFile ? this.stripExtension(this.imageFile.name) : '';
     this.imageFileRenamed = false;
     this.refreshView();
@@ -167,6 +171,19 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
 
     this.clearMessages();
     this.revokeImageUrl();
+    this.imagePreviewFile = null;
+
+    if (this.isDxfFile(this.imageFile)) {
+      this.loadDxfPreview(this.imageFile);
+      return;
+    }
+
+    if (this.isDwgFile(this.imageFile)) {
+      this.error = "L'anteprima automatica e disponibile per DXF. Carica un SVG, PNG o JPG per visualizzare un DWG.";
+      this.refreshView();
+      return;
+    }
+
     this.imageSrc = URL.createObjectURL(this.imageFile);
     this.message = 'Planimetria caricata in anteprima. Premi "Salva planimetria" per salvarla nel database.';
     this.refreshView();
@@ -180,6 +197,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
     const extension = this.getExtension(this.imageFile.name);
     const safeName = this.planFileName.trim().replace(/[^a-zA-Z0-9-_ ]/g, '-').replace(/\s+/g, ' ');
     this.imageFile = new File([this.imageFile], `${safeName}.${extension}`, { type: this.imageFile.type });
+    this.imagePreviewFile = null;
     this.imageFileRenamed = true;
     this.message = `File rinominato in ${this.imageFile.name}.`;
     this.error = '';
@@ -234,16 +252,24 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (this.imageFile && this.isDxfFile(this.imageFile) && !this.imagePreviewFile) {
+      this.error = "Carica prima la planimetria per generare automaticamente l'anteprima SVG del DXF.";
+      this.message = '';
+      this.refreshView();
+      return;
+    }
+
     this.clearMessages();
     this.saveSubscription?.unsubscribe();
 
     if (this.imageFile) {
-      this.saveSubscription = this.api.uploadPlanimetriaImage(this.selectedPianoId, this.imageFile).subscribe({
+      this.saveSubscription = this.api.uploadPlanimetriaImage(this.selectedPianoId, this.imageFile, this.imagePreviewFile).subscribe({
         next: () => {
           this.pianiConPlanimetria.set(this.selectedPianoId!, true);
           this.planFileName = '';
           this.imageFileRenamed = false;
           this.imageFile = null;
+          this.imagePreviewFile = null;
 
           if (this.jsonFile) {
             this.saveLayoutAfterImageUpload(this.selectedPianoId!);
@@ -308,7 +334,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
           return;
         }
         this.planimetria = planimetria;
-        if (planimetria.formatoOriginale !== 'DXF' && planimetria.formatoOriginale !== 'DWG') {
+        if (this.isPreviewablePlan(planimetria)) {
           this.loadImage(pianoId, requestId);
         } else {
           this.revokeImageUrl();
@@ -477,6 +503,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
     this.layout = null;
     this.selectedRoomId = null;
     this.imageFile = null;
+    this.imagePreviewFile = null;
     this.planFileName = '';
     this.imageFileRenamed = false;
     this.jsonFile = null;
@@ -530,6 +557,45 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
   private getExtension(filename: string): string {
     const dotIndex = filename.lastIndexOf('.');
     return dotIndex > 0 ? filename.slice(dotIndex + 1) : 'svg';
+  }
+
+  private loadDxfPreview(file: File): void {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const conversion = this.dxfConverter.convert(String(reader.result ?? ''));
+        const previewName = `${this.stripExtension(file.name)}.svg`;
+        this.imagePreviewFile = new File([conversion.svgText], previewName, { type: 'image/svg+xml' });
+        this.imageSrc = conversion.dataUrl;
+        this.message = 'DXF convertito in anteprima SVG. Premi "Salva planimetria" per salvare originale e anteprima.';
+        this.refreshView();
+      } catch (err) {
+        this.imagePreviewFile = null;
+        this.error = err instanceof Error ? err.message : 'Conversione DXF non riuscita.';
+        this.refreshView();
+      }
+    };
+    reader.onerror = () => {
+      this.error = 'Lettura del file DXF non riuscita.';
+      this.refreshView();
+    };
+    reader.readAsText(file);
+  }
+
+  private isDxfFile(file: File): boolean {
+    return this.getExtension(file.name).toLowerCase() === 'dxf';
+  }
+
+  private isDwgFile(file: File): boolean {
+    return this.getExtension(file.name).toLowerCase() === 'dwg';
+  }
+
+  private isPreviewablePlan(planimetria: PlanimetriaResponse): boolean {
+    const imageName = planimetria.imageName?.toLowerCase() ?? '';
+    return (
+      planimetria.formatoOriginale !== 'DXF'
+      && planimetria.formatoOriginale !== 'DWG'
+    ) || /\.(svg|png|jpg|jpeg)$/.test(imageName);
   }
 
   private syncPlanStatus(piani: Piano[]): void {

@@ -3,6 +3,7 @@ package it.exprivia.utentiservice.service;
 import it.exprivia.utenti.dto.RegisterRequest;
 import it.exprivia.utenti.entity.RuoloUtente;
 import it.exprivia.utenti.entity.Utente;
+import it.exprivia.utenti.messaging.GruppoEventPublisher;
 import it.exprivia.utenti.repository.UtenteRepository;
 import it.exprivia.utenti.security.JwtUtils;
 import it.exprivia.utenti.service.AuthService;
@@ -15,7 +16,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -26,11 +26,12 @@ class AuthServiceTest {
     @Mock UtenteRepository utenteRepository;
     @Mock PasswordEncoder passwordEncoder;
     @Mock JwtUtils jwtUtils;
+    @Mock GruppoEventPublisher gruppoEventPublisher;
 
     @InjectMocks AuthService authService;
 
     @Test
-    void register_senzaRuoloEsplicito_assegnaUser() {
+    void register_senzaRuoloEsplicito_assegnaGuest() {
         RegisterRequest request = buildRequest("mario.rossi@exprivia.com", null);
         when(utenteRepository.existsByEmail(request.getEmail())).thenReturn(false);
         when(passwordEncoder.encode(request.getPassword())).thenReturn("hash");
@@ -44,8 +45,8 @@ class AuthServiceTest {
 
         ArgumentCaptor<Utente> captor = ArgumentCaptor.forClass(Utente.class);
         verify(utenteRepository).save(captor.capture());
-        assertThat(captor.getValue().getRuolo()).isEqualTo(RuoloUtente.USER);
-        assertThat(response.getRuolo()).isEqualTo(RuoloUtente.USER);
+        assertThat(captor.getValue().getRuolo()).isEqualTo(RuoloUtente.GUEST);
+        assertThat(response.getRuolo()).isEqualTo(RuoloUtente.GUEST);
     }
 
     @Test
@@ -76,13 +77,15 @@ class AuthServiceTest {
     }
 
     @Test
-    void register_ruoloPrivilegiatoVieneRifiutato() {
+    void register_ruoloPrivilegiatoVieneIgnoratoEAssegnaGuest() {
         RegisterRequest request = buildRequest("admin.user@exprivia.com", RuoloUtente.ADMIN);
         when(utenteRepository.existsByEmail(request.getEmail())).thenReturn(false);
+        when(passwordEncoder.encode(request.getPassword())).thenReturn("hash");
+        when(utenteRepository.save(any(Utente.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertThatThrownBy(() -> authService.register(request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("USER o GUEST");
+        var response = authService.register(request);
+
+        assertThat(response.getRuolo()).isEqualTo(RuoloUtente.GUEST);
     }
 
     private RegisterRequest buildRequest(String email, RuoloUtente ruolo) {

@@ -30,12 +30,12 @@ public class UtenteController {
 
     @GetMapping("/me")
     public ResponseEntity<UtenteDTO> getMe(@AuthenticationPrincipal String email) {
-        return ResponseEntity.ok(utenteService.findByEmail(email));
+        return ResponseEntity.ok(utenteService.findByEmail(email, email));
     }
 
     @GetMapping
-    public ResponseEntity<List<UtenteDTO>> findAll() {
-        return ResponseEntity.ok(utenteService.findAll());
+    public ResponseEntity<List<UtenteDTO>> findAll(@AuthenticationPrincipal String email) {
+        return ResponseEntity.ok(utenteService.findAll(email));
     }
 
     @PostMapping
@@ -45,8 +45,9 @@ public class UtenteController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<UtenteDTO> findById(@PathVariable Long id) {
-        return ResponseEntity.ok(utenteService.findById(id));
+    public ResponseEntity<UtenteDTO> findById(@PathVariable Long id,
+                                              @AuthenticationPrincipal String email) {
+        return ResponseEntity.ok(utenteService.findById(id, email));
     }
 
     @PutMapping("/{id}")

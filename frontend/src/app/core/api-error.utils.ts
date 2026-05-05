@@ -3,8 +3,12 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
     error?: {
       errore?: string;
       message?: string;
+      dettagli?: Record<string, string>;
     };
   } | null;
 
-  return candidate?.error?.errore ?? candidate?.error?.message ?? fallback;
+  const details = candidate?.error?.dettagli;
+  const detailMessage = details ? Object.values(details).find((value) => !!value) : null;
+
+  return detailMessage ?? candidate?.error?.errore ?? candidate?.error?.message ?? fallback;
 }

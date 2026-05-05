@@ -53,13 +53,15 @@ public class GruppoService {
                 .stream()
                 .map(GruppoUtente::getIdGruppo)
                 .toList();
-        return gruppoRepository.findAllById(gruppoIds);
+        List<Gruppo> gruppi = gruppoRepository.findAllById(gruppoIds);
+        gruppi.forEach(gruppo -> gruppoEventPublisher.pubblicaAccessoGruppo(gruppo, normalizeEmail(email)));
+        return gruppi;
     }
 
     /**
      * Crea un nuovo gruppo con il nome fornito e lo persiste nel database.
      */
-    public Gruppo crea(String nome) {
+    public Gruppo crea(String nome, String actorEmail) {
         String normalizedNome = normalizeNome(nome);
         if (gruppoRepository.existsByNomeIgnoreCase(normalizedNome)) {
             throw new IllegalArgumentException("Esiste gia' un gruppo con questo nome");
@@ -67,13 +69,15 @@ public class GruppoService {
 
         Gruppo gruppo = new Gruppo();
         gruppo.setNome(normalizedNome);
-        return gruppoRepository.save(gruppo);
+        Gruppo saved = gruppoRepository.save(gruppo);
+        gruppoEventPublisher.pubblicaCreazioneGruppo(saved, normalizeEmail(actorEmail));
+        return saved;
     }
 
     /**
      * Aggiorna il nome di un gruppo esistente.
      */
-    public Gruppo aggiorna(Long id, String nome) {
+    public Gruppo aggiorna(Long id, String nome, String actorEmail) {
         Gruppo gruppo = gruppoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Gruppo non trovato con id: " + id));
         String normalizedNome = normalizeNome(nome);
@@ -82,14 +86,18 @@ public class GruppoService {
         }
 
         gruppo.setNome(normalizedNome);
-        return gruppoRepository.save(gruppo);
+        Gruppo saved = gruppoRepository.save(gruppo);
+        gruppoEventPublisher.pubblicaAggiornamentoGruppo(saved, normalizeEmail(actorEmail));
+        return saved;
     }
 
     /**
      * Restituisce tutti i gruppi presenti nel database.
      */
-    public List<Gruppo> findAll() {
-        return gruppoRepository.findAll();
+    public List<Gruppo> findAll(String actorEmail) {
+        List<Gruppo> gruppi = gruppoRepository.findAll();
+        gruppi.forEach(gruppo -> gruppoEventPublisher.pubblicaAccessoGruppo(gruppo, normalizeEmail(actorEmail)));
+        return gruppi;
     }
 
     /**
@@ -97,7 +105,7 @@ public class GruppoService {
      * L'evento viene pubblicato DOPO l'eliminazione, così gli altri servizi
      * possono liberare le risorse collegate (es. postazioni assegnate al gruppo).
      */
-    public Gruppo elimina(Long id) {
+    public Gruppo elimina(Long id, String actorEmail) {
         Gruppo gruppo = gruppoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Gruppo non trovato con id: " + id));
         gruppoRepository.delete(gruppo);
@@ -126,6 +134,7 @@ public class GruppoService {
         gu.setIdGruppo(idGruppo);
         gu.setIdUtente(idUtente);
         gruppoUtenteRepository.save(gu);
+        gruppoEventPublisher.pubblicaAggiuntaUtenteGruppo(idGruppo, idUtente, normalizeEmail(operatorEmail));
     }
 
     /**
@@ -139,6 +148,7 @@ public class GruppoService {
         GruppoUtente gu = gruppoUtenteRepository.findByIdGruppoAndIdUtente(idGruppo, idUtente)
                 .orElseThrow(() -> new EntityNotFoundException("L'utente non appartiene a questo gruppo"));
         gruppoUtenteRepository.delete(gu);
+        gruppoEventPublisher.pubblicaRimozioneUtenteGruppo(idGruppo, idUtente, normalizeEmail(operatorEmail));
     }
 
     /**
@@ -148,10 +158,10 @@ public class GruppoService {
      * 2. Carica tutte le associazioni del gruppo
      * 3. Per ogni associazione, recupera l'utente e lo converte in DTO
      */
-    public List<UtenteDTO> getUtentiDelGruppo(Long idGruppo) {
-        if (!gruppoRepository.existsById(idGruppo)) {
-            throw new EntityNotFoundException("Gruppo non trovato con id: " + idGruppo);
-        }
+    public List<UtenteDTO> getUtentiDelGruppo(Long idGruppo, String actorEmail) {
+        Gruppo gruppo = gruppoRepository.findById(idGruppo)
+                .orElseThrow(() -> new EntityNotFoundException("Gruppo non trovato con id: " + idGruppo));
+        gruppoEventPublisher.pubblicaAccessoGruppo(gruppo, normalizeEmail(actorEmail));
 
         List<Long> utenteIds = gruppoUtenteRepository.findByIdGruppo(idGruppo)
                 .stream()
@@ -164,7 +174,7 @@ public class GruppoService {
     }
 
     private Utente getOperatore(String operatorEmail) {
-        String normalizedEmail = operatorEmail == null ? null : operatorEmail.trim().toLowerCase(Locale.ROOT);
+        String normalizedEmail = normalizeEmail(operatorEmail);
         return utenteRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new EntityNotFoundException("Operatore non trovato con email: " + normalizedEmail));
     }
@@ -193,5 +203,9 @@ public class GruppoService {
             throw new IllegalArgumentException("Il nome del gruppo non puo' superare i 50 caratteri");
         }
         return normalized;
+    }
+
+    private String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
     }
 }

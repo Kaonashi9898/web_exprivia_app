@@ -1,8 +1,14 @@
 package it.exprivia.utenti.messaging;
 
+import it.exprivia.utenti.dto.UtenteDTO;
+import it.exprivia.utenti.entity.Gruppo;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+
+import java.time.Instant;
 
 /**
  * Componente responsabile della pubblicazione di eventi su RabbitMQ.
@@ -14,9 +20,64 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class GruppoEventPublisher {
 
     private final RabbitTemplate rabbitTemplate;
+
+    @Async("rabbitEventExecutor")
+    public void pubblicaCreazioneUtente(UtenteDTO utente, String actorEmail) {
+        pubblicaUtenteCrud(RabbitMQConfig.ROUTING_KEY_UTENTE_CREATO, "CREATE", utente, actorEmail);
+    }
+
+    @Async("rabbitEventExecutor")
+    public void pubblicaAccessoUtente(UtenteDTO utente, String actorEmail) {
+        pubblicaUtenteCrud(RabbitMQConfig.ROUTING_KEY_UTENTE_ACCESSO, "READ", utente, actorEmail);
+    }
+
+    @Async("rabbitEventExecutor")
+    public void pubblicaAggiornamentoUtente(UtenteDTO utente, String actorEmail) {
+        pubblicaUtenteCrud(RabbitMQConfig.ROUTING_KEY_UTENTE_AGGIORNATO, "UPDATE", utente, actorEmail);
+    }
+
+    @Async("rabbitEventExecutor")
+    public void pubblicaCreazioneGruppo(Gruppo gruppo, String actorEmail) {
+        pubblicaGruppoCrud(RabbitMQConfig.ROUTING_KEY_GRUPPO_CREATO, "CREATE", gruppo, null, actorEmail);
+    }
+
+    @Async("rabbitEventExecutor")
+    public void pubblicaAccessoGruppo(Gruppo gruppo, String actorEmail) {
+        pubblicaGruppoCrud(RabbitMQConfig.ROUTING_KEY_GRUPPO_ACCESSO, "READ", gruppo, null, actorEmail);
+    }
+
+    @Async("rabbitEventExecutor")
+    public void pubblicaAggiornamentoGruppo(Gruppo gruppo, String actorEmail) {
+        pubblicaGruppoCrud(RabbitMQConfig.ROUTING_KEY_GRUPPO_AGGIORNATO, "UPDATE", gruppo, null, actorEmail);
+    }
+
+    @Async("rabbitEventExecutor")
+    public void pubblicaAggiuntaUtenteGruppo(Long gruppoId, Long utenteId, String actorEmail) {
+        pubblicaGruppoCrud(
+                RabbitMQConfig.ROUTING_KEY_GRUPPO_UTENTE_AGGIUNTO,
+                "UPDATE_ADD_USER",
+                gruppoId,
+                null,
+                utenteId,
+                actorEmail
+        );
+    }
+
+    @Async("rabbitEventExecutor")
+    public void pubblicaRimozioneUtenteGruppo(Long gruppoId, Long utenteId, String actorEmail) {
+        pubblicaGruppoCrud(
+                RabbitMQConfig.ROUTING_KEY_GRUPPO_UTENTE_RIMOSSO,
+                "UPDATE_REMOVE_USER",
+                gruppoId,
+                null,
+                utenteId,
+                actorEmail
+        );
+    }
 
     /**
      * Pubblica un evento di eliminazione utente su RabbitMQ.
@@ -25,12 +86,9 @@ public class GruppoEventPublisher {
      *
      * @param event l'evento con ID utente e lista dei gruppi a cui apparteneva
      */
+    @Async("rabbitEventExecutor")
     public void pubblicaEliminazioneUtente(UtenteEliminatoEvent event) {
-        rabbitTemplate.convertAndSend(
-                RabbitMQConfig.EXCHANGE,                          // exchange di destinazione
-                RabbitMQConfig.ROUTING_KEY_UTENTE_ELIMINATO,      // chiave di instradamento
-                event                                             // payload serializzato in JSON
-        );
+        pubblica(RabbitMQConfig.ROUTING_KEY_UTENTE_ELIMINATO, event);
     }
 
     /**
@@ -38,11 +96,58 @@ public class GruppoEventPublisher {
      *
      * @param gruppoId l'ID del gruppo appena eliminato
      */
+    @Async("rabbitEventExecutor")
     public void pubblicaEliminazione(Long gruppoId) {
-        rabbitTemplate.convertAndSend(
-                RabbitMQConfig.EXCHANGE,                          // exchange di destinazione
-                RabbitMQConfig.ROUTING_KEY_GRUPPO_ELIMINATO,      // chiave di instradamento
-                new GruppoEliminatoEvent(gruppoId)                // payload serializzato in JSON
+        pubblica(RabbitMQConfig.ROUTING_KEY_GRUPPO_ELIMINATO, new GruppoEliminatoEvent(gruppoId));
+    }
+
+    private void pubblicaUtenteCrud(String routingKey, String operazione, UtenteDTO utente, String actorEmail) {
+        pubblica(
+                routingKey,
+                new UtenteCrudEvent(
+                        operazione,
+                        utente.getId(),
+                        utente.getFullName(),
+                        utente.getEmail(),
+                        utente.getRuolo(),
+                        actorEmail,
+                        Instant.now()
+                )
         );
+    }
+
+    private void pubblicaGruppoCrud(String routingKey,
+                                    String operazione,
+                                    Gruppo gruppo,
+                                    Long utenteId,
+                                    String actorEmail) {
+        pubblicaGruppoCrud(routingKey, operazione, gruppo.getId(), gruppo.getNome(), utenteId, actorEmail);
+    }
+
+    private void pubblicaGruppoCrud(String routingKey,
+                                    String operazione,
+                                    Long gruppoId,
+                                    String nome,
+                                    Long utenteId,
+                                    String actorEmail) {
+        pubblica(
+                routingKey,
+                new GruppoCrudEvent(
+                        operazione,
+                        gruppoId,
+                        nome,
+                        utenteId,
+                        actorEmail,
+                        Instant.now()
+                )
+        );
+    }
+
+    private void pubblica(String routingKey, Object payload) {
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, routingKey, payload);
+        } catch (RuntimeException ex) {
+            log.warn("Evento RabbitMQ non pubblicato su routing key {}: {}", routingKey, ex.getMessage());
+        }
     }
 }

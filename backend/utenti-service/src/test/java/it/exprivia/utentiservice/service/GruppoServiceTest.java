@@ -75,7 +75,7 @@ class GruppoServiceTest {
             return gruppo;
         });
 
-        Gruppo gruppo = gruppoService.crea("  Team Alpha  ");
+        Gruppo gruppo = gruppoService.crea("  Team Alpha  ", "admin@exprivia.com");
 
         assertThat(gruppo.getId()).isEqualTo(3L);
         assertThat(gruppo.getNome()).isEqualTo("Team Alpha");
@@ -86,7 +86,7 @@ class GruppoServiceTest {
     void crea_rifiutaNomeDuplicato() {
         when(gruppoRepository.existsByNomeIgnoreCase("Team Alpha")).thenReturn(true);
 
-        assertThatThrownBy(() -> gruppoService.crea("Team Alpha"))
+        assertThatThrownBy(() -> gruppoService.crea("Team Alpha", "admin@exprivia.com"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Esiste gia'");
 
@@ -102,7 +102,7 @@ class GruppoServiceTest {
         when(gruppoRepository.existsByNomeIgnoreCaseAndIdNot("Team New", 7L)).thenReturn(false);
         when(gruppoRepository.save(gruppo)).thenReturn(gruppo);
 
-        Gruppo aggiornato = gruppoService.aggiorna(7L, " Team New ");
+        Gruppo aggiornato = gruppoService.aggiorna(7L, " Team New ", "admin@exprivia.com");
 
         assertThat(aggiornato.getNome()).isEqualTo("Team New");
     }
@@ -115,7 +115,7 @@ class GruppoServiceTest {
         when(gruppoRepository.findById(7L)).thenReturn(Optional.of(gruppo));
         when(gruppoRepository.existsByNomeIgnoreCaseAndIdNot("Team New", 7L)).thenReturn(true);
 
-        assertThatThrownBy(() -> gruppoService.aggiorna(7L, "Team New"))
+        assertThatThrownBy(() -> gruppoService.aggiorna(7L, "Team New", "admin@exprivia.com"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Esiste gia'");
 
@@ -129,7 +129,7 @@ class GruppoServiceTest {
         gruppo.setNome("Team Alpha");
         when(gruppoRepository.findById(10L)).thenReturn(Optional.of(gruppo));
 
-        gruppoService.elimina(10L);
+        gruppoService.elimina(10L, "admin@exprivia.com");
 
         // verifica che l'eliminazione avvenga prima della pubblicazione
         var ordine = inOrder(gruppoRepository, gruppoEventPublisher);
@@ -144,7 +144,7 @@ class GruppoServiceTest {
         gruppo.setNome("Team Beta");
         when(gruppoRepository.findById(5L)).thenReturn(Optional.of(gruppo));
 
-        Gruppo risultato = gruppoService.elimina(5L);
+        Gruppo risultato = gruppoService.elimina(5L, "admin@exprivia.com");
 
         assertThat(risultato.getId()).isEqualTo(5L);
         assertThat(risultato.getNome()).isEqualTo("Team Beta");
@@ -154,7 +154,7 @@ class GruppoServiceTest {
     void elimina_gruppoInesistente_lanceEntityNotFoundException() {
         when(gruppoRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> gruppoService.elimina(99L))
+        assertThatThrownBy(() -> gruppoService.elimina(99L, "admin@exprivia.com"))
                 .isInstanceOf(EntityNotFoundException.class);
 
         verifyNoInteractions(gruppoEventPublisher);
@@ -164,7 +164,7 @@ class GruppoServiceTest {
     void elimina_gruppoInesistente_nonPubblicaEvento() {
         when(gruppoRepository.findById(1L)).thenReturn(Optional.empty());
 
-        try { gruppoService.elimina(1L); } catch (EntityNotFoundException ignored) {}
+        try { gruppoService.elimina(1L, "admin@exprivia.com"); } catch (EntityNotFoundException ignored) {}
 
         verify(gruppoEventPublisher, never()).pubblicaEliminazione(any());
     }

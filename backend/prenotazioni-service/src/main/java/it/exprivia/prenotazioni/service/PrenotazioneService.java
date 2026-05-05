@@ -187,13 +187,16 @@ public class PrenotazioneService {
         );
         ensureRisorsaSenzaOverlap(prenotazione, request.getDataPrenotazione(), request.getOraInizio(), request.getOraFine());
 
+        PrenotazioneResponse precedente = toResponse(prenotazione);
         prenotazione.setDataPrenotazione(request.getDataPrenotazione());
         prenotazione.setOraInizio(request.getOraInizio());
         prenotazione.setOraFine(request.getOraFine());
 
         try {
             Prenotazione saved = prenotazioneRepository.saveAndFlush(prenotazione);
-            return toResponse(saved);
+            PrenotazioneResponse response = toResponse(saved);
+            prenotazioneEventPublisher.pubblicaModifica(precedente, response);
+            return response;
         } catch (DataIntegrityViolationException ex) {
             throw mapWriteIntegrityViolation(ex);
         }
@@ -537,7 +540,8 @@ public class PrenotazioneService {
 
         return new DashboardLocationInfo(
                 sede.nome() + " - " + sede.citta(),
-                getPianoLabel(piano.numero(), piano.nome())
+                getPianoLabel(piano.numero(), piano.nome()),
+                piano.id()
         );
     }
 
@@ -600,6 +604,7 @@ public class PrenotazioneService {
                 prenotazione.getStanzaNome(),
                 locationInfo.sedeLabel(),
                 locationInfo.pianoLabel(),
+                locationInfo.pianoId(),
                 prenotazione.getDataPrenotazione(),
                 prenotazione.getOraInizio(),
                 prenotazione.getOraFine(),
@@ -616,6 +621,6 @@ public class PrenotazioneService {
         return prenotazione.getPostazioneCodice();
     }
 
-    private record DashboardLocationInfo(String sedeLabel, String pianoLabel) {
+    private record DashboardLocationInfo(String sedeLabel, String pianoLabel, Long pianoId) {
     }
 }

@@ -637,14 +637,14 @@ export class LocationsComponent implements OnInit, OnDestroy {
             this.unavailableMessage = this.noPlanMessage();
             this.refreshView();
             return;
-          }
+        }
         this.planimetria = planimetria;
-        if (planimetria.formatoOriginale === 'DXF' || planimetria.formatoOriginale === 'DWG') {
+        if (this.isPreviewablePlan(planimetria)) {
+          this.loadImage(pianoId, requestId);
+        } else {
           this.revokeImageUrl();
           this.unavailableMessage =
-            'Planimetria tecnica caricata. Per visualizzarla qui serve anche una versione PNG, JPG o SVG.';
-        } else {
-          this.loadImage(pianoId, requestId);
+            'Planimetria tecnica caricata. Per visualizzarla qui serve una versione SVG, PNG o JPG.';
         }
         this.loadLayoutAndSeats(pianoId, requestId);
         this.refreshView();
@@ -875,6 +875,14 @@ export class LocationsComponent implements OnInit, OnDestroy {
     const sedeLabel = sede ? `${sede.nome} - ${sede.citta}` : 'questa sede';
     const pianoLabel = piano ? this.getPianoDisplayName(piano) : 'questo piano';
     return `Per ${sedeLabel} e per ${pianoLabel} non c'e ancora la planimetria.`;
+  }
+
+  private isPreviewablePlan(planimetria: PlanimetriaResponse): boolean {
+    const imageName = planimetria.imageName?.toLowerCase() ?? '';
+    return (
+      planimetria.formatoOriginale !== 'DXF'
+      && planimetria.formatoOriginale !== 'DWG'
+    ) || /\.(svg|png|jpg|jpeg)$/.test(imageName);
   }
 
   private stationHasBookings(station: LayoutStation): boolean {

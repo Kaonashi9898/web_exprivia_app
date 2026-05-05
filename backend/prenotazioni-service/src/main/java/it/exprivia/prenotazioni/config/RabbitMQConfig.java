@@ -22,6 +22,7 @@ public class RabbitMQConfig {
     public static final String EXCHANGE_LOCATION = "location.events";
     public static final String ROUTING_KEY_PRENOTAZIONE_CONFERMATA = "prenotazione.confermata";
     public static final String ROUTING_KEY_PRENOTAZIONE_ANNULLATA = "prenotazione.annullata";
+    public static final String ROUTING_KEY_PRENOTAZIONE_MODIFICATA = "prenotazione.modificata";
     public static final String ROUTING_KEY_UTENTE_ELIMINATO = "utente.eliminato";
     public static final String ROUTING_KEY_PLANIMETRIA_ELIMINATA = "planimetria.eliminata";
     public static final String QUEUE_UTENTE_ELIMINATO = "prenotazioni.utente.eliminato";

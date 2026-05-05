@@ -59,4 +59,31 @@ public class PrenotazioneEventPublisher {
                 )
         );
     }
+
+    public void pubblicaModifica(PrenotazioneResponse precedente, PrenotazioneResponse aggiornata) {
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.EXCHANGE_PRENOTAZIONI,
+                RabbitMQConfig.ROUTING_KEY_PRENOTAZIONE_MODIFICATA,
+                new PrenotazioneModificataEvent(
+                        aggiornata.getId(),
+                        aggiornata.getUtenteId(),
+                        aggiornata.getUtenteEmail(),
+                        aggiornata.getUtenteFullName(),
+                        aggiornata.getTipoRisorsaPrenotata(),
+                        aggiornata.getRisorsaLabel(),
+                        aggiornata.getPostazioneId(),
+                        aggiornata.getPostazioneCodice(),
+                        aggiornata.getMeetingRoomStanzaId(),
+                        aggiornata.getMeetingRoomNome(),
+                        aggiornata.getStanzaId(),
+                        aggiornata.getStanzaNome(),
+                        precedente.getDataPrenotazione(),
+                        precedente.getOraInizio(),
+                        precedente.getOraFine(),
+                        aggiornata.getDataPrenotazione(),
+                        aggiornata.getOraInizio(),
+                        aggiornata.getOraFine()
+                )
+        );
+    }
 }

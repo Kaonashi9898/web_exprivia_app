@@ -229,9 +229,12 @@ export class ApiService {
     });
   }
 
-  uploadPlanimetriaImage(pianoId: number, file: File) {
+  uploadPlanimetriaImage(pianoId: number, file: File, previewSvgFile?: File | null) {
     const data = new FormData();
     data.append('file', file);
+    if (previewSvgFile) {
+      data.append('previewSvg', previewSvgFile);
+    }
     return this.http.post<PlanimetriaResponse>(`${LOCATION_API}/api/piani/${pianoId}/planimetria/image`, data);
   }
 

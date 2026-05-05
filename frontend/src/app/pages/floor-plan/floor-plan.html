@@ -77,7 +77,7 @@
       <span class="step-number">2</span>
       <div>
         <strong>Carica planimetria</strong>
-        <p>SVG, PNG, JPG, DXF o DWG del piano selezionato.</p>
+        <p>SVG, PNG o DXF del piano selezionato.</p>
       </div>
     </div>
 
@@ -136,7 +136,7 @@
   <div class="panel preview-panel">
     <div class="panel-header"><h2>Anteprima</h2></div>
 
-    @if (canPreviewPlan() && imageSrc) {
+    @if (imageSrc) {
       <div class="plan-preview">
         @if (selectedRoomId) {
           <button class="reset-zoom-button" type="button" (click)="resetZoom()">
@@ -176,10 +176,6 @@
     } @else if (planimetria && !layout) {
       <div class="empty-preview">
         Planimetria caricata. Ora importa il file JSON per visualizzare stanze, meeting room e postazioni.
-      </div>
-    } @else if (canPreviewPlan() && (planimetria?.formatoOriginale === 'DXF' || planimetria?.formatoOriginale === 'DWG')) {
-      <div class="empty-preview">
-        File tecnico caricato. Per l'anteprima web carica anche una versione PNG, JPG o SVG.
       </div>
     } @else {
       <div class="empty-preview">Nessuna planimetria caricata.</div>

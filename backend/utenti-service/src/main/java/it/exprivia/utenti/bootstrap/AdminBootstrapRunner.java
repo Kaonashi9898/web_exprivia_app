@@ -33,8 +33,15 @@ public class AdminBootstrapRunner implements ApplicationRunner {
         String email = requireValue(properties.getEmail(), "ADMIN_BOOTSTRAP_EMAIL");
         String password = requireValue(properties.getPassword(), "ADMIN_BOOTSTRAP_PASSWORD");
 
-        if (utenteRepository.existsByEmail(email)) {
-            throw new IllegalStateException("Admin bootstrap email already exists but is not assigned to an ADMIN user: " + email);
+        var existingBootstrapUser = utenteRepository.findByEmail(email);
+        if (existingBootstrapUser.isPresent()) {
+            Utente existing = existingBootstrapUser.get();
+            existing.setFullName(fullName);
+            existing.setPasswordHash(passwordEncoder.encode(password));
+            existing.setRuolo(RuoloUtente.ADMIN);
+            utenteRepository.save(existing);
+            log.info("Bootstrap user {} promoted to ADMIN successfully.", email);
+            return;
         }
 
         Utente admin = new Utente();

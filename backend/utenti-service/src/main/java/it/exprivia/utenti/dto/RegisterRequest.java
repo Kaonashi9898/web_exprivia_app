@@ -17,21 +17,21 @@ import lombok.Data;
 @Data
 public class RegisterRequest {
 
-    @NotBlank(message = "Il nome completo è obbligatorio")
-    @Size(max = 50, message = "Il nome non può superare i 50 caratteri")
+    @NotBlank(message = "Il nome completo e' obbligatorio")
+    @Size(max = 50, message = "Il nome non puo' superare i 50 caratteri")
     private String fullName;
 
-    @NotBlank(message = "L'email è obbligatoria")
+    @NotBlank(message = "L'email e' obbligatoria")
     @Email(message = "L'email deve essere valida")
     @Pattern(
-        regexp = "(?i)^[a-z0-9]+(?:[._-][a-z0-9]+)*@exprivia\\.com$",
-        message = "L'email deve essere un indirizzo aziendale @exprivia.com valido"
+            regexp = "(?i)^[a-z0-9]+(?:[._-][a-z0-9]+)*@exprivia\\.com$",
+            message = "Dominio non autorizzato. Utilizzare esclusivamente un indirizzo @exprivia.com"
     )
     private String email;
 
-    @NotBlank(message = "La password è obbligatoria")
+    @NotBlank(message = "La password e' obbligatoria")
     @Size(min = 8, message = "La password deve essere di almeno 8 caratteri")
     private String password;
 
-    private RuoloUtente ruolo; // opzionale: se non specificato usa USER
+    private RuoloUtente ruolo; // usato solo dalle API amministrative; la registrazione pubblica assegna GUEST
 }

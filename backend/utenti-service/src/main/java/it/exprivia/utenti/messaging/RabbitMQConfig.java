@@ -7,6 +7,10 @@ import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+import java.util.concurrent.Executor;
 
 /**
  * Configurazione di RabbitMQ per il microservizio utenti.
@@ -23,10 +27,19 @@ import org.springframework.context.annotation.Configuration;
  *   degli eventi a cui sono interessati
  */
 @Configuration
+@EnableAsync
 public class RabbitMQConfig {
 
     // Nome dell'exchange su cui questo servizio pubblica tutti gli eventi
     public static final String EXCHANGE = "utenti.events";
+    public static final String ROUTING_KEY_GRUPPO_CREATO = "gruppo.creato";
+    public static final String ROUTING_KEY_GRUPPO_ACCESSO = "gruppo.accesso";
+    public static final String ROUTING_KEY_GRUPPO_AGGIORNATO = "gruppo.aggiornato";
+    public static final String ROUTING_KEY_GRUPPO_UTENTE_AGGIUNTO = "gruppo.utente.aggiunto";
+    public static final String ROUTING_KEY_GRUPPO_UTENTE_RIMOSSO = "gruppo.utente.rimosso";
+    public static final String ROUTING_KEY_UTENTE_CREATO = "utente.creato";
+    public static final String ROUTING_KEY_UTENTE_ACCESSO = "utente.accesso";
+    public static final String ROUTING_KEY_UTENTE_AGGIORNATO = "utente.aggiornato";
 
     // Routing key per l'evento "un gruppo è stato eliminato"
     // Usata da location-service per pulire le postazioni assegnate al gruppo
@@ -60,5 +73,16 @@ public class RabbitMQConfig {
         RabbitTemplate template = new RabbitTemplate(connectionFactory);
         template.setMessageConverter(messageConverter());
         return template;
+    }
+
+    @Bean(name = "rabbitEventExecutor")
+    public Executor rabbitEventExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setThreadNamePrefix("rabbit-event-");
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(100);
+        executor.initialize();
+        return executor;
     }
 }

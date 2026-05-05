@@ -16,10 +16,26 @@
   </div>
 
   <div class="login-side">
-    <div class="login-card">
-      <h2>Accedi</h2>
-      <p class="login-subtitle">Inserisci le tue credenziali aziendali</p>
+    <div class="login-card" [class.register-card]="mode === 'register'">
+      <div class="auth-tabs" aria-label="Accesso o registrazione">
+        <button type="button" [class.active]="mode === 'login'" (click)="showLogin()">Accedi</button>
+        <button type="button" [class.active]="mode === 'register'" (click)="showRegister()">Registrati</button>
+      </div>
 
+      <h2>{{ mode === 'login' ? 'Accedi' : 'Registrazione' }}</h2>
+      <p class="login-subtitle">
+        {{
+          mode === 'login'
+            ? 'Inserisci le tue credenziali aziendali'
+            : 'Crea la richiesta di accesso con ruolo Guest'
+        }}
+      </p>
+
+      @if (message) {
+        <div class="login-success" role="status">{{ message }}</div>
+      }
+
+      @if (mode === 'login') {
       <form class="login-form" autocomplete="off" (ngSubmit)="login()">
         <div class="form-group">
           <label for="email">Email aziendale</label>
@@ -72,6 +88,88 @@
           <span class="forgot-pwd">Password gestita dall'amministratore</span>
         </div>
       </form>
+      } @else {
+      <form class="login-form" autocomplete="off" (ngSubmit)="register()">
+        <div class="form-group">
+          <label for="registerFullName">Nome completo</label>
+          <input
+            type="text"
+            id="registerFullName"
+            name="register-full-name"
+            class="form-control"
+            placeholder="Nome Cognome"
+            autocomplete="off"
+            [(ngModel)]="registerFullName"
+            maxlength="50"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="registerEmail">Email aziendale</label>
+          <input
+            type="email"
+            id="registerEmail"
+            name="register-email-field"
+            class="form-control"
+            placeholder="nome.cognome@exprivia.com"
+            autocomplete="off"
+            [(ngModel)]="registerEmail"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="registerPassword">Password</label>
+          <span class="password-field">
+            <input
+              [type]="showRegisterPassword ? 'text' : 'password'"
+              id="registerPassword"
+              name="register-password-field"
+              class="form-control"
+              placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;"
+              autocomplete="new-password"
+              [(ngModel)]="registerPassword"
+              minlength="8"
+              required
+            />
+            <button
+              class="password-toggle"
+              type="button"
+              (click)="toggleRegisterPasswordVisibility()"
+              [attr.aria-label]="showRegisterPassword ? 'Nascondi password' : 'Mostra password'"
+              [title]="showRegisterPassword ? 'Nascondi password' : 'Mostra password'"
+            >
+              &#128065;
+            </button>
+          </span>
+        </div>
+
+        @if (error) {
+          <div class="login-error" role="alert">{{ error }}</div>
+        }
+
+        <button type="submit" class="btn btn-primary btn-block" [disabled]="registering">
+          {{ registering ? 'Invio richiesta...' : 'Richiedi registrazione' }}
+        </button>
+
+        <button class="register-link" type="button" (click)="showLogin()">
+          Hai gia un account? Accedi
+        </button>
+      </form>
+      }
     </div>
   </div>
+
+  @if (registrationSuccessOpen) {
+    <div class="success-modal-backdrop" role="presentation">
+      <section class="success-modal" role="dialog" aria-modal="true" aria-labelledby="registrationSuccessTitle">
+        <h2 id="registrationSuccessTitle">Richiesta effettuata con successo</h2>
+        <p>La tua utenza e' stata registrata. Puoi accedere con le credenziali inserite.</p>
+        <button class="btn btn-primary btn-block" type="button" (click)="goToLoginAfterRegistration()">
+          Effettua log-in
+        </button>
+      </section>
+    </div>
+  }
 </div>

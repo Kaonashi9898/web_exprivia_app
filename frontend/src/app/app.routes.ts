@@ -1,7 +1,7 @@
 import { Routes } from '@angular/router';
 import { HomeComponent } from './pages/home/home';
 import { AppShellComponent } from './components/app-shell/app-shell';
-import { authGuard, roleGuard } from './core/auth.guard';
+import { authGuard, publicHomeGuard, roleGuard } from './core/auth.guard';
 import {
   BOOKING_ROLES,
   LOCATION_MANAGEMENT_ROLES,
@@ -10,7 +10,7 @@ import {
 } from './core/role-access';
 
 export const routes: Routes = [
-  { path: '', component: HomeComponent },
+  { path: '', component: HomeComponent, canActivate: [publicHomeGuard] },
   {
     path: '',
     component: AppShellComponent,

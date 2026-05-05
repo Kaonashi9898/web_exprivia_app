@@ -1,8 +1,9 @@
-import { ChangeDetectorRef, Component, computed, inject, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, computed, inject, OnDestroy, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { catchError, forkJoin, map, of, Subscription, switchMap } from 'rxjs';
 import { ApiService } from '../../core/api.service';
-import { DashboardPrenotazione } from '../../core/app.models';
+import { DashboardPrenotazione, PlanimetriaResponse } from '../../core/app.models';
 import { apiErrorMessage } from '../../core/api-error.utils';
 import { AuthService } from '../../core/auth.service';
 import {
@@ -22,7 +23,7 @@ import { BOOKING_ROLES, LOCATION_MANAGEMENT_ROLES, PLAN_EDITOR_ROLES } from '../
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.css',
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, OnDestroy {
   protected readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -31,6 +32,9 @@ export class DashboardComponent implements OnInit {
   bookings: DashboardPrenotazione[] = [];
   bookingsLoading = false;
   bookingsError = '';
+  pendingGuestsCount = 0;
+  planPreviewByPianoId = new Map<number, string>();
+  private planPreviewSubscription: Subscription | null = null;
   deletingBookingId: number | null = null;
   bookingPendingDeletion: DashboardPrenotazione | null = null;
   editingBookingId: number | null = null;
@@ -59,12 +63,19 @@ export class DashboardComponent implements OnInit {
   protected readonly canAccessPlanEditor = computed(() => this.auth.hasAnyRole(PLAN_EDITOR_ROLES));
   protected readonly canAccessLocations = computed(() => this.auth.hasAnyRole(LOCATION_MANAGEMENT_ROLES));
   protected readonly isReception = computed(() => this.auth.hasAnyRole(['RECEPTION']));
+  protected readonly canManageUsers = computed(() => this.auth.hasAnyRole(['ADMIN', 'RECEPTION']));
   protected readonly canBook = computed(() =>
     this.auth.hasAnyRole(BOOKING_ROLES),
   );
 
   ngOnInit(): void {
     this.loadBookings();
+    this.loadPendingGuests();
+  }
+
+  ngOnDestroy(): void {
+    this.planPreviewSubscription?.unsubscribe();
+    this.clearPlanPreviews();
   }
 
   formatDate(value: string): string {
@@ -147,6 +158,10 @@ export class DashboardComponent implements OnInit {
     return booking.tipoRisorsaPrenotata === 'MEETING_ROOM' ? 'Sala riunioni' : 'Postazione';
   }
 
+  planPreviewUrl(booking: DashboardPrenotazione): string {
+    return booking.pianoId ? this.planPreviewByPianoId.get(booking.pianoId) ?? '' : '';
+  }
+
   availableEditStartTimes(): readonly string[] {
     return this.bookingStartOptions.filter((time) => time < this.editEndTime);
   }
@@ -212,13 +227,83 @@ export class DashboardComponent implements OnInit {
             sedeLabel: booking.sedeLabel || 'Sede non disponibile',
             pianoLabel: booking.pianoLabel || 'Piano non disponibile',
           }));
+        this.loadPlanPreviews(this.bookings);
         this.bookingsLoading = false;
         this.cdr.detectChanges();
       },
       error: (err) => {
         this.bookings = [];
+        this.clearPlanPreviews();
         this.bookingsLoading = false;
         this.bookingsError = apiErrorMessage(err, 'Impossibile caricare le prenotazioni.');
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  private loadPlanPreviews(bookings: DashboardPrenotazione[]): void {
+    this.planPreviewSubscription?.unsubscribe();
+    this.clearPlanPreviews();
+
+    const pianoIds = Array.from(new Set(
+      bookings
+        .map((booking) => booking.pianoId)
+        .filter((pianoId): pianoId is number => typeof pianoId === 'number'),
+    ));
+
+    if (!pianoIds.length) {
+      return;
+    }
+
+    this.planPreviewSubscription = forkJoin(
+      pianoIds.map((pianoId) =>
+        this.api.getPlanimetria(pianoId).pipe(
+          switchMap((planimetria) => {
+            if (!planimetria || !this.isPreviewablePlan(planimetria)) {
+              return of({ pianoId, url: '' });
+            }
+            return this.api.getPlanimetriaImage(pianoId).pipe(
+              map((blob) => ({ pianoId, url: URL.createObjectURL(blob) })),
+            );
+          }),
+          catchError(() => of({ pianoId, url: '' })),
+        ),
+      ),
+    ).subscribe({
+      next: (previews) => {
+        this.planPreviewByPianoId = new Map(
+          previews.filter((preview) => preview.url).map((preview) => [preview.pianoId, preview.url]),
+        );
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  private clearPlanPreviews(): void {
+    this.planPreviewByPianoId.forEach((url) => URL.revokeObjectURL(url));
+    this.planPreviewByPianoId = new Map();
+  }
+
+  private isPreviewablePlan(planimetria: PlanimetriaResponse): boolean {
+    const imageName = planimetria.imageName?.toLowerCase() ?? '';
+    return (
+      planimetria.formatoOriginale !== 'DXF'
+      && planimetria.formatoOriginale !== 'DWG'
+    ) || /\.(svg|png|jpg|jpeg)$/.test(imageName);
+  }
+
+  private loadPendingGuests(): void {
+    if (!this.canManageUsers()) {
+      return;
+    }
+
+    this.api.listUsers().subscribe({
+      next: (users) => {
+        this.pendingGuestsCount = users.filter((user) => user.ruolo === 'GUEST').length;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.pendingGuestsCount = 0;
         this.cdr.detectChanges();
       },
     });

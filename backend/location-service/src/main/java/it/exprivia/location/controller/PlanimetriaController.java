@@ -62,8 +62,9 @@ public class PlanimetriaController {
     /** Carica l'immagine base della planimetria (png, jpg/jpeg, svg). */
     @PostMapping(path = "/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<PlanimetriaResponse> uploadImage(@PathVariable Long pianoId,
-                                                           @RequestParam("file") MultipartFile file) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(planimetriaService.uploadImage(pianoId, file));
+                                                           @RequestParam("file") MultipartFile file,
+                                                           @RequestParam(value = "previewSvg", required = false) MultipartFile previewSvg) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(planimetriaService.uploadImage(pianoId, file, previewSvg));
     }
 
     /** Importa il JSON esportato dall'editor esterno e sincronizza room, meeting room e postazioni. */

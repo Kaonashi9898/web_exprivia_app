@@ -18,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.springframework.http.HttpStatus.FORBIDDEN;
@@ -34,10 +35,12 @@ public class UtenteService {
     private final GruppoEventPublisher gruppoEventPublisher;
     private final PasswordEncoder passwordEncoder;
 
-    public List<UtenteDTO> findAll() {
-        return utenteRepository.findAll().stream()
+    public List<UtenteDTO> findAll(String actorEmail) {
+        List<UtenteDTO> utenti = utenteRepository.findAll().stream()
                 .map(this::toDTO)
                 .toList();
+        utenti.forEach(utente -> gruppoEventPublisher.pubblicaAccessoUtente(utente, normalizeEmail(actorEmail)));
+        return utenti;
     }
 
     public UtenteDTO create(RegisterRequest request, String operatorEmail) {
@@ -55,20 +58,26 @@ public class UtenteService {
         utente.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         utente.setRuolo(ruoloRichiesto);
 
-        return toDTO(utenteRepository.save(utente));
+        UtenteDTO dto = toDTO(utenteRepository.save(utente));
+        gruppoEventPublisher.pubblicaCreazioneUtente(dto, normalizeEmail(operatorEmail));
+        return dto;
     }
 
-    public UtenteDTO findByEmail(String email) {
+    public UtenteDTO findByEmail(String email, String actorEmail) {
         String normalizedEmail = normalizeEmail(email);
         Utente utente = utenteRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new EntityNotFoundException("Utente non trovato con email: " + normalizedEmail));
-        return toDTO(utente);
+        UtenteDTO dto = toDTO(utente);
+        gruppoEventPublisher.pubblicaAccessoUtente(dto, normalizeEmail(actorEmail));
+        return dto;
     }
 
-    public UtenteDTO findById(Long id) {
+    public UtenteDTO findById(Long id, String actorEmail) {
         Utente utente = utenteRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Utente non trovato con id: " + id));
-        return toDTO(utente);
+        UtenteDTO dto = toDTO(utente);
+        gruppoEventPublisher.pubblicaAccessoUtente(dto, normalizeEmail(actorEmail));
+        return dto;
     }
 
     public UtenteDTO update(Long id, UtenteDTO dto, String operatorEmail) {
@@ -82,17 +91,22 @@ public class UtenteService {
         }
         utente.setFullName(dto.getFullName());
         utente.setEmail(normalizedEmail);
-        return toDTO(utenteRepository.save(utente));
+        UtenteDTO updated = toDTO(utenteRepository.save(utente));
+        gruppoEventPublisher.pubblicaAggiornamentoUtente(updated, normalizeEmail(operatorEmail));
+        return updated;
     }
 
     public UtenteDTO updateRole(Long id, RuoloUtente ruolo, String operatorEmail) {
         Utente operatore = getOperatore(operatorEmail);
         Utente utente = utenteRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Utente non trovato con id: " + id));
+        ensureOperatoreNonStaGestendoSeStesso(operatore, utente, "Non puoi modificare il tuo ruolo");
         ensureOperatorePuoGestireTarget(operatore, utente);
         ensureOperatorePuoAssegnareRuolo(operatore, ruolo);
         utente.setRuolo(ruolo);
-        return toDTO(utenteRepository.save(utente));
+        UtenteDTO updated = toDTO(utenteRepository.save(utente));
+        gruppoEventPublisher.pubblicaAggiornamentoUtente(updated, normalizeEmail(operatorEmail));
+        return updated;
     }
 
     @Transactional
@@ -100,6 +114,7 @@ public class UtenteService {
         Utente operatore = getOperatore(operatorEmail);
         Utente utente = utenteRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Utente non trovato con id: " + id));
+        ensureOperatoreNonStaGestendoSeStesso(operatore, utente, "Non puoi eliminare il tuo account");
         ensureOperatorePuoGestireTarget(operatore, utente);
         gruppoUtenteRepository.deleteByIdUtente(id);
         utenteRepository.deleteById(id);
@@ -148,6 +163,15 @@ public class UtenteService {
                     FORBIDDEN,
                     "RECEPTION puo' gestire solo utenti con ruolo USER o GUEST"
             );
+        }
+    }
+
+    private void ensureOperatoreNonStaGestendoSeStesso(Utente operatore, Utente target, String message) {
+        if (operatore.getId() != null && operatore.getId().equals(target.getId())) {
+            throw new ResponseStatusException(FORBIDDEN, message);
+        }
+        if (Objects.equals(normalizeEmail(operatore.getEmail()), normalizeEmail(target.getEmail()))) {
+            throw new ResponseStatusException(FORBIDDEN, message);
         }
     }
 

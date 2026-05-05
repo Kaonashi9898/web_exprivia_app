@@ -6,6 +6,9 @@ import { AuthService } from '../../core/auth.service';
 import { Gruppo, RegisterRequest, RuoloUtente, Utente } from '../../core/app.models';
 import { apiErrorMessage } from '../../core/api-error.utils';
 
+const DOMAIN_ERROR = 'Dominio non autorizzato. Utilizzare esclusivamente un indirizzo @exprivia.com';
+const EXPRIVIA_EMAIL_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*@exprivia\.com$/i;
+
 type UserFilter = 'all' | RuoloUtente | `group:${number}`;
 
 interface UserWithGroups extends Utente {
@@ -133,9 +136,22 @@ export class UsersComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const email = this.form.email.trim();
+    if (!EXPRIVIA_EMAIL_PATTERN.test(email)) {
+      this.error = DOMAIN_ERROR;
+      this.message = '';
+      this.refreshView();
+      return;
+    }
+
     this.saving = true;
     this.error = '';
     this.message = '';
+    this.form = {
+      ...this.form,
+      fullName: this.form.fullName.trim(),
+      email,
+    };
 
     this.scheduleCreateRefresh();
     this.api
@@ -185,6 +201,26 @@ export class UsersComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.error = apiErrorMessage(err, 'Aggiornamento ruolo non riuscito.');
+        this.refreshView();
+      },
+    });
+  }
+
+  approveGuest(user: Utente): void {
+    if (!this.canApproveGuest(user)) {
+      this.error = 'Non sei autorizzato ad approvare questa richiesta.';
+      this.refreshView();
+      return;
+    }
+
+    this.api.updateUserRole(user.id, 'USER').subscribe({
+      next: (updated) => {
+        this.users = this.users.map((item) => (item.id === updated.id ? { ...item, ...updated } : item));
+        this.message = "Richiesta approvata. L'utente ora ha ruolo USER.";
+        this.refreshView();
+      },
+      error: (err) => {
+        this.error = apiErrorMessage(err, 'Approvazione richiesta non riuscita.');
         this.refreshView();
       },
     });
@@ -448,15 +484,25 @@ export class UsersComponent implements OnInit, OnDestroy {
   }
 
   canEditRole(user: Utente): boolean {
+    if (this.isCurrentUser(user)) {
+      return false;
+    }
     return this.isAdmin() || (this.isReception() && this.isReceptionManageableRole(user.ruolo));
   }
 
   canDeleteUser(user: Utente): boolean {
+    if (this.isCurrentUser(user)) {
+      return false;
+    }
     return this.isAdmin() || (this.isReception() && this.isReceptionManageableRole(user.ruolo));
   }
 
   canManageGroups(user: Utente): boolean {
     return this.isAdmin() || (this.isReception() && this.isReceptionManageableRole(user.ruolo));
+  }
+
+  canApproveGuest(user: Utente): boolean {
+    return user.ruolo === 'GUEST' && this.canEditRole(user) && this.availableRoleOptionsForUser(user).includes('USER');
   }
 
   isGroupAssignedToSelectedUser(groupId: number): boolean {
@@ -571,6 +617,11 @@ export class UsersComponent implements OnInit, OnDestroy {
 
   private isReceptionManageableRole(role: RuoloUtente): boolean {
     return role === 'USER' || role === 'GUEST';
+  }
+
+  private isCurrentUser(user: Utente): boolean {
+    const currentUser = this.auth.currentUser();
+    return !!currentUser?.email && currentUser.email.toLowerCase() === user.email.toLowerCase();
   }
 
   private refreshView(): void {
