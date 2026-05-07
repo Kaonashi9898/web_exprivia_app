@@ -17,7 +17,7 @@
         <svg viewBox="0 0 24 24"><path d="M7 3v3M17 3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v12H4V7a2 2 0 0 1 2-2z" /></svg>
       </span>
       <strong>Prenota postazione</strong>
-      <span>Scrivanie, sale e storico personale.</span>
+      <span>Postazioni e sale riunioni</span>
     </a>
   }
 
@@ -27,7 +27,7 @@
         <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6" /></svg>
       </span>
       <strong>{{ pendingGuestsCount ? pendingGuestsCount + ' richieste in sospeso' : 'Gestisci utenze' }}</strong>
-      <span>Approva registrazioni e assegna ruoli.</span>
+      <span>Approva registrazioni e assegna ruoli</span>
     </a>
   }
 
@@ -37,7 +37,7 @@
         <svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l8-4 6 4v14M9 21v-7h4v7M9 9h.01M13 9h.01M17 9h.01M17 13h.01" /></svg>
       </span>
       <strong>Sedi e postazioni</strong>
-      <span>Consultazione planimetrie e desk.</span>
+      <span>Gestione e monitoraggio delle sedi</span>
     </a>
   }
 
@@ -47,7 +47,7 @@
         <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 5v14M16 5v14M4 12h16" /></svg>
       </span>
       <strong>Editor planimetria</strong>
-      <span>Import immagine e layout del piano.</span>
+      <span>Gestione e modifica delle planimetrie</span>
     </a>
   }
 
@@ -75,96 +75,130 @@
       <div class="notice error">{{ editError }}</div>
     }
 
-    <div class="booking-cards">
-      @for (booking of visibleBookings(); track booking.id) {
-        <article class="booking-card">
-          <div class="booking-plan-preview">
-            @if (planPreviewUrl(booking)) {
-              <img [src]="planPreviewUrl(booking)" alt="Anteprima planimetria" />
-            } @else {
-              <span>{{ bookingResourceTypeLabel(booking).slice(0, 1) }}</span>
-            }
-          </div>
-          <div>
-            <strong>{{ booking.stanzaNome }}</strong>
-            <span>{{ booking.pianoLabel }}</span>
-            <span>{{ bookingResourceTypeLabel(booking) }}: {{ bookingResourceLabel(booking) }}</span>
-          </div>
-          <div>
-            <span>Sede</span>
-            <strong>{{ booking.sedeLabel }}</strong>
-          </div>
-          <div>
-            <span>Quando</span>
-            <strong>{{ formatDate(booking.dataPrenotazione) }}</strong>
-          </div>
-          <div>
-            <span>Orario</span>
-            <strong>{{ booking.oraInizio }} - {{ booking.oraFine }}</strong>
-          </div>
-          <div class="booking-actions">
-            @if (editingBookingId === booking.id) {
-              <div class="edit-grid">
-                <label>
-                  Data
-                  <input type="date" [(ngModel)]="editBookingDate" [min]="minBookingDate" />
-                </label>
-                <label>
-                  Inizio
-                  <select [(ngModel)]="editStartTime" (ngModelChange)="onEditTimeChange()">
-                    @for (time of availableEditStartTimes(); track time) {
-                      <option [ngValue]="time">{{ time }}</option>
-                    }
-                  </select>
-                </label>
-                <label>
-                  Fine
-                  <select [(ngModel)]="editEndTime" (ngModelChange)="onEditTimeChange()">
-                    @for (time of availableEditEndTimes(); track time) {
-                      <option [ngValue]="time">{{ time }}</option>
-                    }
-                  </select>
-                </label>
-              </div>
-              <button
-                class="btn btn-primary"
-                type="button"
-                [disabled]="savingBookingId === booking.id"
-                (click)="saveEdit(booking)"
-              >
-                {{ savingBookingId === booking.id ? 'Salvataggio...' : 'Salva modifica' }}
-              </button>
-              <button class="ghost-button" type="button" [disabled]="savingBookingId === booking.id" (click)="cancelEdit()">
-                Annulla
-              </button>
-            } @else {
-              <button
-                class="ghost-button"
-                type="button"
-                [disabled]="!canEditBooking(booking)"
-                (click)="startEdit(booking)"
-              >
-                Modifica
-              </button>
-            }
-
-              <button
-                class="danger-button"
-                type="button"
-                [disabled]="deletingBookingId === booking.id || savingBookingId === booking.id"
-                (click)="askCancelBooking(booking)"
-              >
-                {{ deletingBookingId === booking.id ? 'Eliminazione...' : 'Elimina' }}
-              </button>
-          </div>
-        </article>
-      }
+    <div class="booking-switch" role="tablist" aria-label="Filtro prenotazioni dashboard">
+      <button
+        type="button"
+        class="booking-switch-button"
+        [class.active]="showingFutureBookings()"
+        [attr.aria-selected]="showingFutureBookings()"
+        (click)="selectFutureBookings()"
+      >
+        Prenotazioni future
+        <span class="booking-switch-count">{{ futureBookings.length }}</span>
+      </button>
+      <button
+        type="button"
+        class="booking-switch-button"
+        [class.active]="showingPastBookings()"
+        [attr.aria-selected]="showingPastBookings()"
+        (click)="selectPastBookings()"
+      >
+        Prenotazioni passate
+        <span class="booking-switch-count">{{ pastBookings.length }}</span>
+      </button>
     </div>
 
-    @if (hasHiddenBookings()) {
-      <button class="ghost-button show-all-bookings-button" type="button" (click)="showAllBookingsList()">
-        Mostra tutte le prenotazioni
-      </button>
+    <div class="booking-group-header">
+      <div>
+        <h3>{{ visibleBookingsTitle() }}</h3>
+      </div>
+      <span class="booking-group-count">{{ visibleBookingsCount() }}</span>
+    </div>
+
+    @if (visibleBookings().length) {
+      <div class="booking-cards">
+        @for (booking of visibleBookings(); track booking.id) {
+          <article class="booking-card" [class.readonly]="isPastBooking(booking)">
+            <div class="booking-plan-preview">
+              @if (planPreviewUrl(booking)) {
+                <img [src]="planPreviewUrl(booking)" alt="Anteprima planimetria" />
+              } @else {
+                <span>{{ bookingResourceTypeLabel(booking).slice(0, 1) }}</span>
+              }
+            </div>
+            <div>
+              <strong>{{ booking.stanzaNome }}</strong>
+              <span>{{ booking.pianoLabel }}</span>
+              <span>{{ bookingResourceTypeLabel(booking) }}: {{ bookingResourceLabel(booking) }}</span>
+            </div>
+            <div>
+              <span>Sede</span>
+              <strong>{{ booking.sedeLabel }}</strong>
+            </div>
+            <div>
+              <span>Quando</span>
+              <strong>{{ formatDate(booking.dataPrenotazione) }}</strong>
+            </div>
+            <div>
+              <span>Orario</span>
+              <strong>{{ booking.oraInizio }} - {{ booking.oraFine }}</strong>
+            </div>
+            <div class="booking-actions">
+              @if (!isPastBooking(booking)) {
+                @if (editingBookingId === booking.id) {
+                  <div class="edit-grid">
+                    <label>
+                      Data
+                      <input type="date" [(ngModel)]="editBookingDate" [min]="minBookingDate" />
+                    </label>
+                    <label>
+                      Inizio
+                      <select [(ngModel)]="editStartTime" (ngModelChange)="onEditTimeChange()">
+                        @for (time of availableEditStartTimes(); track time) {
+                          <option [ngValue]="time">{{ time }}</option>
+                        }
+                      </select>
+                    </label>
+                    <label>
+                      Fine
+                      <select [(ngModel)]="editEndTime" (ngModelChange)="onEditTimeChange()">
+                        @for (time of availableEditEndTimes(); track time) {
+                          <option [ngValue]="time">{{ time }}</option>
+                        }
+                      </select>
+                    </label>
+                  </div>
+                  <button
+                    class="btn btn-primary"
+                    type="button"
+                    [disabled]="savingBookingId === booking.id"
+                    (click)="saveEdit(booking)"
+                  >
+                    {{ savingBookingId === booking.id ? 'Salvataggio...' : 'Salva modifica' }}
+                  </button>
+                  <button class="ghost-button" type="button" [disabled]="savingBookingId === booking.id" (click)="cancelEdit()">
+                    Annulla
+                  </button>
+                } @else {
+                  <button
+                    class="ghost-button"
+                    type="button"
+                    [disabled]="!canEditBooking(booking)"
+                    (click)="startEdit(booking)"
+                  >
+                    Modifica
+                  </button>
+                }
+
+                <button
+                  class="danger-button"
+                  type="button"
+                  [disabled]="deletingBookingId === booking.id || savingBookingId === booking.id"
+                  (click)="askCancelBooking(booking)"
+                >
+                  {{ deletingBookingId === booking.id ? 'Eliminazione...' : 'Elimina' }}
+                </button>
+              } @else {
+                <span class="booking-readonly-label">Solo consultazione</span>
+              }
+            </div>
+          </article>
+        }
+      </div>
+    } @else {
+      <p class="booking-empty-state">
+        {{ showingFutureBookings() ? 'Nessuna prenotazione futura.' : 'Nessuna prenotazione passata.' }}
+      </p>
     }
   </section>
 } @else if (bookingsError) {

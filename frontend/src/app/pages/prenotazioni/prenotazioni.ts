@@ -650,7 +650,7 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
     this.refreshView();
   }
 
-  selectedRoomStyle(): Record<string, string> {
+  public selectedRoomStyle(): Record<string, string> {
     const zoomInput = this.selectedRoomZoomInput();
     if (!zoomInput) {
       return {};
@@ -659,7 +659,7 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
     return roomZoomStyle(zoomInput);
   }
 
-  stationOverlayStyle(station: PositionedStation): Record<string, string> {
+  public stationOverlayStyle(station: PositionedStation): Record<string, string> {
     const zoomInput = this.selectedRoomZoomInput();
     if (!zoomInput) {
       return {
