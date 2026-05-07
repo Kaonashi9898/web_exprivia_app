@@ -83,18 +83,6 @@
 
     <div class="upload-row">
       <input type="file" accept="image/png,image/jpeg,image/svg+xml,.dxf,.dwg" (change)="setImageFile($event)" title="Seleziona il file della planimetria (SVG, PNG, JPG, DXF o DWG)" />
-      <label>
-        Rinomina file
-        <input
-          name="planFileName"
-          placeholder="es. piano-1"
-          [(ngModel)]="planFileName"
-          [disabled]="!imageFile"
-        />
-      </label>
-      <button class="ghost-button wide" type="button" [disabled]="!imageFile || !planFileName.trim()" (click)="renameImageFile()">
-        Rinomina file
-      </button>
       <button class="btn btn-primary" type="button" [disabled]="!selectedPianoId || !imageFile" (click)="uploadImage()">
         Carica planimetria
       </button>
@@ -137,14 +125,14 @@
     <div class="panel-header"><h2>Anteprima</h2></div>
 
     @if (imageSrc) {
-      <div class="plan-preview">
+      <div class="plan-preview" #planPreview [class.zoomed]="selectedRoomId">
         @if (selectedRoomId) {
           <button class="reset-zoom-button" type="button" (click)="resetZoom()">
             Vista completa
           </button>
         }
-        <div class="plan-stage" [class.zoomed]="selectedRoomId" [ngStyle]="selectedRoomStyle()">
-          <img [src]="imageSrc" alt="Planimetria del piano" />
+        <div class="plan-stage" #planStage [class.zoomed]="selectedRoomId" [ngStyle]="selectedRoomStyle()">
+          <img [src]="imageSrc" alt="Planimetria del piano" (load)="onPlanImageLoad()" />
 
           @if (!selectedRoomId) {
             @for (room of visibleRooms(); track room.id) {

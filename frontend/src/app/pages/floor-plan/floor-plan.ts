@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, inject, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, inject, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { NgStyle } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { catchError, forkJoin, map, of, Subscription } from 'rxjs';
@@ -7,6 +7,7 @@ import { Edificio, Piano, PlanimetriaLayout, PlanimetriaResponse, Sede } from '.
 import { apiErrorMessage } from '../../core/api-error.utils';
 import { environment } from '../../../environments/environment';
 import { DxfConverterService } from '../../core/dxf-converter.service';
+import { roomZoomStyle } from '../../core/plan-zoom.utils';
 
 const EXPRIVIA_ITALIA_SEDI: Sede[] = [];
 
@@ -24,6 +25,9 @@ type PositionedStation = LayoutStation & { position: { xPct: number; yPct: numbe
   styleUrl: './floor-plan.css',
 })
 export class FloorPlanComponent implements OnInit, OnDestroy {
+  @ViewChild('planPreview') private planPreview?: ElementRef<HTMLElement>;
+  @ViewChild('planStage') private planStage?: ElementRef<HTMLElement>;
+
   private readonly api = inject(ApiService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly dxfConverter = inject(DxfConverterService);
@@ -55,8 +59,6 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
   imageSrc = '';
   imageFile: File | null = null;
   imagePreviewFile: File | null = null;
-  planFileName = '';
-  imageFileRenamed = false;
   jsonFile: File | null = null;
   message = '';
   error = '';
@@ -155,8 +157,6 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
   setImageFile(event: Event): void {
     this.imageFile = (event.target as HTMLInputElement).files?.[0] ?? null;
     this.imagePreviewFile = null;
-    this.planFileName = this.imageFile ? this.stripExtension(this.imageFile.name) : '';
-    this.imageFileRenamed = false;
     this.refreshView();
   }
 
@@ -186,21 +186,6 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
 
     this.imageSrc = URL.createObjectURL(this.imageFile);
     this.message = 'Planimetria caricata in anteprima. Premi "Salva planimetria" per salvarla nel database.';
-    this.refreshView();
-  }
-
-  renameImageFile(): void {
-    if (!this.imageFile || !this.planFileName.trim()) {
-      return;
-    }
-
-    const extension = this.getExtension(this.imageFile.name);
-    const safeName = this.planFileName.trim().replace(/[^a-zA-Z0-9-_ ]/g, '-').replace(/\s+/g, ' ');
-    this.imageFile = new File([this.imageFile], `${safeName}.${extension}`, { type: this.imageFile.type });
-    this.imagePreviewFile = null;
-    this.imageFileRenamed = true;
-    this.message = `File rinominato in ${this.imageFile.name}.`;
-    this.error = '';
     this.refreshView();
   }
 
@@ -266,8 +251,6 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
       this.saveSubscription = this.api.uploadPlanimetriaImage(this.selectedPianoId, this.imageFile, this.imagePreviewFile).subscribe({
         next: () => {
           this.pianiConPlanimetria.set(this.selectedPianoId!, true);
-          this.planFileName = '';
-          this.imageFileRenamed = false;
           this.imageFile = null;
           this.imagePreviewFile = null;
 
@@ -383,11 +366,17 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
 
   selectRoom(room: DisplayRoom): void {
     this.selectedRoomId = room.id;
+    this.resetPlanPreviewScroll();
     this.refreshView();
   }
 
   resetZoom(): void {
     this.selectedRoomId = null;
+    this.resetPlanPreviewScroll();
+    this.refreshView();
+  }
+
+  onPlanImageLoad(): void {
     this.refreshView();
   }
 
@@ -423,10 +412,16 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
       return {};
     }
 
-    return {
-      transform: 'scale(2.15)',
-      transformOrigin: `${room.position.xPct}% ${room.position.yPct}%`,
-    };
+    return roomZoomStyle({
+      roomPosition: room.position,
+      stationPositions: this.stationsForRoom(room.id)
+        .filter((station): station is PositionedStation => !!station.position)
+        .map((station) => station.position),
+      viewportWidth: this.planPreview?.nativeElement.clientWidth ?? 0,
+      viewportHeight: this.planPreview?.nativeElement.clientHeight ?? 0,
+      stageWidth: this.planStage?.nativeElement.offsetWidth ?? 0,
+      stageHeight: this.planStage?.nativeElement.offsetHeight ?? 0,
+    });
   }
 
   currentStep(): 1 | 2 | 3 {
@@ -504,10 +499,21 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
     this.selectedRoomId = null;
     this.imageFile = null;
     this.imagePreviewFile = null;
-    this.planFileName = '';
-    this.imageFileRenamed = false;
     this.jsonFile = null;
     this.revokeImageUrl();
+  }
+
+  private stationsForRoom(roomId: string): LayoutStation[] {
+    return (this.layout?.stations ?? []).filter((station) => station.roomId === roomId);
+  }
+
+  private resetPlanPreviewScroll(): void {
+    const preview = this.planPreview?.nativeElement;
+    if (!preview) {
+      return;
+    }
+    preview.scrollLeft = 0;
+    preview.scrollTop = 0;
   }
 
   private hasImageLoaded(): boolean {
@@ -642,8 +648,6 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
     this.importSubscription?.unsubscribe();
     this.importSubscription = this.api.importPlanimetriaJson(pianoId, this.jsonFile).subscribe({
       next: () => {
-        this.planFileName = '';
-        this.imageFileRenamed = false;
         this.imageFile = null;
         this.jsonFile = null;
         this.message = 'Planimetria e layout salvati correttamente.';

@@ -50,6 +50,10 @@ export class ApiService {
     return this.http.get<Gruppo[]>(`${UTENTI_API}/api/gruppi`);
   }
 
+  listMyGroups() {
+    return this.http.get<Gruppo[]>(`${UTENTI_API}/api/gruppi/me`);
+  }
+
   createGroup(nome: string) {
     const params = new HttpParams().set('nome', nome);
     return this.http.post<Gruppo>(`${UTENTI_API}/api/gruppi`, null, { params });

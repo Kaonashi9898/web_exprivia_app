@@ -116,6 +116,10 @@
   border-radius: var(--radius-sm);
 }
 
+.plan-preview.zoomed {
+  overflow: hidden;
+}
+
 .reset-zoom-button {
   position: sticky;
   top: 0.75rem;
@@ -140,6 +144,7 @@
   position: relative;
   min-width: 100%;
   transition: transform 220ms ease, transform-origin 220ms ease;
+  will-change: transform;
 }
 
 .plan-stage img {
@@ -175,8 +180,9 @@
 .station-pin {
   position: absolute;
   transform: translate(-50%, -50%);
-  max-width: 68px;
-  padding: 0.1rem 0.2rem;
+  min-width: 46px;
+  max-width: 86px;
+  padding: 0.16rem 0.28rem;
   overflow: hidden;
   color: #ffffff;
   text-overflow: ellipsis;
@@ -184,14 +190,14 @@
   background: #08715f;
   border: 1px solid #0d5d50;
   border-radius: 4px;
-  font-size: 0.48rem;
-  font-weight: 700;
+  font-size: 0.58rem;
+  font-weight: 800;
   line-height: 1.1;
   box-shadow: 0 6px 14px rgba(0, 49, 77, 0.14);
 }
 
 .plan-stage.zoomed .station-pin {
-  transform: translate(-50%, -50%) scale(0.5);
+  transform: translate(-50%, -50%) scale(var(--station-pin-counter-scale, 0.58));
 }
 
 .muted {

@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, inject, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, inject, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { NgStyle } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin, Observable, of, Subscription, switchMap, map } from 'rxjs';
@@ -17,6 +17,7 @@ import {
 } from '../../core/booking-time.utils';
 import { isWeekendIsoDate, nextBookableIsoDate } from '../../core/date.utils';
 import { OPERATIONAL_BOOKING_ROLES } from '../../core/role-access';
+import { roomZoomStyle } from '../../core/plan-zoom.utils';
 
 type LayoutRoom = NonNullable<PlanimetriaLayout['rooms']>[number];
 type LayoutMeeting = NonNullable<PlanimetriaLayout['meetings']>[number];
@@ -32,6 +33,9 @@ type PositionedStation = LayoutStation & { position: { xPct: number; yPct: numbe
   styleUrl: './locations.css',
 })
 export class LocationsComponent implements OnInit, OnDestroy {
+  @ViewChild('planPreview') private planPreview?: ElementRef<HTMLElement>;
+  @ViewChild('planStage') private planStage?: ElementRef<HTMLElement>;
+
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -42,6 +46,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
   private imageSubscription: Subscription | null = null;
   private layoutSubscription: Subscription | null = null;
   private seatsSubscription: Subscription | null = null;
+  private userGroupsSubscription: Subscription | null = null;
   private bookingsSubscription: Subscription | null = null;
   private createBookingSubscription: Subscription | null = null;
   private currentPlanRequestId = 0;
@@ -54,6 +59,8 @@ export class LocationsComponent implements OnInit, OnDestroy {
   meetingRooms: Stanza[] = [];
   postazioni: Postazione[] = [];
   bookings: Prenotazione[] = [];
+  seatGroupIdsBySeatId: Record<number, number[]> = {};
+  currentUserGroupIds = new Set<number>();
   selectedSedeId: number | null = null;
   selectedEdificioId: number | null = null;
   selectedPianoId: number | null = null;
@@ -83,6 +90,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
   lockedBookingDate: string | null = null;
 
   ngOnInit(): void {
+    this.loadCurrentUserGroups();
     this.sediLoading = true;
     this.sediSubscription?.unsubscribe();
     this.sediSubscription = this.api.listSedi().subscribe({
@@ -107,6 +115,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
     this.imageSubscription?.unsubscribe();
     this.layoutSubscription?.unsubscribe();
     this.seatsSubscription?.unsubscribe();
+    this.userGroupsSubscription?.unsubscribe();
     this.bookingsSubscription?.unsubscribe();
     this.createBookingSubscription?.unsubscribe();
     this.revokeImageUrl();
@@ -172,10 +181,15 @@ export class LocationsComponent implements OnInit, OnDestroy {
   }
 
   selectRoom(room: DisplayRoom): void {
+    if (this.roomIsRestricted(room)) {
+      return;
+    }
+
     this.selectedRoomId = room.id;
     this.selectedStation = null;
     this.selectedPostazione = null;
     this.selectedMeetingRoom = this.roomIsMeeting(room) ? this.findStanzaForRoom(room) : null;
+    this.resetPlanPreviewScroll();
     this.suggestedStartTime = this.findSuggestedStartTimeForSelectedResource();
     this.normalizeSelectableTimesForCurrentResource();
     this.updateOverlapMessage();
@@ -187,12 +201,17 @@ export class LocationsComponent implements OnInit, OnDestroy {
     this.selectedStation = null;
     this.selectedPostazione = null;
     this.selectedMeetingRoom = null;
+    this.resetPlanPreviewScroll();
+    this.refreshView();
+  }
+
+  onPlanImageLoad(): void {
     this.refreshView();
   }
 
   selectStation(station: LayoutStation): void {
     const postazione = this.findPostazione(station);
-    if (!postazione || postazione.stato !== 'DISPONIBILE') {
+    if (!postazione || postazione.stato !== 'DISPONIBILE' || !this.postazioneIsAccessible(postazione)) {
       return;
     }
 
@@ -289,6 +308,33 @@ export class LocationsComponent implements OnInit, OnDestroy {
     return stations.filter((station) => station.roomId === this.selectedRoomId);
   }
 
+  private stationsForRoom(roomId: string): LayoutStation[] {
+    return (this.layout?.stations ?? []).filter((station) => station.roomId === roomId);
+  }
+
+  private resetPlanPreviewScroll(): void {
+    const preview = this.planPreview?.nativeElement;
+    if (!preview) {
+      return;
+    }
+    preview.scrollLeft = 0;
+    preview.scrollTop = 0;
+  }
+
+  private loadCurrentUserGroups(): void {
+    this.userGroupsSubscription?.unsubscribe();
+    this.userGroupsSubscription = this.api.listMyGroups().subscribe({
+      next: (groups) => {
+        this.currentUserGroupIds = new Set(groups.map((group) => group.id));
+        this.refreshView();
+      },
+      error: () => {
+        this.currentUserGroupIds = new Set();
+        this.refreshView();
+      },
+    });
+  }
+
   selectedRoomLabel(): string {
     return this.roomsForDisplay().find((room) => room.id === this.selectedRoomId)?.label ?? 'Seleziona una stanza';
   }
@@ -323,6 +369,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
     const postazione = this.findPostazione(station);
     return !!postazione
       && postazione.stato === 'DISPONIBILE'
+      && this.postazioneIsAccessible(postazione)
       && this.bookingsAreReady()
       && this.hasValidBookingWindow()
       && !this.stationHasOverlap(station);
@@ -330,7 +377,15 @@ export class LocationsComponent implements OnInit, OnDestroy {
 
   stationIsUnavailable(station: LayoutStation): boolean {
     const postazione = this.findPostazione(station);
-    return !postazione || postazione.stato !== 'DISPONIBILE' || !this.bookingsAreReady();
+    return !postazione
+      || postazione.stato !== 'DISPONIBILE'
+      || !this.postazioneIsAccessible(postazione)
+      || !this.bookingsAreReady();
+  }
+
+  stationIsRestricted(station: LayoutStation): boolean {
+    const postazione = this.findPostazione(station);
+    return !!postazione && !this.postazioneIsAccessible(postazione);
   }
 
   stationIsPartiallyBooked(station: LayoutStation): boolean {
@@ -345,7 +400,27 @@ export class LocationsComponent implements OnInit, OnDestroy {
     return (this.layout?.meetings ?? []).some((meeting) => meeting.id === room.id);
   }
 
+  roomIsRestricted(room: DisplayRoom): boolean {
+    if (this.roomIsMeeting(room)) {
+      return false;
+    }
+
+    const roomStations = this.stationsForRoom(room.id);
+    if (!roomStations.length) {
+      return true;
+    }
+
+    return !roomStations.some((station) => {
+      const postazione = this.findPostazione(station);
+      return !!postazione && this.postazioneIsAccessible(postazione);
+    });
+  }
+
   roomPinTooltip(room: DisplayRoom): string {
+    if (this.roomIsRestricted(room)) {
+      return 'Nessuna postazione accessibile per i tuoi gruppi';
+    }
+
     if (!this.roomIsMeeting(room)) {
       return room.label;
     }
@@ -376,6 +451,15 @@ export class LocationsComponent implements OnInit, OnDestroy {
     }
 
     return stanza.nome;
+  }
+
+  private postazioneIsAccessible(postazione: Postazione): boolean {
+    const groupIds = this.seatGroupIdsBySeatId[postazione.id] ?? [];
+    if (!groupIds.length) {
+      return true;
+    }
+
+    return groupIds.some((groupId) => this.currentUserGroupIds.has(groupId));
   }
 
   meetingRoomIsBooked(room: DisplayRoom): boolean {
@@ -572,10 +656,16 @@ export class LocationsComponent implements OnInit, OnDestroy {
       return {};
     }
 
-    return {
-      transform: 'scale(2.15)',
-      transformOrigin: `${room.position.xPct}% ${room.position.yPct}%`,
-    };
+    return roomZoomStyle({
+      roomPosition: room.position,
+      stationPositions: this.stationsForRoom(room.id)
+        .filter((station): station is PositionedStation => !!station.position)
+        .map((station) => station.position),
+      viewportWidth: this.planPreview?.nativeElement.clientWidth ?? 0,
+      viewportHeight: this.planPreview?.nativeElement.clientHeight ?? 0,
+      stageWidth: this.planStage?.nativeElement.offsetWidth ?? 0,
+      stageHeight: this.planStage?.nativeElement.offsetHeight ?? 0,
+    });
   }
 
   getPianoLabel(numero: number): string {
@@ -722,6 +812,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
           this.stanze = stanze;
           this.meetingRooms = stanze.filter((stanza) => stanza.tipo === 'MEETING_ROOM');
           this.postazioni = seatGroups.flat();
+          this.loadSeatGroupAccessForCurrentPlan(requestId, pianoId);
           this.loadBookingsForCurrentPlan();
           this.refreshView();
         },
@@ -732,9 +823,42 @@ export class LocationsComponent implements OnInit, OnDestroy {
           this.stanze = [];
           this.meetingRooms = [];
           this.postazioni = [];
+          this.seatGroupIdsBySeatId = {};
           this.refreshView();
         },
       });
+  }
+
+  private loadSeatGroupAccessForCurrentPlan(requestId: number, pianoId: number): void {
+    const postazioni = this.postazioni;
+    if (!postazioni.length) {
+      this.seatGroupIdsBySeatId = {};
+      return;
+    }
+
+    forkJoin(postazioni.map((postazione) => this.api.listSeatGroups(postazione.id))).subscribe({
+      next: (groupsBySeat) => {
+        if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
+          return;
+        }
+
+        this.seatGroupIdsBySeatId = Object.fromEntries(
+          postazioni.map((postazione, index) => [
+            postazione.id,
+            (groupsBySeat[index] ?? []).map((group) => group.gruppoId),
+          ]),
+        );
+        this.refreshView();
+      },
+      error: () => {
+        if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
+          return;
+        }
+
+        this.seatGroupIdsBySeatId = {};
+        this.refreshView();
+      },
+    });
   }
 
   findPostazione(station: LayoutStation): Postazione | null {
@@ -778,6 +902,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
     this.meetingRooms = [];
     this.postazioni = [];
     this.bookings = [];
+    this.seatGroupIdsBySeatId = {};
     this.selectedRoomId = null;
     this.selectedStation = null;
     this.selectedPostazione = null;

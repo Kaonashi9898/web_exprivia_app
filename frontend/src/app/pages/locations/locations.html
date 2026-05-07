@@ -71,14 +71,14 @@
     </div>
 
       @if (imageSrc) {
-        <div class="plan-preview">
+        <div class="plan-preview" #planPreview [class.zoomed]="selectedRoomId">
           @if (selectedRoomId) {
             <button class="reset-zoom-button" type="button" (click)="resetZoom()">
               Vista completa
             </button>
           }
-          <div class="plan-stage" [class.zoomed]="selectedRoomId" [ngStyle]="selectedRoomStyle()">
-            <img [src]="imageSrc" alt="Planimetria sede" />
+          <div class="plan-stage" #planStage [class.zoomed]="selectedRoomId" [ngStyle]="selectedRoomStyle()">
+            <img [src]="imageSrc" alt="Planimetria sede" (load)="onPlanImageLoad()" />
 
             @if (!selectedRoomId) {
               @for (room of visibleRooms(); track room.id) {
@@ -88,6 +88,9 @@
                   [class.meeting-room]="roomIsMeeting(room)"
                   [class.booked]="meetingRoomIsBooked(room)"
                   [class.partial]="meetingRoomIsPartiallyBooked(room)"
+                  [class.restricted]="roomIsRestricted(room)"
+                  [disabled]="roomIsRestricted(room)"
+                  [attr.aria-disabled]="roomIsRestricted(room)"
                   [style.left.%]="room.position.xPct"
                   [style.top.%]="room.position.yPct"
                   (click)="selectRoom(room)"
@@ -106,6 +109,7 @@
                 [class.booked]="stationIsBooked(station)"
                 [class.partial]="stationIsPartiallyBooked(station)"
                 [class.unavailable]="stationIsUnavailable(station)"
+                [class.restricted]="stationIsRestricted(station)"
                 [disabled]="stationIsUnavailable(station)"
                 [attr.aria-disabled]="stationIsUnavailable(station)"
                 [style.left.%]="station.position.xPct"
