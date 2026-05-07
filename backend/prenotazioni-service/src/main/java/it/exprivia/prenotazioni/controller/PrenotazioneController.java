@@ -11,6 +11,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.server.ResponseStatusException;
 import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDate;
@@ -32,47 +34,55 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PrenotazioneController {
 
+    private static final String AUTH_COOKIE_NAME = "EXPRIVIA_AUTH_TOKEN";
+
     private final PrenotazioneService prenotazioneService;
 
     @PostMapping
     public ResponseEntity<PrenotazioneResponse> create(@Valid @RequestBody CreatePrenotazioneRequest request,
-                                                       @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(prenotazioneService.create(request, authorizationHeader));
+                                                       @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
+                                                       @CookieValue(value = AUTH_COOKIE_NAME, required = false) String authCookie) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(prenotazioneService.create(request, resolveAuthorizationHeader(authorizationHeader, authCookie)));
     }
 
     @PostMapping("/meeting-room")
     public ResponseEntity<PrenotazioneResponse> createMeetingRoom(@Valid @RequestBody CreatePrenotazioneRequest request,
-                                                                  @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(prenotazioneService.createMeetingRoom(request, authorizationHeader));
+                                                                  @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
+                                                                  @CookieValue(value = AUTH_COOKIE_NAME, required = false) String authCookie) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(prenotazioneService.createMeetingRoom(request, resolveAuthorizationHeader(authorizationHeader, authCookie)));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<PrenotazioneResponse> update(@PathVariable Long id,
                                                        @Valid @RequestBody UpdatePrenotazioneRequest request,
-                                                       @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader,
+                                                       @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
+                                                       @CookieValue(value = AUTH_COOKIE_NAME, required = false) String authCookie,
                                                        Authentication authentication) {
-        return ResponseEntity.ok(prenotazioneService.update(id, request, authorizationHeader, hasAdminOverride(authentication)));
+        return ResponseEntity.ok(prenotazioneService.update(id, request, resolveAuthorizationHeader(authorizationHeader, authCookie), hasAdminOverride(authentication)));
     }
 
     @GetMapping("/mie")
     public ResponseEntity<List<PrenotazioneResponse>> findMine(
-            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
+            @CookieValue(value = AUTH_COOKIE_NAME, required = false) String authCookie,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data) {
-        return ResponseEntity.ok(prenotazioneService.findMine(authorizationHeader, data));
+        return ResponseEntity.ok(prenotazioneService.findMine(resolveAuthorizationHeader(authorizationHeader, authCookie), data));
     }
 
     @GetMapping("/mie/dashboard")
     public ResponseEntity<List<DashboardPrenotazioneResponse>> findMineForDashboard(
-            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
+            @CookieValue(value = AUTH_COOKIE_NAME, required = false) String authCookie,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data) {
-        return ResponseEntity.ok(prenotazioneService.findMineForDashboard(authorizationHeader, data));
+        return ResponseEntity.ok(prenotazioneService.findMineForDashboard(resolveAuthorizationHeader(authorizationHeader, authCookie), data));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<PrenotazioneResponse> findById(@PathVariable Long id,
-                                                         @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader,
+                                                         @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
+                                                         @CookieValue(value = AUTH_COOKIE_NAME, required = false) String authCookie,
                                                          Authentication authentication) {
-        return ResponseEntity.ok(prenotazioneService.findById(id, authorizationHeader, hasAdminOverride(authentication)));
+        return ResponseEntity.ok(prenotazioneService.findById(id, resolveAuthorizationHeader(authorizationHeader, authCookie), hasAdminOverride(authentication)));
     }
 
     @GetMapping
@@ -117,10 +127,21 @@ public class PrenotazioneController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> annulla(@PathVariable Long id,
-                                        @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader,
+                                        @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
+                                        @CookieValue(value = AUTH_COOKIE_NAME, required = false) String authCookie,
                                         Authentication authentication) {
-        prenotazioneService.annulla(id, authorizationHeader, hasAdminOverride(authentication));
+        prenotazioneService.annulla(id, resolveAuthorizationHeader(authorizationHeader, authCookie), hasAdminOverride(authentication));
         return ResponseEntity.noContent().build();
+    }
+
+    private String resolveAuthorizationHeader(String authorizationHeader, String authCookie) {
+        if (authorizationHeader != null && !authorizationHeader.isBlank()) {
+            return authorizationHeader;
+        }
+        if (authCookie != null && !authCookie.isBlank()) {
+            return "Bearer " + authCookie;
+        }
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Token di autenticazione mancante");
     }
 
     private boolean hasAdminOverride(Authentication authentication) {

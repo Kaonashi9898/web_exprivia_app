@@ -49,6 +49,10 @@ public class JwtUtils {
                 .compact();
     }
 
+    public long getExpirationMillis() {
+        return expiration;
+    }
+
     /**
      * Estrae l'email (subject) dal token.
      */

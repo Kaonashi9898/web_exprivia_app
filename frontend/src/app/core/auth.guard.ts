@@ -1,5 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
+import { map } from 'rxjs';
 import { RuoloUtente } from './app.models';
 import { AuthService } from './auth.service';
 
@@ -7,22 +8,18 @@ export const authGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
 
-  if (auth.isAuthenticated()) {
-    return true;
-  }
-
-  return router.createUrlTree(['/']);
+  return auth.ensureProfile().pipe(
+    map((user) => user ? true : router.createUrlTree(['/'])),
+  );
 };
 
 export const publicHomeGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
 
-  if (auth.isAuthenticated()) {
-    return router.createUrlTree(['/dashboard']);
-  }
-
-  return true;
+  return auth.ensureProfile().pipe(
+    map((user) => user ? router.createUrlTree(['/dashboard']) : true),
+  );
 };
 
 export const roleGuard: CanActivateFn = (route) => {
@@ -30,13 +27,15 @@ export const roleGuard: CanActivateFn = (route) => {
   const router = inject(Router);
   const roles = (route.data['roles'] ?? []) as RuoloUtente[];
 
-  if (!auth.isAuthenticated()) {
-    return router.createUrlTree(['/']);
-  }
+  return auth.ensureProfile().pipe(
+    map((user) => {
+      if (!user) {
+        return router.createUrlTree(['/']);
+      }
 
-  if (!roles.length || auth.hasAnyRole(roles)) {
-    return true;
-  }
-
-  return router.createUrlTree(['/dashboard']);
+      return !roles.length || roles.includes(user.ruolo)
+        ? true
+        : router.createUrlTree(['/dashboard']);
+    }),
+  );
 };

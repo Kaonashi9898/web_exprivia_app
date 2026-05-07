@@ -51,7 +51,8 @@ public class AuthService {
         }
 
         String token = jwtUtils.generateToken(utente.getEmail(), utente.getRuolo().name());
-        return new LoginResponse(token);
+        UtenteDTO user = new UtenteDTO(utente.getId(), utente.getFullName(), utente.getEmail(), utente.getRuolo());
+        return new LoginResponse(token, user, jwtUtils.getExpirationMillis());
     }
 
     private RuoloUtente resolvePublicRegistrationRole(RuoloUtente requestedRole) {

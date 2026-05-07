@@ -8,7 +8,7 @@ export interface Utente {
 }
 
 export interface LoginResponse {
-  token: string;
+  user: Utente;
 }
 
 export interface RegisterRequest {
