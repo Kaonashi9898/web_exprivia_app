@@ -149,17 +149,20 @@
             }
           }
 
-            @for (station of visibleStations(); track station.id) {
-              <span
-                class="station-pin"
-                [style.left.%]="station.position.xPct"
-                [style.top.%]="station.position.yPct"
-                [title]="station.label"
-            >
-              {{ station.label }}
-            </span>
-          }
           </div>
+          @if (selectedRoomId) {
+            <div class="station-overlay">
+              @for (station of visibleStations(); track station.id) {
+                <span
+                  class="station-pin"
+                  [ngStyle]="stationOverlayStyle(station)"
+                  [title]="station.label"
+                >
+                  {{ station.label }}
+                </span>
+              }
+            </div>
+          }
         </div>
     } @else if (planimetria && !layout) {
       <div class="empty-preview">

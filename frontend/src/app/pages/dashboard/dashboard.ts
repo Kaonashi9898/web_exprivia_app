@@ -32,6 +32,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   bookings: DashboardPrenotazione[] = [];
   bookingsLoading = false;
   bookingsError = '';
+  showAllBookings = false;
   pendingApprovalMessage = '';
   pendingGuestsCount = 0;
   planPreviewByPianoId = new Map<number, string>();
@@ -164,6 +165,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return booking.pianoId ? this.planPreviewByPianoId.get(booking.pianoId) ?? '' : '';
   }
 
+  visibleBookings(): DashboardPrenotazione[] {
+    return this.showAllBookings ? this.bookings : this.bookings.slice(0, 5);
+  }
+
+  hasHiddenBookings(): boolean {
+    return !this.showAllBookings && this.bookings.length > 5;
+  }
+
+  showAllBookingsList(): void {
+    this.showAllBookings = true;
+    this.cdr.detectChanges();
+  }
+
   availableEditStartTimes(): readonly string[] {
     return this.bookingStartOptions.filter((time) => time < this.editEndTime);
   }
@@ -216,6 +230,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private loadBookings(): void {
     if (this.isGuest()) {
       this.bookings = [];
+      this.showAllBookings = false;
       this.bookingsLoading = false;
       this.bookingsError = '';
       this.pendingApprovalMessage = "Registrazione avvenuta. Attendi che l'admin approvi il tuo account per accedere alle prenotazioni.";
@@ -230,6 +245,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.api.listMyDashboardBookings().subscribe({
       next: (bookings) => {
+        this.showAllBookings = false;
         this.bookings = bookings
           .filter((booking) => booking.stato === 'CONFERMATA')
           .sort((a, b) =>
@@ -246,6 +262,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.bookings = [];
+        this.showAllBookings = false;
         this.clearPlanPreviews();
         this.bookingsLoading = false;
         this.bookingsError = apiErrorMessage(err, 'Impossibile caricare le prenotazioni.');

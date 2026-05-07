@@ -101,26 +101,29 @@
               }
             }
 
-            @for (station of visibleStations(); track station.id) {
-              <button
-                type="button"
-                class="station-pin"
-                [class.active]="selectedStation?.id === station.id"
-                [class.booked]="stationIsBooked(station)"
-                [class.partial]="stationIsPartiallyBooked(station)"
-                [class.unavailable]="stationIsUnavailable(station)"
-                [class.restricted]="stationIsRestricted(station)"
-                [disabled]="stationIsUnavailable(station)"
-                [attr.aria-disabled]="stationIsUnavailable(station)"
-                [style.left.%]="station.position.xPct"
-                [style.top.%]="station.position.yPct"
-                (click)="selectStation(station)"
-                [title]="stationTooltip(station)"
-              >
-                {{ station.label }}
-              </button>
-            }
           </div>
+          @if (selectedRoomId) {
+            <div class="station-overlay">
+              @for (station of visibleStations(); track station.id) {
+                <button
+                  type="button"
+                  class="station-pin"
+                  [class.active]="selectedStation?.id === station.id"
+                  [class.booked]="stationIsBooked(station)"
+                  [class.partial]="stationIsPartiallyBooked(station)"
+                  [class.unavailable]="stationIsUnavailable(station)"
+                  [class.restricted]="stationIsRestricted(station)"
+                  [disabled]="stationIsUnavailable(station)"
+                  [attr.aria-disabled]="stationIsUnavailable(station)"
+                  [ngStyle]="stationOverlayStyle(station)"
+                  (click)="selectStation(station)"
+                  [title]="stationTooltip(station)"
+                >
+                  {{ station.label }}
+                </button>
+              }
+            </div>
+          }
         </div>
       } @else {
         <div class="empty-plan inline">

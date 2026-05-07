@@ -10,6 +10,58 @@
   <div class="notice success">{{ pendingApprovalMessage }}</div>
 }
 
+<section class="quick-grid">
+  @if (canBook()) {
+    <a routerLink="/prenotazioni" class="action-card">
+      <span class="card-icon">
+        <svg viewBox="0 0 24 24"><path d="M7 3v3M17 3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v12H4V7a2 2 0 0 1 2-2z" /></svg>
+      </span>
+      <strong>Prenota postazione</strong>
+      <span>Scrivanie, sale e storico personale.</span>
+    </a>
+  }
+
+  @if (canManageUsers()) {
+    <a routerLink="/utenti" class="action-card">
+      <span class="card-icon orange">
+        <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6" /></svg>
+      </span>
+      <strong>{{ pendingGuestsCount ? pendingGuestsCount + ' richieste in sospeso' : 'Gestisci utenze' }}</strong>
+      <span>Approva registrazioni e assegna ruoli.</span>
+    </a>
+  }
+
+  @if (canAccessLocations()) {
+    <a routerLink="/sedi-postazioni" class="action-card">
+      <span class="card-icon teal">
+        <svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l8-4 6 4v14M9 21v-7h4v7M9 9h.01M13 9h.01M17 9h.01M17 13h.01" /></svg>
+      </span>
+      <strong>Sedi e postazioni</strong>
+      <span>Consultazione planimetrie e desk.</span>
+    </a>
+  }
+
+  @if (canAccessPlanEditor()) {
+    <a routerLink="/planimetria" class="action-card">
+      <span class="card-icon blue">
+        <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 5v14M16 5v14M4 12h16" /></svg>
+      </span>
+      <strong>Editor planimetria</strong>
+      <span>Import immagine e layout del piano.</span>
+    </a>
+  }
+
+  @if (isReception()) {
+    <a routerLink="/prenotazioni" class="action-card">
+      <span class="card-icon orange">
+        <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14M4 4h16v16H4z" /></svg>
+      </span>
+      <strong>Presidio reception</strong>
+      <span>Vista operativa sulle prenotazioni.</span>
+    </a>
+  }
+</section>
+
 @if (bookings.length) {
   <section class="panel dashboard-bookings">
     <div class="panel-header">
@@ -24,7 +76,7 @@
     }
 
     <div class="booking-cards">
-      @for (booking of bookings; track booking.id) {
+      @for (booking of visibleBookings(); track booking.id) {
         <article class="booking-card">
           <div class="booking-plan-preview">
             @if (planPreviewUrl(booking)) {
@@ -108,6 +160,12 @@
         </article>
       }
     </div>
+
+    @if (hasHiddenBookings()) {
+      <button class="ghost-button show-all-bookings-button" type="button" (click)="showAllBookingsList()">
+        Mostra tutte le prenotazioni
+      </button>
+    }
   </section>
 } @else if (bookingsError) {
   <div class="notice error">{{ bookingsError }}</div>
@@ -141,55 +199,3 @@
     </section>
   </div>
 }
-
-<section class="quick-grid">
-  @if (canBook()) {
-    <a routerLink="/prenotazioni" class="action-card">
-      <span class="card-icon">
-        <svg viewBox="0 0 24 24"><path d="M7 3v3M17 3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v12H4V7a2 2 0 0 1 2-2z" /></svg>
-      </span>
-      <strong>Prenota postazione</strong>
-      <span>Scrivanie, sale e storico personale.</span>
-    </a>
-  }
-
-  @if (canManageUsers()) {
-    <a routerLink="/utenti" class="action-card">
-      <span class="card-icon orange">
-        <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6" /></svg>
-      </span>
-      <strong>{{ pendingGuestsCount ? pendingGuestsCount + ' richieste in sospeso' : 'Gestisci utenze' }}</strong>
-      <span>Approva registrazioni e assegna ruoli.</span>
-    </a>
-  }
-
-  @if (canAccessLocations()) {
-    <a routerLink="/sedi-postazioni" class="action-card">
-      <span class="card-icon teal">
-        <svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l8-4 6 4v14M9 21v-7h4v7M9 9h.01M13 9h.01M17 9h.01M17 13h.01" /></svg>
-      </span>
-      <strong>Sedi e postazioni</strong>
-      <span>Consultazione planimetrie e desk.</span>
-    </a>
-  }
-
-  @if (canAccessPlanEditor()) {
-    <a routerLink="/planimetria" class="action-card">
-      <span class="card-icon blue">
-        <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 5v14M16 5v14M4 12h16" /></svg>
-      </span>
-      <strong>Editor planimetria</strong>
-      <span>Import immagine e layout del piano.</span>
-    </a>
-  }
-
-  @if (isReception()) {
-    <a routerLink="/prenotazioni" class="action-card">
-      <span class="card-icon orange">
-        <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14M4 4h16v16H4z" /></svg>
-      </span>
-      <strong>Presidio reception</strong>
-      <span>Vista operativa sulle prenotazioni.</span>
-    </a>
-  }
-</section>

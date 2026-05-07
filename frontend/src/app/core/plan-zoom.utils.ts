@@ -12,14 +12,34 @@ export interface RoomZoomInput {
   stageHeight: number;
 }
 
+export interface RoomZoom {
+  translateX: number;
+  translateY: number;
+  scale: number;
+  counterScale: number;
+}
+
 export function roomZoomStyle(input: RoomZoomInput): Record<string, string> {
+  const zoom = roomZoom(input);
+  if (!zoom) {
+    return {};
+  }
+
+  return {
+    transform: `translate(${zoom.translateX}px, ${zoom.translateY}px) scale(${zoom.scale})`,
+    transformOrigin: '0 0',
+    '--station-pin-counter-scale': String(zoom.counterScale),
+  };
+}
+
+export function roomZoom(input: RoomZoomInput): RoomZoom | null {
   if (
     input.viewportWidth <= 0
     || input.viewportHeight <= 0
     || input.stageWidth <= 0
     || input.stageHeight <= 0
   ) {
-    return {};
+    return null;
   }
 
   const box = roomBoundingBox([input.roomPosition, ...input.stationPositions]);
@@ -42,9 +62,10 @@ export function roomZoomStyle(input: RoomZoomInput): Record<string, string> {
   const counterScale = clamp(1 / scale, 0.24, 0.72);
 
   return {
-    transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
-    transformOrigin: '0 0',
-    '--station-pin-counter-scale': String(counterScale),
+    translateX,
+    translateY,
+    scale,
+    counterScale,
   };
 }
 

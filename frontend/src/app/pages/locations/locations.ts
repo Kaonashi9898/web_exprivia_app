@@ -17,7 +17,7 @@ import {
 } from '../../core/booking-time.utils';
 import { isWeekendIsoDate, nextBookableIsoDate } from '../../core/date.utils';
 import { OPERATIONAL_BOOKING_ROLES } from '../../core/role-access';
-import { roomZoomStyle } from '../../core/plan-zoom.utils';
+import { roomZoom, roomZoomStyle, RoomZoomInput } from '../../core/plan-zoom.utils';
 
 type LayoutRoom = NonNullable<PlanimetriaLayout['rooms']>[number];
 type LayoutMeeting = NonNullable<PlanimetriaLayout['meetings']>[number];
@@ -651,12 +651,50 @@ export class LocationsComponent implements OnInit, OnDestroy {
   }
 
   selectedRoomStyle(): Record<string, string> {
-    const room = this.roomsForDisplay().find((item) => item.id === this.selectedRoomId);
-    if (!room?.position) {
+    const zoomInput = this.selectedRoomZoomInput();
+    if (!zoomInput) {
       return {};
     }
 
-    return roomZoomStyle({
+    return roomZoomStyle(zoomInput);
+  }
+
+  stationOverlayStyle(station: PositionedStation): Record<string, string> {
+    const zoomInput = this.selectedRoomZoomInput();
+    if (!zoomInput) {
+      return {
+        left: `${station.position.xPct}%`,
+        top: `${station.position.yPct}%`,
+      };
+    }
+
+    const zoom = roomZoom(zoomInput);
+    if (!zoom || zoomInput.stageWidth <= 0 || zoomInput.stageHeight <= 0) {
+      return {
+        left: `${station.position.xPct}%`,
+        top: `${station.position.yPct}%`,
+      };
+    }
+
+    const stage = this.planStage?.nativeElement;
+    const stageLeft = stage?.offsetLeft ?? 0;
+    const stageTop = stage?.offsetTop ?? 0;
+    const left = stageLeft + station.position.xPct / 100 * zoomInput.stageWidth * zoom.scale + zoom.translateX;
+    const top = stageTop + station.position.yPct / 100 * zoomInput.stageHeight * zoom.scale + zoom.translateY;
+
+    return {
+      left: `${left}px`,
+      top: `${top}px`,
+    };
+  }
+
+  private selectedRoomZoomInput(): RoomZoomInput | null {
+    const room = this.roomsForDisplay().find((item) => item.id === this.selectedRoomId);
+    if (!room?.position) {
+      return null;
+    }
+
+    return {
       roomPosition: room.position,
       stationPositions: this.stationsForRoom(room.id)
         .filter((station): station is PositionedStation => !!station.position)
@@ -665,7 +703,7 @@ export class LocationsComponent implements OnInit, OnDestroy {
       viewportHeight: this.planPreview?.nativeElement.clientHeight ?? 0,
       stageWidth: this.planStage?.nativeElement.offsetWidth ?? 0,
       stageHeight: this.planStage?.nativeElement.offsetHeight ?? 0,
-    });
+    };
   }
 
   getPianoLabel(numero: number): string {
