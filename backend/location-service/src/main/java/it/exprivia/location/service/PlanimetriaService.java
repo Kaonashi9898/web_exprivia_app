@@ -150,7 +150,6 @@ public class PlanimetriaService {
             }
 
             Planimetria saved = planimetriaRepository.save(planimetria);
-            piano.setNome(resolveDisplayName(file.getOriginalFilename()));
             deleteIfReplaced(oldOriginalPath, saved.getFileOriginalePath());
             deleteIfReplaced(oldImagePath, saved.getImagePath());
             return toResponse(saved);
@@ -314,7 +313,6 @@ public class PlanimetriaService {
                 .toList();
         if (piano != null) {
             piano.setPlanimetria(null);
-            piano.setNome(null);
         }
         planimetriaRepository.delete(planimetria);
         deleteQuietly(planimetria.getFileOriginalePath());
@@ -485,17 +483,6 @@ public class PlanimetriaService {
         String withoutExtension = dotIndex > 0 ? filename.substring(0, dotIndex) : filename;
         String sanitized = withoutExtension.replaceAll("[^a-zA-Z0-9-_]", "-");
         return sanitized + "-" + pianoId + "-" + Instant.now().toEpochMilli();
-    }
-
-    private String resolveDisplayName(String originalFilename) {
-        if (originalFilename == null || originalFilename.isBlank()) {
-            return null;
-        }
-        String filename = Paths.get(originalFilename).getFileName().toString();
-        int dotIndex = filename.lastIndexOf('.');
-        String withoutExtension = dotIndex > 0 ? filename.substring(0, dotIndex) : filename;
-        String normalized = withoutExtension.trim().replaceAll("\\s+", " ");
-        return normalized.isEmpty() ? null : normalized;
     }
 
     private FormatoFile resolveFormato(String extension) {

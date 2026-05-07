@@ -93,9 +93,9 @@ export class HomeComponent {
       return;
     }
 
-    this.registering = false;
-    this.registrationSuccessEmail = email;
-    this.registrationSuccessOpen = true;
+    this.registering = true;
+    this.registrationSuccessEmail = '';
+    this.registrationSuccessOpen = false;
 
     this.auth
       .register({
@@ -111,6 +111,8 @@ export class HomeComponent {
       .subscribe({
         next: () => {
           this.registering = false;
+          this.registrationSuccessEmail = email;
+          this.registrationSuccessOpen = true;
           this.registerFullName = '';
           this.registerEmail = '';
           this.registerPassword = '';

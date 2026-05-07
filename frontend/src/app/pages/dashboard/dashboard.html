@@ -6,6 +6,10 @@
   </div>
 </section>
 
+@if (pendingApprovalMessage) {
+  <div class="notice success">{{ pendingApprovalMessage }}</div>
+}
+
 @if (bookings.length) {
   <section class="panel dashboard-bookings">
     <div class="panel-header">

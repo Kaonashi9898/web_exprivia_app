@@ -32,6 +32,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   bookings: DashboardPrenotazione[] = [];
   bookingsLoading = false;
   bookingsError = '';
+  pendingApprovalMessage = '';
   pendingGuestsCount = 0;
   planPreviewByPianoId = new Map<number, string>();
   private planPreviewSubscription: Subscription | null = null;
@@ -60,6 +61,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return role ? labels[role] : '';
   });
   protected readonly isAdmin = computed(() => this.auth.hasAnyRole(['ADMIN']));
+  protected readonly isGuest = computed(() => this.auth.hasAnyRole(['GUEST']));
   protected readonly canAccessPlanEditor = computed(() => this.auth.hasAnyRole(PLAN_EDITOR_ROLES));
   protected readonly canAccessLocations = computed(() => this.auth.hasAnyRole(LOCATION_MANAGEMENT_ROLES));
   protected readonly isReception = computed(() => this.auth.hasAnyRole(['RECEPTION']));
@@ -212,8 +214,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private loadBookings(): void {
+    if (this.isGuest()) {
+      this.bookings = [];
+      this.bookingsLoading = false;
+      this.bookingsError = '';
+      this.pendingApprovalMessage = "Registrazione avvenuta. Attendi che l'admin approvi il tuo account per accedere alle prenotazioni.";
+      this.clearPlanPreviews();
+      this.cdr.detectChanges();
+      return;
+    }
+
     this.bookingsLoading = true;
     this.bookingsError = '';
+    this.pendingApprovalMessage = '';
 
     this.api.listMyDashboardBookings().subscribe({
       next: (bookings) => {
