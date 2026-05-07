@@ -30,9 +30,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   protected readonly user = this.auth.currentUser;
   bookings: DashboardPrenotazione[] = [];
+  futureBookings: DashboardPrenotazione[] = [];
+  pastBookings: DashboardPrenotazione[] = [];
   bookingsLoading = false;
   bookingsError = '';
-  showAllBookings = false;
+  selectedBookingSection: 'future' | 'past' = 'future';
   pendingApprovalMessage = '';
   pendingGuestsCount = 0;
   planPreviewByPianoId = new Map<number, string>();
@@ -119,6 +121,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.api.cancelBooking(booking.id).subscribe({
       next: () => {
         this.bookings = this.bookings.filter((item) => item.id !== booking.id);
+        this.refreshBookingSections();
         this.deletingBookingId = null;
         this.bookingPendingDeletion = null;
         this.cdr.detectChanges();
@@ -150,7 +153,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   canEditBooking(booking: DashboardPrenotazione): boolean {
-    return booking.dataPrenotazione >= this.minBookingDate;
+    return !this.isPastBooking(booking) && booking.dataPrenotazione >= this.minBookingDate;
   }
 
   bookingResourceLabel(booking: DashboardPrenotazione): string {
@@ -166,16 +169,37 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   visibleBookings(): DashboardPrenotazione[] {
-    return this.showAllBookings ? this.bookings : this.bookings.slice(0, 5);
+    return this.showingFutureBookings() ? this.futureBookings : this.pastBookings;
   }
 
-  hasHiddenBookings(): boolean {
-    return !this.showAllBookings && this.bookings.length > 5;
+  showingFutureBookings(): boolean {
+    return this.selectedBookingSection === 'future';
   }
 
-  showAllBookingsList(): void {
-    this.showAllBookings = true;
+  showingPastBookings(): boolean {
+    return this.selectedBookingSection === 'past';
+  }
+
+  selectFutureBookings(): void {
+    this.selectedBookingSection = 'future';
     this.cdr.detectChanges();
+  }
+
+  selectPastBookings(): void {
+    this.selectedBookingSection = 'past';
+    this.cdr.detectChanges();
+  }
+
+  visibleBookingsTitle(): string {
+    return this.showingFutureBookings() ? 'Prenotazioni future' : 'Prenotazioni passate';
+  }
+
+  visibleBookingsCount(): number {
+    return this.showingFutureBookings() ? this.futureBookings.length : this.pastBookings.length;
+  }
+
+  isPastBooking(booking: DashboardPrenotazione): boolean {
+    return booking.dataPrenotazione <= this.currentIsoDate();
   }
 
   availableEditStartTimes(): readonly string[] {
@@ -212,8 +236,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }).subscribe({
       next: (updated) => {
         this.bookings = this.bookings
-          .map((item) => item.id === booking.id ? { ...item, ...updated } : item)
-          .sort((a, b) => `${a.dataPrenotazione} ${a.oraInizio}`.localeCompare(`${b.dataPrenotazione} ${b.oraInizio}`));
+          .map((item) => item.id === booking.id ? { ...item, ...updated } : item);
+        this.refreshBookingSections();
         this.savingBookingId = null;
         this.editingBookingId = null;
         this.editMessage = 'Prenotazione aggiornata.';
@@ -230,7 +254,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private loadBookings(): void {
     if (this.isGuest()) {
       this.bookings = [];
-      this.showAllBookings = false;
+      this.refreshBookingSections();
       this.bookingsLoading = false;
       this.bookingsError = '';
       this.pendingApprovalMessage = "Registrazione avvenuta. Attendi che l'admin approvi il tuo account per accedere alle prenotazioni.";
@@ -245,24 +269,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.api.listMyDashboardBookings().subscribe({
       next: (bookings) => {
-        this.showAllBookings = false;
         this.bookings = bookings
           .filter((booking) => booking.stato === 'CONFERMATA')
-          .sort((a, b) =>
-            `${a.dataPrenotazione} ${a.oraInizio}`.localeCompare(`${b.dataPrenotazione} ${b.oraInizio}`),
-          )
           .map((booking) => ({
             ...booking,
             sedeLabel: booking.sedeLabel || 'Sede non disponibile',
             pianoLabel: booking.pianoLabel || 'Piano non disponibile',
           }));
+        this.refreshBookingSections();
         this.loadPlanPreviews(this.bookings);
         this.bookingsLoading = false;
         this.cdr.detectChanges();
       },
       error: (err) => {
         this.bookings = [];
-        this.showAllBookings = false;
+        this.refreshBookingSections();
         this.clearPlanPreviews();
         this.bookingsLoading = false;
         this.bookingsError = apiErrorMessage(err, 'Impossibile caricare le prenotazioni.');
@@ -337,6 +358,29 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.cdr.detectChanges();
       },
     });
+  }
+
+  private refreshBookingSections(): void {
+    const todayIsoDate = this.currentIsoDate();
+    this.futureBookings = this.bookings
+      .filter((booking) => booking.dataPrenotazione > todayIsoDate)
+      .sort((left, right) =>
+        `${left.dataPrenotazione} ${left.oraInizio}`.localeCompare(`${right.dataPrenotazione} ${right.oraInizio}`),
+      );
+    this.pastBookings = this.bookings
+      .filter((booking) => booking.dataPrenotazione <= todayIsoDate)
+      .sort((left, right) =>
+        `${right.dataPrenotazione} ${right.oraInizio}`.localeCompare(`${left.dataPrenotazione} ${left.oraInizio}`),
+      );
+    this.selectedBookingSection = this.futureBookings.length || !this.pastBookings.length ? 'future' : 'past';
+  }
+
+  private currentIsoDate(): string {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   private validateEditSelection(): string | null {
