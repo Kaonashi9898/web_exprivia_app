@@ -27,12 +27,12 @@ type LayoutStation = NonNullable<PlanimetriaLayout['stations']>[number];
 type PositionedStation = LayoutStation & { position: { xPct: number; yPct: number } };
 
 @Component({
-  selector: 'app-locations',
+  selector: 'app-prenotazioni',
   imports: [FormsModule, NgStyle],
-  templateUrl: './locations.html',
-  styleUrl: './locations.css',
+  templateUrl: './prenotazioni.html',
+  styleUrl: './prenotazioni.css',
 })
-export class LocationsComponent implements OnInit, OnDestroy {
+export class PrenotazioniComponent implements OnInit, OnDestroy {
   @ViewChild('planPreview') private planPreview?: ElementRef<HTMLElement>;
   @ViewChild('planStage') private planStage?: ElementRef<HTMLElement>;
 
