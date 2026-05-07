@@ -43,12 +43,12 @@ interface CreatePianoForm {
 }
 
 @Component({
-  selector: 'app-bookings',
+  selector: 'app-sedi-postazioni',
   imports: [FormsModule],
-  templateUrl: './bookings.html',
-  styleUrl: './bookings.css',
+  templateUrl: './sedi-postazioni.html',
+  styleUrl: './sedi-postazioni.css',
 })
-export class BookingsComponent implements OnInit, OnDestroy {
+export class SediPostazioniComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly cdr = inject(ChangeDetectorRef);

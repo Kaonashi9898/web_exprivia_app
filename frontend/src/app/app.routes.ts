@@ -22,7 +22,7 @@ export const routes: Routes = [
       },
       {
         path: 'prenotazioni',
-        loadComponent: () => import('./pages/locations/locations').then((m) => m.LocationsComponent),
+        loadComponent: () => import('./pages/prenotazioni/prenotazioni').then((m) => m.PrenotazioniComponent),
         canActivate: [roleGuard],
         data: { roles: BOOKING_ROLES }
       },
@@ -34,7 +34,7 @@ export const routes: Routes = [
       },
       {
         path: 'sedi-postazioni',
-        loadComponent: () => import('./pages/bookings/bookings').then((m) => m.BookingsComponent),
+        loadComponent: () => import('./pages/sedi-postazioni/sedi-postazioni').then((m) => m.SediPostazioniComponent),
         canActivate: [roleGuard],
         data: { roles: LOCATION_MANAGEMENT_ROLES }
       },
