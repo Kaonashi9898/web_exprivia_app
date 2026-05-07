@@ -205,7 +205,7 @@
           </div>
         }
 
-        @if (bookingControlsLocked()) {
+        @if (bookingControlsLocked() && !message) {
           <div class="selected-seat booking-lock-note">
             <span>Fascia bloccata</span>
             <strong>Hai gia confermato una prenotazione per {{ bookingDate }}.</strong>
