@@ -3,7 +3,7 @@
  * The package ships no bundled types and there are no community @types.
  */
 declare module 'dxf' {
-  /** AutoCAD Color Index (ACI) lookup table: index → [R, G, B]. */
+  /** AutoCAD Color Index (ACI) lookup table: index -> [R, G, B]. */
   export const colors: Record<number, [number, number, number]>;
 
   export class Helper {
@@ -37,7 +37,7 @@ declare module 'dxf' {
     hAlign?: number; // 0=left 1=center 2=right
     // MTEXT
     nominalTextHeight?: number;
-    // …other entity fields omitted
+    // ...other entity fields omitted
     [key: string]: unknown;
   }
 }

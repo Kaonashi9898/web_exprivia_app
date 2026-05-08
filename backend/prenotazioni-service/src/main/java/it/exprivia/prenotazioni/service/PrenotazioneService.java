@@ -316,6 +316,9 @@ public class PrenotazioneService {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Puoi annullare solo le tue prenotazioni");
             }
         }
+        if (isInCorso(prenotazione)) {
+            throw new IllegalArgumentException("Non puoi annullare una prenotazione gia' in corso");
+        }
         if (isConclusa(prenotazione)) {
             throw new IllegalArgumentException("Non puoi annullare una prenotazione gia' conclusa");
         }
@@ -518,6 +521,16 @@ public class PrenotazioneService {
             return false;
         }
         return !prenotazione.getOraFine().isAfter(LocalTime.now(clock));
+    }
+
+    private boolean isInCorso(Prenotazione prenotazione) {
+        LocalDate oggi = LocalDate.now(clock);
+        if (!prenotazione.getDataPrenotazione().isEqual(oggi)) {
+            return false;
+        }
+
+        LocalTime adesso = LocalTime.now(clock);
+        return !prenotazione.getOraInizio().isAfter(adesso) && prenotazione.getOraFine().isAfter(adesso);
     }
 
     private Prenotazione getOrThrow(Long id) {

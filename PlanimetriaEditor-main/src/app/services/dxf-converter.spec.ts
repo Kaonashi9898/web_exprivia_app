@@ -1,13 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 
-import { DxfConverter } from './dxf-converter';
+import { DxfConverterService } from './dxf-converter';
 
-describe('DxfConverter', () => {
-  let service: DxfConverter;
+describe('DxfConverterService', () => {
+  let service: DxfConverterService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
-    service = TestBed.inject(DxfConverter);
+    service = TestBed.inject(DxfConverterService);
   });
 
   it('should be created', () => {

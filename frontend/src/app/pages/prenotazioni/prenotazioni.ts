@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { forkJoin, Observable, of, Subscription, switchMap, map } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { Edificio, Piano, PlanimetriaLayout, PlanimetriaResponse, Postazione, Prenotazione, Sede, Stanza } from '../../core/app.models';
-import { apiErrorMessage } from '../../core/api-error.utils';
+import { apiErrorMessage, apiErrorStatus } from '../../core/api-error.utils';
 import { AuthService } from '../../core/auth.service';
 import {
   BOOKING_DAY_END,
@@ -756,16 +756,19 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
     this.bookingsSubscription?.unsubscribe();
     this.unavailableMessage = '';
     this.planimetriaSubscription = this.api.getPlanimetria(pianoId).subscribe({
-        next: (planimetria) => {
+      next: (planimetria) => {
           if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
             return;
           }
 
           if (!planimetria) {
+            this.clearLoadedPlanState();
             this.unavailableMessage = this.noPlanMessage();
+            this.error = '';
             this.refreshView();
             return;
         }
+        this.error = '';
         this.planimetria = planimetria;
         if (this.isPreviewablePlan(planimetria)) {
           this.loadImage(pianoId, requestId);
@@ -777,11 +780,18 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
         this.loadLayoutAndSeats(pianoId, requestId);
         this.refreshView();
       },
-      error: () => {
+      error: (err) => {
         if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
           return;
         }
-        this.unavailableMessage = this.noPlanMessage();
+        this.clearLoadedPlanState();
+        if (apiErrorStatus(err) === 404) {
+          this.unavailableMessage = '';
+          this.error = 'Il piano selezionato non esiste piu o non e disponibile.';
+        } else {
+          this.unavailableMessage = '';
+          this.error = apiErrorMessage(err, 'Impossibile caricare la planimetria del piano selezionato.');
+        }
         this.refreshView();
       },
     });
@@ -933,6 +943,11 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
     this.seatsSubscription?.unsubscribe();
     this.bookingsSubscription?.unsubscribe();
     this.clearMessages();
+    this.clearLoadedPlanState();
+    this.unavailableMessage = '';
+  }
+
+  private clearLoadedPlanState(): void {
     this.clearAvailabilityState();
     this.planimetria = null;
     this.layout = null;
@@ -947,7 +962,6 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
     this.selectedMeetingRoom = null;
     this.suggestedStartTime = null;
     this.lockedBookingDate = null;
-    this.unavailableMessage = '';
     this.revokeImageUrl();
   }
 

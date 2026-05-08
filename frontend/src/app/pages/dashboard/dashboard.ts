@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { catchError, forkJoin, map, of, Subscription, switchMap } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { DashboardPrenotazione, PlanimetriaResponse } from '../../core/app.models';
-import { apiErrorMessage } from '../../core/api-error.utils';
+import { apiErrorMessage, bookingCancellationErrorMessage } from '../../core/api-error.utils';
 import { AuthService } from '../../core/auth.service';
 import {
   BOOKING_DAY_END,
@@ -129,7 +129,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.deletingBookingId = null;
         this.bookingPendingDeletion = null;
-        this.bookingsError = apiErrorMessage(err, 'Eliminazione prenotazione non riuscita.');
+        this.bookingsError = bookingCancellationErrorMessage(err);
         this.cdr.detectChanges();
       },
     });
@@ -153,7 +153,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   canEditBooking(booking: DashboardPrenotazione): boolean {
-    return !this.isPastBooking(booking) && booking.dataPrenotazione >= this.minBookingDate;
+    return !this.isBookingInProgress(booking) && !this.isPastBooking(booking) && booking.dataPrenotazione >= this.minBookingDate;
+  }
+
+  canCancelBooking(booking: DashboardPrenotazione): boolean {
+    return !this.isBookingInProgress(booking) && !this.isPastBooking(booking);
   }
 
   bookingResourceLabel(booking: DashboardPrenotazione): string {
@@ -199,7 +203,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   isPastBooking(booking: DashboardPrenotazione): boolean {
-    return booking.dataPrenotazione <= this.currentIsoDate();
+    return this.bookingEndsAt(booking).getTime() <= Date.now();
+  }
+
+  isBookingInProgress(booking: DashboardPrenotazione): boolean {
+    const now = Date.now();
+    return this.bookingStartsAt(booking).getTime() <= now && this.bookingEndsAt(booking).getTime() > now;
+  }
+
+  bookingReadOnlyLabel(booking: DashboardPrenotazione): string {
+    return this.isBookingInProgress(booking) ? 'Azioni disabilitate' : 'Solo consultazione';
   }
 
   availableEditStartTimes(): readonly string[] {
@@ -361,26 +374,25 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private refreshBookingSections(): void {
-    const todayIsoDate = this.currentIsoDate();
     this.futureBookings = this.bookings
-      .filter((booking) => booking.dataPrenotazione > todayIsoDate)
+      .filter((booking) => !this.isPastBooking(booking))
       .sort((left, right) =>
         `${left.dataPrenotazione} ${left.oraInizio}`.localeCompare(`${right.dataPrenotazione} ${right.oraInizio}`),
       );
     this.pastBookings = this.bookings
-      .filter((booking) => booking.dataPrenotazione <= todayIsoDate)
+      .filter((booking) => this.isPastBooking(booking))
       .sort((left, right) =>
         `${right.dataPrenotazione} ${right.oraInizio}`.localeCompare(`${left.dataPrenotazione} ${left.oraInizio}`),
       );
     this.selectedBookingSection = this.futureBookings.length || !this.pastBookings.length ? 'future' : 'past';
   }
 
-  private currentIsoDate(): string {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  private bookingStartsAt(booking: DashboardPrenotazione): Date {
+    return new Date(`${booking.dataPrenotazione}T${booking.oraInizio}:00`);
+  }
+
+  private bookingEndsAt(booking: DashboardPrenotazione): Date {
+    return new Date(`${booking.dataPrenotazione}T${booking.oraFine}:00`);
   }
 
   private validateEditSelection(): string | null {

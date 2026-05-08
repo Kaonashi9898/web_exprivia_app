@@ -40,7 +40,7 @@ describe('FloorPlanService', () => {
     expect(service.stations()).toHaveLength(0);
   });
 
-  it('should build an export with meetings, rooms, and station references', () => {
+  it('should build an export with meetings, rooms, and nested stations', () => {
     service.image.set({
       filename: 'plan.png',
       dataUrl: 'data:image/png;base64,abc',
@@ -59,10 +59,14 @@ describe('FloorPlanService', () => {
       label: meeting.label,
       position: { xPct: 5.556, yPct: 6.667 },
     });
-    expect(exported.rooms[0].stationIds).toEqual([station.id]);
-    expect(exported.stations[0].roomId).toBe(room.id);
-    expect(exported.connections).toEqual([{ stationId: station.id, roomId: room.id }]);
     expect(exported.rooms[0].position).toEqual({ xPct: 10.123, yPct: 20.568 });
+    expect(exported.rooms[0].stations).toEqual([
+      {
+        id: station.id,
+        label: station.label,
+        position: { xPct: 30.988, yPct: 40.543 },
+      },
+    ]);
   });
 
   it('should import meetings from exported json', () => {
@@ -85,19 +89,15 @@ describe('FloorPlanService', () => {
           id: 'room_1',
           label: 'Room 1',
           position: { xPct: 33, yPct: 44 },
-          stationIds: ['stn_1'],
+          stations: [
+            {
+              id: 'stn_1',
+              label: 'Desk 1',
+              position: { xPct: 55, yPct: 66 },
+            },
+          ],
         },
       ],
-      stations: [
-        {
-          id: 'stn_1',
-          label: 'Desk 1',
-          position: { xPct: 55, yPct: 66 },
-          roomId: 'room_1',
-          roomLabel: 'Room 1',
-        },
-      ],
-      connections: [{ stationId: 'stn_1', roomId: 'room_1' }],
     });
 
     expect(service.meetings()).toHaveLength(1);

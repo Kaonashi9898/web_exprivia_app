@@ -20,6 +20,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
@@ -224,6 +226,69 @@ class PrenotazioneServiceTest {
     }
 
     @Test
+    void create_rifiutaRuoloNonAbilitato() {
+        CreatePrenotazioneRequest request = buildCreateRequest(7L, LocalDate.of(2026, 4, 28), LocalTime.of(13, 0), LocalTime.of(18, 0));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.GUEST));
+
+        assertThatThrownBy(() -> prenotazioneService.create(request, "Bearer token"))
+                .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+                    assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(ex.getReason()).contains("non puo' creare prenotazioni");
+                });
+
+        verify(prenotazioneRepository, never()).saveAndFlush(any(Prenotazione.class));
+    }
+
+    @Test
+    void create_rifiutaRichiestaPostazioneIncoerente() {
+        CreatePrenotazioneRequest request = new CreatePrenotazioneRequest(null, 3L, LocalDate.of(2026, 4, 28), LocalTime.of(13, 0), LocalTime.of(18, 0));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.USER));
+
+        assertThatThrownBy(() -> prenotazioneService.create(request, "Bearer token"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("una sola postazione");
+    }
+
+    @Test
+    void create_rifiutaPostazioneNonPrenotabileNelloStatoAttuale() {
+        CreatePrenotazioneRequest request = buildCreateRequest(7L, LocalDate.of(2026, 4, 28), LocalTime.of(13, 0), LocalTime.of(18, 0));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.USER));
+        when(locationServiceClient.getPostazione(7L, "Bearer token")).thenReturn(buildPostazione(7L, "PS-007", "MANUTENZIONE"));
+
+        assertThatThrownBy(() -> prenotazioneService.create(request, "Bearer token"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("non e' prenotabile");
+
+        verify(prenotazioneRepository, never()).saveAndFlush(any(Prenotazione.class));
+    }
+
+    @Test
+    void create_traduceViolazioneIntegritaGruppiInForbidden() {
+        CreatePrenotazioneRequest request = buildCreateRequest(7L, LocalDate.of(2026, 4, 28), LocalTime.of(13, 0), LocalTime.of(18, 0));
+        stubCreatePostazioneFlow(request, 11L);
+        when(prenotazioneRepository.saveAndFlush(any(Prenotazione.class)))
+                .thenThrow(new DataIntegrityViolationException("vincolo", new RuntimeException("nessun gruppo condiviso")));
+
+        assertThatThrownBy(() -> prenotazioneService.create(request, "Bearer token"))
+                .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+                    assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(ex.getReason()).contains("Non sei autorizzato");
+                });
+    }
+
+    @Test
+    void create_traduceViolazioneIntegritaGenericaInMessaggioUtenteComprensibile() {
+        CreatePrenotazioneRequest request = buildCreateRequest(7L, LocalDate.of(2026, 4, 28), LocalTime.of(13, 0), LocalTime.of(18, 0));
+        stubCreatePostazioneFlow(request, 11L);
+        when(prenotazioneRepository.saveAndFlush(any(Prenotazione.class)))
+                .thenThrow(new DataIntegrityViolationException("vincolo", new RuntimeException("duplicate key value")));
+
+        assertThatThrownBy(() -> prenotazioneService.create(request, "Bearer token"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Conflitto di prenotazione");
+    }
+
+    @Test
     void createMeetingRoom_confermaPrenotazioneSalaRiunioni() {
         CreatePrenotazioneRequest request = buildMeetingRoomRequest(3L, LocalDate.of(2026, 4, 28), LocalTime.of(14, 0), LocalTime.of(16, 0));
         when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.USER));
@@ -259,6 +324,66 @@ class PrenotazioneServiceTest {
         assertThat(response.getMeetingRoomStanzaId()).isEqualTo(3L);
         assertThat(response.getRisorsaLabel()).isEqualTo("Sala Atlante");
         verify(prenotazioneEventPublisher).pubblicaConferma(response);
+    }
+
+    @Test
+    void createMeetingRoom_rifiutaRuoloNonAbilitato() {
+        CreatePrenotazioneRequest request = buildMeetingRoomRequest(3L, LocalDate.of(2026, 4, 28), LocalTime.of(14, 0), LocalTime.of(16, 0));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.GUEST));
+
+        assertThatThrownBy(() -> prenotazioneService.createMeetingRoom(request, "Bearer token"))
+                .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+                    assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(ex.getReason()).contains("non puo' creare prenotazioni");
+                });
+    }
+
+    @Test
+    void createMeetingRoom_rifiutaRichiestaSalaIncoerente() {
+        CreatePrenotazioneRequest request = new CreatePrenotazioneRequest(7L, null, LocalDate.of(2026, 4, 28), LocalTime.of(14, 0), LocalTime.of(16, 0));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.USER));
+
+        assertThatThrownBy(() -> prenotazioneService.createMeetingRoom(request, "Bearer token"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("una sola sala riunioni");
+    }
+
+    @Test
+    void createMeetingRoom_rifiutaStanzaCheNonEUnaSalaRiunioni() {
+        CreatePrenotazioneRequest request = buildMeetingRoomRequest(3L, LocalDate.of(2026, 4, 28), LocalTime.of(14, 0), LocalTime.of(16, 0));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.USER));
+        when(locationServiceClient.getStanza(3L, "Bearer token"))
+                .thenReturn(new ExternalStanzaResponse(3L, "Open Space", "ROOM", "room-1", 5L, 8));
+
+        assertThatThrownBy(() -> prenotazioneService.createMeetingRoom(request, "Bearer token"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("non e' una sala riunioni prenotabile");
+    }
+
+    @Test
+    void createMeetingRoom_rifiutaSalaGiaOccupata() {
+        CreatePrenotazioneRequest request = buildMeetingRoomRequest(3L, LocalDate.of(2026, 4, 28), LocalTime.of(14, 0), LocalTime.of(16, 0));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.USER));
+        when(prenotazioneRepository.existsActiveOverlapForUser(
+                11L,
+                request.getDataPrenotazione(),
+                request.getOraInizio(),
+                request.getOraFine(),
+                StatoPrenotazione.CONFERMATA
+        )).thenReturn(false);
+        when(locationServiceClient.getStanza(3L, "Bearer token"))
+                .thenReturn(new ExternalStanzaResponse(3L, "Sala Atlante", "MEETING_ROOM", "meeting-1", 5L, 8));
+        when(prenotazioneRepository.existsActiveOverlapForMeetingRoom(
+                3L,
+                request.getDataPrenotazione(),
+                request.getOraInizio(),
+                request.getOraFine(),
+                StatoPrenotazione.CONFERMATA
+        )).thenReturn(true);
+
+        assertThatThrownBy(() -> prenotazioneService.createMeetingRoom(request, "Bearer token"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("sala riunioni e' gia' prenotata");
     }
 
     @Test
@@ -348,6 +473,127 @@ class PrenotazioneServiceTest {
     }
 
     @Test
+    void update_rifiutaModificaDiPrenotazioneAltrui() {
+        Prenotazione prenotazione = buildPrenotazione(22L, 11L, 7L, LocalDate.of(2026, 4, 29), LocalTime.of(9, 0), LocalTime.of(13, 0));
+        UpdatePrenotazioneRequest request = new UpdatePrenotazioneRequest(
+                LocalDate.of(2026, 4, 30),
+                LocalTime.of(10, 0),
+                LocalTime.of(17, 0)
+        );
+
+        when(prenotazioneRepository.findById(22L)).thenReturn(Optional.of(prenotazione));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(99L, RuoloUtente.USER));
+
+        assertThatThrownBy(() -> prenotazioneService.update(22L, request, "Bearer token", false))
+                .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+                    assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(ex.getReason()).contains("solo le tue prenotazioni");
+                });
+    }
+
+    @Test
+    void update_consenteGestioneAdminAncheSeNonProprietario() {
+        Prenotazione prenotazione = buildPrenotazione(22L, 11L, 7L, LocalDate.of(2026, 4, 29), LocalTime.of(9, 0), LocalTime.of(13, 0));
+        UpdatePrenotazioneRequest request = new UpdatePrenotazioneRequest(
+                LocalDate.of(2026, 4, 30),
+                LocalTime.of(10, 0),
+                LocalTime.of(17, 0)
+        );
+
+        when(prenotazioneRepository.findById(22L)).thenReturn(Optional.of(prenotazione));
+        when(prenotazioneRepository.existsActiveOverlapForUserExcludingId(
+                22L,
+                11L,
+                request.getDataPrenotazione(),
+                request.getOraInizio(),
+                request.getOraFine(),
+                StatoPrenotazione.CONFERMATA
+        )).thenReturn(false);
+        when(prenotazioneRepository.existsActiveOverlapForPostazioneExcludingId(
+                22L,
+                7L,
+                request.getDataPrenotazione(),
+                request.getOraInizio(),
+                request.getOraFine(),
+                StatoPrenotazione.CONFERMATA
+        )).thenReturn(false);
+        when(prenotazioneRepository.saveAndFlush(prenotazione)).thenReturn(prenotazione);
+
+        var response = prenotazioneService.update(22L, request, "Bearer token", true);
+
+        assertThat(response.getDataPrenotazione()).isEqualTo(LocalDate.of(2026, 4, 30));
+        assertThat(response.getOraInizio()).isEqualTo(LocalTime.of(10, 0));
+        assertThat(response.getOraFine()).isEqualTo(LocalTime.of(17, 0));
+        verify(utentiServiceClient, never()).getCurrentUser("Bearer token");
+    }
+
+    @Test
+    void update_rifiutaPrenotazioneDelGiornoCorrente() {
+        Prenotazione prenotazione = buildPrenotazione(22L, 11L, 7L, LocalDate.of(2026, 4, 27), LocalTime.of(14, 0), LocalTime.of(18, 0));
+        UpdatePrenotazioneRequest request = new UpdatePrenotazioneRequest(
+                LocalDate.of(2026, 4, 30),
+                LocalTime.of(10, 0),
+                LocalTime.of(17, 0)
+        );
+
+        when(prenotazioneRepository.findById(22L)).thenReturn(Optional.of(prenotazione));
+
+        assertThatThrownBy(() -> prenotazioneService.update(22L, request, "Bearer token", true))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("solo prenotazioni future");
+    }
+
+    @Test
+    void update_rifiutaPrenotazioneNonConfermata() {
+        Prenotazione prenotazione = buildPrenotazione(22L, 11L, 7L, LocalDate.of(2026, 4, 29), LocalTime.of(9, 0), LocalTime.of(13, 0));
+        prenotazione.setStato(StatoPrenotazione.ANNULLATA);
+        UpdatePrenotazioneRequest request = new UpdatePrenotazioneRequest(
+                LocalDate.of(2026, 4, 30),
+                LocalTime.of(10, 0),
+                LocalTime.of(17, 0)
+        );
+
+        when(prenotazioneRepository.findById(22L)).thenReturn(Optional.of(prenotazione));
+
+        assertThatThrownBy(() -> prenotazioneService.update(22L, request, "Bearer token", true))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("solo prenotazioni confermate");
+    }
+
+    @Test
+    void update_rifiutaOverlapSuSalaRiunioni() {
+        Prenotazione prenotazione = buildMeetingRoomPrenotazione(30L, 11L, 3L, LocalDate.of(2026, 4, 29), LocalTime.of(9, 0), LocalTime.of(13, 0));
+        UpdatePrenotazioneRequest request = new UpdatePrenotazioneRequest(
+                LocalDate.of(2026, 4, 29),
+                LocalTime.of(10, 0),
+                LocalTime.of(17, 0)
+        );
+
+        when(prenotazioneRepository.findById(30L)).thenReturn(Optional.of(prenotazione));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.USER));
+        when(prenotazioneRepository.existsActiveOverlapForUserExcludingId(
+                30L,
+                11L,
+                request.getDataPrenotazione(),
+                request.getOraInizio(),
+                request.getOraFine(),
+                StatoPrenotazione.CONFERMATA
+        )).thenReturn(false);
+        when(prenotazioneRepository.existsActiveOverlapForMeetingRoomExcludingId(
+                30L,
+                3L,
+                request.getDataPrenotazione(),
+                request.getOraInizio(),
+                request.getOraFine(),
+                StatoPrenotazione.CONFERMATA
+        )).thenReturn(true);
+
+        assertThatThrownBy(() -> prenotazioneService.update(30L, request, "Bearer token", false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("sala riunioni e' gia' prenotata");
+    }
+
+    @Test
     void annulla_eliminaPrenotazioneFuturaDelProprietario() {
         Prenotazione prenotazione = buildPrenotazione(22L, 11L, 7L, LocalDate.of(2026, 4, 28), LocalTime.of(9, 0), LocalTime.of(13, 0));
 
@@ -358,6 +604,159 @@ class PrenotazioneServiceTest {
 
         verify(prenotazioneRepository).delete(prenotazione);
         verify(prenotazioneEventPublisher).pubblicaAnnullamento(any());
+    }
+
+    @Test
+    void annulla_rifiutaPrenotazioneGiaAnnullata() {
+        Prenotazione prenotazione = buildPrenotazione(22L, 11L, 7L, LocalDate.of(2026, 4, 28), LocalTime.of(9, 0), LocalTime.of(13, 0));
+        prenotazione.setStato(StatoPrenotazione.ANNULLATA);
+
+        when(prenotazioneRepository.findById(22L)).thenReturn(Optional.of(prenotazione));
+
+        assertThatThrownBy(() -> prenotazioneService.annulla(22L, "Bearer token", true))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("gia' annullata");
+    }
+
+    @Test
+    void annulla_rifiutaPrenotazioneAltrui() {
+        Prenotazione prenotazione = buildPrenotazione(22L, 11L, 7L, LocalDate.of(2026, 4, 28), LocalTime.of(9, 0), LocalTime.of(13, 0));
+
+        when(prenotazioneRepository.findById(22L)).thenReturn(Optional.of(prenotazione));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(99L, RuoloUtente.USER));
+
+        assertThatThrownBy(() -> prenotazioneService.annulla(22L, "Bearer token", false))
+                .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+                    assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(ex.getReason()).contains("solo le tue prenotazioni");
+                });
+    }
+
+    @Test
+    void annulla_rifiutaPrenotazioneInCorso() {
+        Prenotazione prenotazione = buildPrenotazione(22L, 11L, 7L, LocalDate.of(2026, 4, 27), LocalTime.of(9, 0), LocalTime.of(13, 0));
+
+        when(prenotazioneRepository.findById(22L)).thenReturn(Optional.of(prenotazione));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.USER));
+
+        assertThatThrownBy(() -> prenotazioneService.annulla(22L, "Bearer token", false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("gia' in corso");
+    }
+
+    @Test
+    void annulla_rifiutaPrenotazioneConclusa() {
+        Prenotazione prenotazione = buildPrenotazione(22L, 11L, 7L, LocalDate.of(2026, 4, 27), LocalTime.of(8, 0), LocalTime.of(9, 0));
+
+        when(prenotazioneRepository.findById(22L)).thenReturn(Optional.of(prenotazione));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.USER));
+
+        assertThatThrownBy(() -> prenotazioneService.annulla(22L, "Bearer token", false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("gia' conclusa");
+    }
+
+    @Test
+    void annulla_consenteGestioneAdminAncheSeNonProprietario() {
+        Prenotazione prenotazione = buildPrenotazione(22L, 11L, 7L, LocalDate.of(2026, 4, 28), LocalTime.of(9, 0), LocalTime.of(13, 0));
+
+        when(prenotazioneRepository.findById(22L)).thenReturn(Optional.of(prenotazione));
+
+        prenotazioneService.annulla(22L, "Bearer token", true);
+
+        verify(prenotazioneRepository).delete(prenotazione);
+        verify(utentiServiceClient, never()).getCurrentUser("Bearer token");
+    }
+
+    @Test
+    void findById_rifiutaPrenotazioneAltrui() {
+        Prenotazione prenotazione = buildPrenotazione(22L, 11L, 7L, LocalDate.of(2026, 4, 28), LocalTime.of(9, 0), LocalTime.of(13, 0));
+
+        when(prenotazioneRepository.findById(22L)).thenReturn(Optional.of(prenotazione));
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(99L, RuoloUtente.USER));
+
+        assertThatThrownBy(() -> prenotazioneService.findById(22L, "Bearer token", false))
+                .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+                    assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(ex.getReason()).contains("solo le tue prenotazioni");
+                });
+    }
+
+    @Test
+    void isDisponibile_restituisceFalseQuandoEsisteOverlap() {
+        when(prenotazioneRepository.existsActiveOverlapForPostazione(
+                7L,
+                LocalDate.of(2026, 4, 28),
+                LocalTime.of(9, 0),
+                LocalTime.of(13, 0),
+                StatoPrenotazione.CONFERMATA
+        )).thenReturn(true);
+
+        boolean disponibile = prenotazioneService.isDisponibile(7L, LocalDate.of(2026, 4, 28), LocalTime.of(9, 0), LocalTime.of(13, 0));
+
+        assertThat(disponibile).isFalse();
+    }
+
+    @Test
+    void isDisponibile_rifiutaSlotNonValido() {
+        assertThatThrownBy(() -> prenotazioneService.isDisponibile(7L, LocalDate.of(2026, 4, 27), LocalTime.of(9, 0), LocalTime.of(13, 0)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("giorno successivo");
+    }
+
+    @Test
+    void isMeetingRoomDisponibile_restituisceFalseQuandoEsisteOverlap() {
+        when(prenotazioneRepository.existsActiveOverlapForMeetingRoom(
+                3L,
+                LocalDate.of(2026, 4, 28),
+                LocalTime.of(14, 0),
+                LocalTime.of(16, 0),
+                StatoPrenotazione.CONFERMATA
+        )).thenReturn(true);
+
+        boolean disponibile = prenotazioneService.isMeetingRoomDisponibile(3L, LocalDate.of(2026, 4, 28), LocalTime.of(14, 0), LocalTime.of(16, 0));
+
+        assertThat(disponibile).isFalse();
+    }
+
+    @Test
+    void annullaPrenotazioniFuturePerUtenteEliminato_saltaQuelleGiaConcluseEdEliminaLeAltre() {
+        Prenotazione conclusa = buildPrenotazione(22L, 11L, 7L, LocalDate.of(2026, 4, 27), LocalTime.of(8, 0), LocalTime.of(9, 0));
+        Prenotazione futura = buildPrenotazione(23L, 11L, 8L, LocalDate.of(2026, 4, 28), LocalTime.of(14, 0), LocalTime.of(18, 0));
+
+        when(prenotazioneRepository.findByUtenteIdAndStatoAndDataPrenotazioneGreaterThanEqual(
+                11L,
+                StatoPrenotazione.CONFERMATA,
+                LocalDate.of(2026, 4, 27)
+        )).thenReturn(List.of(conclusa, futura));
+
+        prenotazioneService.annullaPrenotazioniFuturePerUtenteEliminato(11L);
+
+        verify(prenotazioneRepository, never()).delete(conclusa);
+        verify(prenotazioneRepository).delete(futura);
+        verify(prenotazioneEventPublisher, times(1)).pubblicaAnnullamento(any());
+    }
+
+    @Test
+    void eliminaPrenotazioniPerPlanimetria_ignoraListeVuote() {
+        prenotazioneService.eliminaPrenotazioniPerPlanimetria(List.of());
+
+        verify(prenotazioneRepository, never()).findByPostazioneIdIn(any());
+        verify(prenotazioneRepository, never()).delete(any(Prenotazione.class));
+    }
+
+    @Test
+    void eliminaPrenotazioniPerPlanimetria_eliminaTutteLePrenotazioniCoinvolte() {
+        Prenotazione prima = buildPrenotazione(22L, 11L, 7L, LocalDate.of(2026, 4, 28), LocalTime.of(9, 0), LocalTime.of(13, 0));
+        Prenotazione seconda = buildPrenotazione(23L, 12L, 8L, LocalDate.of(2026, 4, 29), LocalTime.of(14, 0), LocalTime.of(18, 0));
+
+        when(prenotazioneRepository.findByPostazioneIdIn(List.of(7L, 8L))).thenReturn(List.of(prima, seconda));
+
+        prenotazioneService.eliminaPrenotazioniPerPlanimetria(List.of(7L, 8L));
+
+        verify(prenotazioneRepository).delete(prima);
+        verify(prenotazioneRepository).delete(seconda);
+        verify(prenotazioneEventPublisher, times(2)).pubblicaAnnullamento(any());
     }
 
     @Test
@@ -397,6 +796,28 @@ class PrenotazioneServiceTest {
 
     private CreatePrenotazioneRequest buildMeetingRoomRequest(Long stanzaId, LocalDate data, LocalTime oraInizio, LocalTime oraFine) {
         return new CreatePrenotazioneRequest(null, stanzaId, data, oraInizio, oraFine);
+    }
+
+    private void stubCreatePostazioneFlow(CreatePrenotazioneRequest request, Long utenteId) {
+        when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(utenteId, RuoloUtente.USER));
+        when(locationServiceClient.getPostazione(request.getPostazioneId(), "Bearer token"))
+                .thenReturn(buildPostazione(request.getPostazioneId(), "PS-007", "DISPONIBILE"));
+        when(locationServiceClient.getGruppiAbilitati(request.getPostazioneId(), "Bearer token")).thenReturn(List.of());
+        when(utentiServiceClient.getCurrentUserGroupIds("Bearer token")).thenReturn(List.of());
+        when(prenotazioneRepository.existsActiveOverlapForUser(
+                utenteId,
+                request.getDataPrenotazione(),
+                request.getOraInizio(),
+                request.getOraFine(),
+                StatoPrenotazione.CONFERMATA
+        )).thenReturn(false);
+        when(prenotazioneRepository.existsActiveOverlapForPostazione(
+                request.getPostazioneId(),
+                request.getDataPrenotazione(),
+                request.getOraInizio(),
+                request.getOraFine(),
+                StatoPrenotazione.CONFERMATA
+        )).thenReturn(false);
     }
 
     private ExternalUtenteResponse buildUser(Long id, RuoloUtente ruolo) {
@@ -440,6 +861,22 @@ class PrenotazioneServiceTest {
         prenotazione.setStato(StatoPrenotazione.CONFERMATA);
         prenotazione.setCreatedAt(OffsetDateTime.now(ZoneOffset.UTC));
         prenotazione.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        return prenotazione;
+    }
+
+    private Prenotazione buildMeetingRoomPrenotazione(Long id,
+                                                      Long utenteId,
+                                                      Long stanzaId,
+                                                      LocalDate dataPrenotazione,
+                                                      LocalTime oraInizio,
+                                                      LocalTime oraFine) {
+        Prenotazione prenotazione = buildPrenotazione(id, utenteId, null, dataPrenotazione, oraInizio, oraFine);
+        prenotazione.setTipoRisorsaPrenotata(TipoRisorsaPrenotata.MEETING_ROOM);
+        prenotazione.setPostazioneCodice(null);
+        prenotazione.setMeetingRoomStanzaId(stanzaId);
+        prenotazione.setMeetingRoomNome("Sala Atlante");
+        prenotazione.setStanzaId(stanzaId);
+        prenotazione.setStanzaNome("Sala Atlante");
         return prenotazione;
     }
 }

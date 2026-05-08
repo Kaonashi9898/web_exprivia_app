@@ -220,7 +220,7 @@ export class ApiService {
   }
 
   getPlanimetria(pianoId: number) {
-    return this.http.get<PlanimetriaResponse>(`${LOCATION_API}/api/piani/${pianoId}/planimetria`);
+    return this.http.get<PlanimetriaResponse | null>(`${LOCATION_API}/api/piani/${pianoId}/planimetria`);
   }
 
   getPlanimetriaLayout(pianoId: number) {

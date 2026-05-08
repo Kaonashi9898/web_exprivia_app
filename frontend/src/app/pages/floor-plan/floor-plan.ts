@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { catchError, forkJoin, map, of, Subscription } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { Edificio, Piano, PlanimetriaLayout, PlanimetriaResponse, Sede } from '../../core/app.models';
-import { apiErrorMessage } from '../../core/api-error.utils';
+import { apiErrorMessage, apiErrorStatus } from '../../core/api-error.utils';
 import { environment } from '../../../environments/environment';
 import { DxfConverterService } from '../../core/dxf-converter.service';
 import { roomZoom, roomZoomStyle, RoomZoomInput } from '../../core/plan-zoom.utils';
@@ -325,13 +325,17 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
         this.loadLayout(pianoId, requestId);
         this.refreshView();
       },
-      error: () => {
+      error: (err) => {
         if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
           return;
         }
         this.planimetria = null;
         this.layout = null;
         this.revokeImageUrl();
+        this.error = apiErrorStatus(err) === 404
+          ? 'Il piano selezionato non esiste piu o non e disponibile.'
+          : apiErrorMessage(err, 'Impossibile caricare la planimetria del piano selezionato.');
+        this.message = '';
         this.refreshView();
       },
     });

@@ -66,6 +66,12 @@ public class PlanimetriaService {
         return toResponse(getByPianoIdOrThrow(pianoId));
     }
 
+    public Optional<PlanimetriaResponse> findOptionalByPianoId(Long pianoId) {
+        getPianoOrThrow(pianoId);
+        return planimetriaRepository.findByPianoId(pianoId)
+                .map(this::toResponse);
+    }
+
     public PlanimetriaLayoutDto getLayoutByPianoId(Long pianoId) {
         Planimetria planimetria = getByPianoIdOrThrow(pianoId);
         if (planimetria.getJsonPath() == null || planimetria.getJsonPath().isBlank()) {

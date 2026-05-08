@@ -54,9 +54,9 @@ export class DxfConverterService {
     // ── Inject TEXT / MTEXT ───────────────────────────────────────────────
     const layers = helper.parsed?.tables?.layers ?? {};
     const textElements = helper.denormalised
-      .filter((e) => e.type === 'TEXT' || e.type === 'MTEXT')
-      .map((e) => this.entityToSvgText(e, layers))
-      .filter((el): el is string => el !== null);
+      .filter((e: DxfEntity) => e.type === 'TEXT' || e.type === 'MTEXT')
+      .map((e: DxfEntity) => this.entityToSvgText(e, layers))
+      .filter((el: string | null): el is string => el !== null);
 
     if (textElements.length > 0) {
       svgString = svgString.replace('</svg>', textElements.join('\n') + '\n</svg>');

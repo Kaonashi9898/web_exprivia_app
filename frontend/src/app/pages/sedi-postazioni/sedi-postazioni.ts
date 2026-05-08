@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { forkJoin, of, Subscription, switchMap } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { Edificio, Gruppo, GruppoPostazione, Piano, Postazione, Prenotazione, Sede, Stanza, StatoPostazione } from '../../core/app.models';
-import { apiErrorMessage } from '../../core/api-error.utils';
+import { apiErrorMessage, bookingCancellationErrorMessage } from '../../core/api-error.utils';
 import { AuthService } from '../../core/auth.service';
 import {
   BOOKING_DAY_END,
@@ -610,7 +610,7 @@ export class SediPostazioniComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.deletingBookingId = null;
         this.bookingPendingDeletion = null;
-        this.bookingActionError = apiErrorMessage(err, 'Eliminazione prenotazione non riuscita.');
+        this.bookingActionError = bookingCancellationErrorMessage(err);
         this.refreshView();
       },
     });

@@ -4,7 +4,6 @@ import it.exprivia.location.dto.PlanimetriaPostazioneResponse;
 import it.exprivia.location.dto.PlanimetriaLayoutDto;
 import it.exprivia.location.dto.PlanimetriaResponse;
 import it.exprivia.location.service.PlanimetriaService;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -30,11 +29,9 @@ public class PlanimetriaController {
     /** Restituisce i metadati della planimetria del piano. */
     @GetMapping
     public ResponseEntity<PlanimetriaResponse> getByPianoId(@PathVariable Long pianoId) {
-        try {
-            return ResponseEntity.ok(planimetriaService.findByPianoId(pianoId));
-        } catch (EntityNotFoundException ex) {
-            return ResponseEntity.noContent().build();
-        }
+        return planimetriaService.findOptionalByPianoId(pianoId)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     /** Restituisce il layout completo esportato dall'editor esterno. */

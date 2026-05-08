@@ -230,6 +230,46 @@
   overflow-wrap: anywhere;
 }
 
+.booking-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  width: fit-content;
+  padding: 0.28rem 0.65rem;
+  color: #0c6b43;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  background: rgba(22, 163, 74, 0.12);
+  border: 1px solid rgba(22, 163, 74, 0.18);
+  border-radius: 999px;
+}
+
+.booking-live-dot {
+  display: block;
+  flex: 0 0 auto;
+  width: 0.52rem;
+  height: 0.52rem;
+  background: #16a34a;
+  border-radius: 50%;
+  box-shadow: 0 0 0 rgba(22, 163, 74, 0.28);
+  animation: booking-live-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes booking-live-pulse {
+  0%,
+  100% {
+    transform: scale(0.92);
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.2);
+  }
+
+  50% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0.4rem rgba(22, 163, 74, 0);
+  }
+}
+
 .booking-card .danger-button {
   justify-self: end;
   white-space: nowrap;

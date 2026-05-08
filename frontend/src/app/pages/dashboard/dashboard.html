@@ -118,6 +118,12 @@
             </div>
             <div>
               <strong>{{ booking.stanzaNome }}</strong>
+              @if (isBookingInProgress(booking)) {
+                <span class="booking-live-badge">
+                  <span class="booking-live-dot" aria-hidden="true"></span>
+                  In corso
+                </span>
+              }
               <span>{{ booking.pianoLabel }}</span>
               <span>{{ bookingResourceTypeLabel(booking) }}: {{ bookingResourceLabel(booking) }}</span>
             </div>
@@ -134,8 +140,8 @@
               <strong>{{ booking.oraInizio }} - {{ booking.oraFine }}</strong>
             </div>
             <div class="booking-actions">
-              @if (!isPastBooking(booking)) {
-                @if (editingBookingId === booking.id) {
+              @if (canEditBooking(booking) || canCancelBooking(booking)) {
+                @if (editingBookingId === booking.id && canEditBooking(booking)) {
                   <div class="edit-grid">
                     <label>
                       Data
@@ -169,7 +175,7 @@
                   <button class="ghost-button" type="button" [disabled]="savingBookingId === booking.id" (click)="cancelEdit()">
                     Annulla
                   </button>
-                } @else {
+                } @else if (canEditBooking(booking)) {
                   <button
                     class="ghost-button"
                     type="button"
@@ -180,16 +186,18 @@
                   </button>
                 }
 
-                <button
-                  class="danger-button"
-                  type="button"
-                  [disabled]="deletingBookingId === booking.id || savingBookingId === booking.id"
-                  (click)="askCancelBooking(booking)"
-                >
-                  {{ deletingBookingId === booking.id ? 'Eliminazione...' : 'Elimina' }}
-                </button>
+                @if (canCancelBooking(booking)) {
+                  <button
+                    class="danger-button"
+                    type="button"
+                    [disabled]="deletingBookingId === booking.id || savingBookingId === booking.id"
+                    (click)="askCancelBooking(booking)"
+                  >
+                    {{ deletingBookingId === booking.id ? 'Eliminazione...' : 'Elimina' }}
+                  </button>
+                }
               } @else {
-                <span class="booking-readonly-label">Solo consultazione</span>
+                <span class="booking-readonly-label">{{ bookingReadOnlyLabel(booking) }}</span>
               }
             </div>
           </article>

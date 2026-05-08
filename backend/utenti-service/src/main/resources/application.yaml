@@ -10,6 +10,11 @@ jwt:
   secret: ${JWT_SECRET}           # Chiave segreta per firmare/verificare i token (deve essere lunga almeno 256 bit)
   expiration: ${JWT_EXPIRATION}   # Durata del token in millisecondi (es. 86400000 = 24 ore)
 
+auth:
+  cookie:
+    secure: ${AUTH_COOKIE_SECURE:true}      # In produzione deve restare true; in locale HTTP puo' essere false
+    same-site: ${AUTH_COOKIE_SAME_SITE:Lax} # Policy del browser per l'invio del cookie tra siti/origini
+
 spring:
   application:
     name: utenti-service           # Nome del servizio (visibile in log e service discovery)
