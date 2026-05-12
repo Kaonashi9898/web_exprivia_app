@@ -93,9 +93,9 @@ export type TipoRisorsaPrenotata = 'POSTAZIONE' | 'MEETING_ROOM';
 
 export interface Prenotazione {
   id: number;
-  utenteId: number;
-  utenteEmail: string;
-  utenteFullName: string;
+  utenteId?: number | null;
+  utenteEmail?: string | null;
+  utenteFullName?: string | null;
   tipoRisorsaPrenotata: TipoRisorsaPrenotata;
   risorsaLabel: string;
   postazioneId?: number | null;

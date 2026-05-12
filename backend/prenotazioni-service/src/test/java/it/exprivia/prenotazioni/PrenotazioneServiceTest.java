@@ -22,6 +22,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
@@ -788,6 +790,40 @@ class PrenotazioneServiceTest {
         verify(locationServiceClient, times(1)).getPiano(5L, "Bearer token");
         verify(locationServiceClient, times(1)).getEdificio(9L, "Bearer token");
         verify(locationServiceClient, times(1)).getSede(12L, "Bearer token");
+    }
+
+    @Test
+    void findByResources_redigeDatiUtentePerRuoliNonOperativi() {
+        Prenotazione prenotazione = buildPrenotazione(44L, 11L, 7L, LocalDate.of(2026, 4, 28), LocalTime.of(9, 0), LocalTime.of(13, 0));
+        when(prenotazioneRepository.findAll(any(Specification.class), any(Sort.class))).thenReturn(List.of(prenotazione));
+
+        var response = prenotazioneService.findByResources(
+                LocalDate.of(2026, 4, 28),
+                List.of(7L),
+                List.of(),
+                false
+        );
+
+        assertThat(response).hasSize(1);
+        assertThat(response.get(0).getUtenteId()).isNull();
+        assertThat(response.get(0).getUtenteEmail()).isNull();
+        assertThat(response.get(0).getUtenteFullName()).isNull();
+        assertThat(response.get(0).getPostazioneId()).isEqualTo(7L);
+    }
+
+    @Test
+    void findByResources_richiedeAlmenoUnaRisorsa() {
+        assertThatThrownBy(() -> prenotazioneService.findByResources(
+                LocalDate.of(2026, 4, 28),
+                List.of(),
+                List.of(),
+                false
+        )).isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+            assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThat(ex.getReason()).contains("Specifica almeno una postazione");
+        });
+
+        verify(prenotazioneRepository, never()).findAll(any(Specification.class), any(Sort.class));
     }
 
     private CreatePrenotazioneRequest buildCreateRequest(Long postazioneId, LocalDate data, LocalTime oraInizio, LocalTime oraFine) {

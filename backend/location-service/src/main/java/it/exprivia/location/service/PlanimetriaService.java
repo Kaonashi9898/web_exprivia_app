@@ -312,19 +312,33 @@ public class PlanimetriaService {
 
     @Transactional
     public void deleteByPianoId(Long pianoId) {
-        Planimetria planimetria = getByPianoIdOrThrow(pianoId);
-        Piano piano = planimetria.getPiano();
+        cleanupResourcesForPianoDeletion(pianoId, getByPianoIdOrThrow(pianoId));
+    }
+
+    @Transactional
+    public void cleanupResourcesForPianoDeletion(Long pianoId) {
+        cleanupResourcesForPianoDeletion(pianoId, planimetriaRepository.findByPianoId(pianoId).orElse(null));
+    }
+
+    private void cleanupResourcesForPianoDeletion(Long pianoId, Planimetria planimetria) {
         List<Long> postazioneIds = postazioneRepository.findByStanzaPianoId(pianoId).stream()
                 .map(Postazione::getId)
                 .toList();
-        if (piano != null) {
-            piano.setPlanimetria(null);
+
+        if (planimetria != null) {
+            Piano piano = planimetria.getPiano();
+            if (piano != null) {
+                piano.setPlanimetria(null);
+            }
+            planimetriaRepository.delete(planimetria);
+            deleteQuietly(planimetria.getFileOriginalePath());
+            deleteQuietly(planimetria.getImagePath());
+            deleteQuietly(planimetria.getJsonPath());
         }
-        planimetriaRepository.delete(planimetria);
-        deleteQuietly(planimetria.getFileOriginalePath());
-        deleteQuietly(planimetria.getImagePath());
-        deleteQuietly(planimetria.getJsonPath());
-        planimetriaEventPublisher.pubblicaEliminazione(new PlanimetriaEliminataEvent(pianoId, postazioneIds));
+
+        if (!postazioneIds.isEmpty()) {
+            planimetriaEventPublisher.pubblicaEliminazione(new PlanimetriaEliminataEvent(pianoId, postazioneIds));
+        }
     }
 
     private void validateImageFile(MultipartFile file) {

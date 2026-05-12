@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, ElementRef, inject, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { NgStyle } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { forkJoin, Observable, of, Subscription, switchMap, map } from 'rxjs';
+import { forkJoin, Observable, of, Subscription, map } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { Edificio, Piano, PlanimetriaLayout, PlanimetriaResponse, Postazione, Prenotazione, Sede, Stanza } from '../../core/app.models';
 import { apiErrorMessage, apiErrorStatus } from '../../core/api-error.utils';
@@ -447,7 +447,7 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
     const overlappingBooking = this.bookingsForMeetingRoom(stanza)
       .find((booking) => this.bookingOverlapsSelectedWindow(booking));
     if (overlappingBooking) {
-      return `Sala occupata nella fascia selezionata da ${overlappingBooking.utenteFullName}, dalle ${overlappingBooking.oraInizio} alle ${overlappingBooking.oraFine}`;
+      return `Sala occupata nella fascia selezionata dalle ${overlappingBooking.oraInizio} alle ${overlappingBooking.oraFine}`;
     }
 
     return stanza.nome;
@@ -505,7 +505,7 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
     const bookings = this.bookingsForStation(station);
     const overlappingBooking = bookings.find((booking) => this.bookingOverlapsSelectedWindow(booking));
     if (overlappingBooking) {
-      return `Occupata nella fascia selezionata da ${overlappingBooking.utenteFullName}, dalle ${overlappingBooking.oraInizio} alle ${overlappingBooking.oraFine}`;
+      return `Occupata nella fascia selezionata dalle ${overlappingBooking.oraInizio} alle ${overlappingBooking.oraFine}`;
     }
 
     if (bookings.length) {
@@ -839,28 +839,27 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
     });
 
     this.seatsSubscription?.unsubscribe();
-    this.seatsSubscription = this.api
-      .listStanze(pianoId)
-      .pipe(
-        switchMap((stanze) => {
-          const seatGroups$ = stanze.length
-            ? forkJoin(stanze.map((stanza) => this.api.listPostazioni(stanza.id)))
-            : of([] as Postazione[][]);
-          return forkJoin({
-            stanze: of(stanze),
-            seatGroups: seatGroups$,
-          });
-        }),
-      )
+    this.seatsSubscription = forkJoin({
+      stanze: this.api.listStanze(pianoId),
+      postazioni: this.api.listPostazioniByPiano(pianoId),
+      gruppiPostazione: this.api.listSeatGroupsByPiano(pianoId),
+    })
       .subscribe({
-        next: ({ stanze, seatGroups }) => {
+        next: ({ stanze, postazioni, gruppiPostazione }) => {
           if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
             return;
           }
           this.stanze = stanze;
           this.meetingRooms = stanze.filter((stanza) => stanza.tipo === 'MEETING_ROOM');
-          this.postazioni = seatGroups.flat();
-          this.loadSeatGroupAccessForCurrentPlan(requestId, pianoId);
+          this.postazioni = postazioni;
+          this.seatGroupIdsBySeatId = Object.fromEntries(
+            postazioni.map((postazione) => [
+              postazione.id,
+              gruppiPostazione
+                .filter((group) => group.postazioneId === postazione.id)
+                .map((group) => group.gruppoId),
+            ]),
+          );
           this.loadBookingsForCurrentPlan();
           this.refreshView();
         },
@@ -875,38 +874,6 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
           this.refreshView();
         },
       });
-  }
-
-  private loadSeatGroupAccessForCurrentPlan(requestId: number, pianoId: number): void {
-    const postazioni = this.postazioni;
-    if (!postazioni.length) {
-      this.seatGroupIdsBySeatId = {};
-      return;
-    }
-
-    forkJoin(postazioni.map((postazione) => this.api.listSeatGroups(postazione.id))).subscribe({
-      next: (groupsBySeat) => {
-        if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
-          return;
-        }
-
-        this.seatGroupIdsBySeatId = Object.fromEntries(
-          postazioni.map((postazione, index) => [
-            postazione.id,
-            (groupsBySeat[index] ?? []).map((group) => group.gruppoId),
-          ]),
-        );
-        this.refreshView();
-      },
-      error: () => {
-        if (requestId !== this.currentPlanRequestId || this.selectedPianoId !== pianoId) {
-          return;
-        }
-
-        this.seatGroupIdsBySeatId = {};
-        this.refreshView();
-      },
-    });
   }
 
   findPostazione(station: LayoutStation): Postazione | null {
@@ -1020,7 +987,8 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
         }
         this.bookings = bookings.filter((booking) =>
           (booking.postazioneId != null && postazioneIds.has(booking.postazioneId))
-          || (booking.meetingRoomStanzaId != null && meetingRoomIds.has(booking.meetingRoomStanzaId)),
+          || (booking.meetingRoomStanzaId != null && meetingRoomIds.has(booking.meetingRoomStanzaId))
+          || this.isCurrentUserBooking(booking),
         );
         this.bookingsLoading = false;
         this.bookingsLoaded = true;
@@ -1099,21 +1067,7 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
   }
 
   private bookingsForCurrentUser(): Prenotazione[] {
-    const currentUser = this.auth.currentUser();
-    const currentEmail = currentUser?.email?.trim().toLowerCase() ?? '';
-    const currentId = currentUser?.id ?? null;
-
-    return this.bookings.filter((booking) => {
-      if (booking.stato !== 'CONFERMATA') {
-        return false;
-      }
-
-      if (currentId && currentId > 0 && booking.utenteId === currentId) {
-        return true;
-      }
-
-      return !!currentEmail && booking.utenteEmail.trim().toLowerCase() === currentEmail;
-    });
+    return this.bookings.filter((booking) => this.isCurrentUserBooking(booking));
   }
 
   private findSuggestedStartTime(station: LayoutStation | null): string | null {
@@ -1169,6 +1123,22 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
     return ceilBookingStartOption(rawSuggestion);
   }
 
+  private isCurrentUserBooking(booking: Prenotazione): boolean {
+    if (booking.stato !== 'CONFERMATA') {
+      return false;
+    }
+
+    const currentUser = this.auth.currentUser();
+    const currentEmail = currentUser?.email?.trim().toLowerCase() ?? '';
+    const currentId = currentUser?.id ?? null;
+    if (currentId && currentId > 0 && booking.utenteId === currentId) {
+      return true;
+    }
+
+    const bookingEmail = booking.utenteEmail?.trim().toLowerCase() ?? '';
+    return !!currentEmail && !!bookingEmail && bookingEmail === currentEmail;
+  }
+
   private bookingOverlapsSelectedWindow(booking: Prenotazione): boolean {
     return this.bookingOverlapsWindow(booking, this.startTime, this.endTime);
   }
@@ -1206,21 +1176,24 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
     postazioni: Postazione[] = this.postazioni,
     meetingRooms: Stanza[] = this.meetingRooms,
   ): Observable<Prenotazione[]> {
-    if (this.hasOperationalBookingAccess()) {
-      return this.api.listBookings(data);
-    }
-
-    const requests = [
-      ...postazioni.map((postazione) => this.api.listBookingsByPostazione(postazione.id, data)),
-      ...meetingRooms.map((stanza) => this.api.listBookingsByMeetingRoom(stanza.id, data)),
-    ];
-
-    if (!requests.length) {
+    const postazioneIds = postazioni.map((postazione) => postazione.id);
+    const meetingRoomIds = meetingRooms.map((stanza) => stanza.id);
+    if (!postazioneIds.length && !meetingRoomIds.length) {
       return of([]);
     }
 
-    return forkJoin(requests).pipe(
-      map((groups) => groups.flat()),
+    const resourceBookings$ = this.api.listBookingsByResources(data, postazioneIds, meetingRoomIds);
+    if (this.hasOperationalBookingAccess()) {
+      return resourceBookings$;
+    }
+
+    return forkJoin({
+      resourceBookings: resourceBookings$,
+      myBookings: this.api.listMyBookings(data),
+    }).pipe(
+      map(({ resourceBookings, myBookings }) => Array.from(new Map(
+        [...resourceBookings, ...myBookings].map((booking) => [booking.id, booking]),
+      ).values())),
     );
   }
 

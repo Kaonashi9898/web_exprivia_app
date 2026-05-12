@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { map } from 'rxjs';
+import { map, of } from 'rxjs';
 import { RuoloUtente } from './app.models';
 import { AuthService } from './auth.service';
 
@@ -16,10 +16,8 @@ export const authGuard: CanActivateFn = () => {
 export const publicHomeGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   const router = inject(Router);
-
-  return auth.ensureProfile().pipe(
-    map((user) => user ? router.createUrlTree(['/dashboard']) : true),
-  );
+  const user = auth.currentUser();
+  return of(user ? router.createUrlTree(['/dashboard']) : true);
 };
 
 export const roleGuard: CanActivateFn = (route) => {

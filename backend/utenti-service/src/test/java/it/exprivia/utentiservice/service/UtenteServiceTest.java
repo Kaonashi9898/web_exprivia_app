@@ -1,6 +1,7 @@
 package it.exprivia.utentiservice.service;
 
 import it.exprivia.utenti.dto.RegisterRequest;
+import it.exprivia.utenti.messaging.EventPublicationException;
 import it.exprivia.utenti.messaging.GruppoEventPublisher;
 import it.exprivia.utenti.messaging.UtenteEliminatoEvent;
 import it.exprivia.utenti.entity.RuoloUtente;
@@ -21,6 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -73,6 +75,31 @@ class UtenteServiceTest {
                 .hasMessageContaining("USER o GUEST");
 
         verify(utenteRepository, never()).save(any(Utente.class));
+    }
+
+    @Test
+    void create_propagaErroreQuandoIlPublishCriticoFallisce() {
+        when(utenteRepository.findByEmail("admin@exprivia.com"))
+                .thenReturn(java.util.Optional.of(buildUser(100L, "Admin", "admin@exprivia.com", RuoloUtente.ADMIN)));
+        RegisterRequest request = new RegisterRequest();
+        request.setFullName("Mario Rossi");
+        request.setEmail("mario.rossi@exprivia.com");
+        request.setPassword("password123");
+        request.setRuolo(RuoloUtente.USER);
+
+        when(utenteRepository.existsByEmail("mario.rossi@exprivia.com")).thenReturn(false);
+        when(passwordEncoder.encode("password123")).thenReturn("hash");
+        when(utenteRepository.save(any(Utente.class))).thenAnswer(invocation -> {
+            Utente utente = invocation.getArgument(0);
+            utente.setId(55L);
+            return utente;
+        });
+        doThrow(new EventPublicationException("rabbit failure", new RuntimeException("down")))
+                .when(gruppoEventPublisher).pubblicaCreazioneUtente(any(), any());
+
+        assertThatThrownBy(() -> utenteService.create(request, "admin@exprivia.com"))
+                .isInstanceOf(EventPublicationException.class)
+                .hasMessageContaining("rabbit failure");
     }
 
     @Test

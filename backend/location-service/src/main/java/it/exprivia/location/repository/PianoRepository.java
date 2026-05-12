@@ -13,6 +13,9 @@ public interface PianoRepository extends JpaRepository<Piano, Long> {
     // Restituisce tutti i piani di un edificio
     List<Piano> findByEdificioId(Long edificioId);
 
+    // Restituisce tutti i piani appartenenti agli edifici di una sede
+    List<Piano> findByEdificioSedeId(Long sedeId);
+
     // Verifica se esiste già un piano con lo stesso numero nello stesso edificio
     boolean existsByNumeroAndEdificioId(Integer numero, Long edificioId);
 }

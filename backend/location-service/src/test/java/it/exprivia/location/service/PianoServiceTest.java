@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,6 +30,9 @@ class PianoServiceTest {
 
     @Mock
     EdificioRepository edificioRepository;
+
+    @Mock
+    PlanimetriaService planimetriaService;
 
     @InjectMocks
     PianoService pianoService;
@@ -84,5 +88,15 @@ class PianoServiceTest {
         EntityNotFoundException ex = assertThrows(EntityNotFoundException.class, () -> pianoService.findByEdificioId(99L));
 
         assertEquals("Edificio non trovato con id: 99", ex.getMessage());
+    }
+
+    @Test
+    void delete_esegueCleanupPrimaDiEliminareIlPiano() {
+        when(pianoRepository.existsById(15L)).thenReturn(true);
+
+        pianoService.delete(15L);
+
+        verify(planimetriaService).cleanupResourcesForPianoDeletion(15L);
+        verify(pianoRepository).deleteById(15L);
     }
 }

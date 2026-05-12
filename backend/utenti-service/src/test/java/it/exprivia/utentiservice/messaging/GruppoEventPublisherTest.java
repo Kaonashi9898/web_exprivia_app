@@ -1,6 +1,7 @@
 package it.exprivia.utentiservice.messaging;
 
 import it.exprivia.utenti.messaging.GruppoEliminatoEvent;
+import it.exprivia.utenti.messaging.EventPublicationException;
 import it.exprivia.utenti.messaging.GruppoEventPublisher;
 import it.exprivia.utenti.messaging.RabbitMQConfig;
 import org.junit.jupiter.api.Test;
@@ -12,7 +13,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,5 +51,18 @@ class GruppoEventPublisherTest {
         );
         GruppoEliminatoEvent evento = (GruppoEliminatoEvent) captor.getValue();
         assertThat(evento.gruppoId()).isEqualTo(99L);
+    }
+
+    @Test
+    void pubblicaEliminazione_propagaErroreQuandoRabbitMqFallisce() {
+        doThrow(new RuntimeException("broker down")).when(rabbitTemplate).convertAndSend(
+                eq(RabbitMQConfig.EXCHANGE),
+                eq(RabbitMQConfig.ROUTING_KEY_GRUPPO_ELIMINATO),
+                eq(new GruppoEliminatoEvent(12L))
+        );
+
+        assertThatThrownBy(() -> publisher.pubblicaEliminazione(12L))
+                .isInstanceOf(EventPublicationException.class)
+                .hasMessageContaining(RabbitMQConfig.ROUTING_KEY_GRUPPO_ELIMINATO);
     }
 }

@@ -39,8 +39,8 @@ springdoc:
     filter: true
     urls:
       - name: utenti-service
-        url: http://localhost:8081/v3/api-docs
+        url: ${UTENTI_OPENAPI_URL:${services.utenti.base-url}/v3/api-docs}
       - name: location-service
-        url: http://localhost:8082/v3/api-docs
+        url: ${LOCATION_OPENAPI_URL:${services.location.base-url}/v3/api-docs}
       - name: prenotazioni-service
-        url: /v3/api-docs
+        url: ${PRENOTAZIONI_OPENAPI_URL:/v3/api-docs}

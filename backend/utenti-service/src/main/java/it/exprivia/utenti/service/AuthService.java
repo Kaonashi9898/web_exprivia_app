@@ -12,6 +12,7 @@ import it.exprivia.utenti.security.JwtUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
 
@@ -24,6 +25,7 @@ public class AuthService {
     private final JwtUtils jwtUtils;
     private final GruppoEventPublisher gruppoEventPublisher;
 
+    @Transactional
     public UtenteDTO register(RegisterRequest request) {
         String normalizedEmail = normalizeEmail(request.getEmail());
         if (utenteRepository.existsByEmail(normalizedEmail)) {

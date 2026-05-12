@@ -40,6 +40,13 @@ public class GruppoPostazioneService {
                 .collect(Collectors.toList());
     }
 
+    /** Restituisce tutte le associazioni gruppo-postazione presenti in un piano. */
+    public List<GruppoPostazioneResponse> findByPianoId(Long pianoId) {
+        return gruppoPostazioneRepository.findByPostazioneStanzaPianoId(pianoId).stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
     /**
      * Crea una nuova associazione gruppo-postazione.
      * Verifica che la postazione esista e che l'associazione non sia già presente.

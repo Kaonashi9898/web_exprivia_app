@@ -93,6 +93,20 @@ public class PrenotazioneController {
         return ResponseEntity.ok(prenotazioneService.findAll(data, postazioneId, meetingRoomStanzaId));
     }
 
+    @GetMapping("/risorse")
+    public ResponseEntity<List<PrenotazioneResponse>> findByResources(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data,
+            @RequestParam(required = false) List<Long> postazioneIds,
+            @RequestParam(required = false) List<Long> meetingRoomStanzaIds,
+            Authentication authentication) {
+        return ResponseEntity.ok(prenotazioneService.findByResources(
+                data,
+                postazioneIds,
+                meetingRoomStanzaIds,
+                hasOperationalBookingAccess(authentication)
+        ));
+    }
+
     @GetMapping("/postazione/{postazioneId}")
     public ResponseEntity<List<PrenotazioneResponse>> findByPostazioneAndData(
             @PathVariable Long postazioneId,
@@ -145,8 +159,23 @@ public class PrenotazioneController {
     }
 
     private boolean hasAdminOverride(Authentication authentication) {
+        if (authentication == null) {
+            return false;
+        }
         return authentication.getAuthorities().stream()
                 .map(authority -> authority.getAuthority())
                 .anyMatch(authority -> authority.equals("ROLE_ADMIN"));
+    }
+
+    private boolean hasOperationalBookingAccess(Authentication authentication) {
+        if (authentication == null) {
+            return false;
+        }
+        return authentication.getAuthorities().stream()
+                .map(authority -> authority.getAuthority())
+                .anyMatch(authority ->
+                        authority.equals("ROLE_ADMIN")
+                                || authority.equals("ROLE_BUILDING_MANAGER")
+                                || authority.equals("ROLE_RECEPTION"));
     }
 }

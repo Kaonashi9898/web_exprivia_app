@@ -32,6 +32,8 @@ import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -259,6 +261,47 @@ public class PrenotazioneService {
 
         return prenotazioneRepository.findAll(specification, sort).stream()
                 .map(this::toResponse)
+                .toList();
+    }
+
+    public List<PrenotazioneResponse> findByResources(LocalDate dataPrenotazione,
+                                                      List<Long> postazioneIds,
+                                                      List<Long> meetingRoomStanzaIds,
+                                                      boolean exposeBookingOwner) {
+        List<Long> normalizedPostazioneIds = normalizeIds(postazioneIds);
+        List<Long> normalizedMeetingRoomIds = normalizeIds(meetingRoomStanzaIds);
+
+        if (normalizedPostazioneIds.isEmpty() && normalizedMeetingRoomIds.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Specifica almeno una postazione o una sala riunioni da filtrare");
+        }
+
+        Specification<Prenotazione> specification = (root, query, cb) -> cb.conjunction();
+        if (dataPrenotazione != null) {
+            specification = specification.and((root, query, cb) ->
+                    cb.equal(root.get("dataPrenotazione"), dataPrenotazione));
+        }
+
+        if (!normalizedPostazioneIds.isEmpty() && !normalizedMeetingRoomIds.isEmpty()) {
+            specification = specification.and((root, query, cb) -> cb.or(
+                    root.get("postazioneId").in(normalizedPostazioneIds),
+                    root.get("meetingRoomStanzaId").in(normalizedMeetingRoomIds)
+            ));
+        } else if (!normalizedPostazioneIds.isEmpty()) {
+            specification = specification.and((root, query, cb) ->
+                    root.get("postazioneId").in(normalizedPostazioneIds));
+        } else {
+            specification = specification.and((root, query, cb) ->
+                    root.get("meetingRoomStanzaId").in(normalizedMeetingRoomIds));
+        }
+
+        Sort sort = Sort.by(
+                Sort.Order.asc("dataPrenotazione"),
+                Sort.Order.asc("oraInizio")
+        );
+
+        return prenotazioneRepository.findAll(specification, sort).stream()
+                .map(prenotazione -> toResponse(prenotazione, exposeBookingOwner))
                 .toList();
     }
 
@@ -578,11 +621,15 @@ public class PrenotazioneService {
     }
 
     private PrenotazioneResponse toResponse(Prenotazione prenotazione) {
+        return toResponse(prenotazione, true);
+    }
+
+    private PrenotazioneResponse toResponse(Prenotazione prenotazione, boolean exposeBookingOwner) {
         return new PrenotazioneResponse(
                 prenotazione.getId(),
-                prenotazione.getUtenteId(),
-                prenotazione.getUtenteEmail(),
-                prenotazione.getUtenteFullName(),
+                exposeBookingOwner ? prenotazione.getUtenteId() : null,
+                exposeBookingOwner ? prenotazione.getUtenteEmail() : null,
+                exposeBookingOwner ? prenotazione.getUtenteFullName() : null,
                 prenotazione.getTipoRisorsaPrenotata(),
                 getRisorsaLabel(prenotazione),
                 prenotazione.getPostazioneId(),
@@ -598,6 +645,17 @@ public class PrenotazioneService {
                 prenotazione.getCreatedAt(),
                 prenotazione.getUpdatedAt()
         );
+    }
+
+    private List<Long> normalizeIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+
+        return new ArrayList<>(ids.stream()
+                .filter(id -> id != null && id > 0)
+                .distinct()
+                .toList());
     }
 
     private DashboardPrenotazioneResponse toDashboardResponse(Prenotazione prenotazione,

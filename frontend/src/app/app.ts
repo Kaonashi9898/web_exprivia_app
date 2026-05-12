@@ -1,6 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { AuthService } from './core/auth.service';
 
 @Component({
   selector: 'app-root',
@@ -9,10 +8,5 @@ import { AuthService } from './core/auth.service';
   styleUrl: './app.css'
 })
 export class App {
-  private readonly auth = inject(AuthService);
   protected readonly title = signal('frontend');
-
-  constructor() {
-    this.auth.loadProfile().subscribe();
-  }
 }

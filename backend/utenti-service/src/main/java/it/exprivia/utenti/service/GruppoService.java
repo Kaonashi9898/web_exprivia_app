@@ -12,6 +12,7 @@ import it.exprivia.utenti.repository.UtenteRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.EnumSet;
@@ -61,6 +62,7 @@ public class GruppoService {
     /**
      * Crea un nuovo gruppo con il nome fornito e lo persiste nel database.
      */
+    @Transactional
     public Gruppo crea(String nome, String actorEmail) {
         String normalizedNome = normalizeNome(nome);
         if (gruppoRepository.existsByNomeIgnoreCase(normalizedNome)) {
@@ -77,6 +79,7 @@ public class GruppoService {
     /**
      * Aggiorna il nome di un gruppo esistente.
      */
+    @Transactional
     public Gruppo aggiorna(Long id, String nome, String actorEmail) {
         Gruppo gruppo = gruppoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Gruppo non trovato con id: " + id));
@@ -105,6 +108,7 @@ public class GruppoService {
      * L'evento viene pubblicato DOPO l'eliminazione, così gli altri servizi
      * possono liberare le risorse collegate (es. postazioni assegnate al gruppo).
      */
+    @Transactional
     public Gruppo elimina(Long id, String actorEmail) {
         Gruppo gruppo = gruppoRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Gruppo non trovato con id: " + id));
@@ -118,6 +122,7 @@ public class GruppoService {
      * Aggiunge un utente a un gruppo creando una nuova riga nella tabella gruppi_utente.
      * Verifica che: il gruppo esista, l'utente esista e l'utente non sia già nel gruppo.
      */
+    @Transactional
     public void aggiungiUtente(Long idGruppo, Long idUtente, String operatorEmail) {
         if (!gruppoRepository.existsById(idGruppo)) {
             throw new EntityNotFoundException("Gruppo non trovato con id: " + idGruppo);
@@ -141,6 +146,7 @@ public class GruppoService {
      * Rimuove un utente da un gruppo eliminando la riga corrispondente
      * nella tabella di join gruppi_utente.
      */
+    @Transactional
     public void rimuoviUtente(Long idGruppo, Long idUtente, String operatorEmail) {
         Utente target = utenteRepository.findById(idUtente)
                 .orElseThrow(() -> new EntityNotFoundException("Utente non trovato con id: " + idUtente));

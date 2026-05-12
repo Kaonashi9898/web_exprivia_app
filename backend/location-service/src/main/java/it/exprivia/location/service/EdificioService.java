@@ -3,12 +3,9 @@ package it.exprivia.location.service;
 import it.exprivia.location.dto.EdificioRequest;
 import it.exprivia.location.dto.EdificioResponse;
 import it.exprivia.location.entity.Edificio;
-import it.exprivia.location.entity.Postazione;
 import it.exprivia.location.entity.Sede;
-import it.exprivia.location.messaging.PlanimetriaEliminataEvent;
-import it.exprivia.location.messaging.PlanimetriaEventPublisher;
 import it.exprivia.location.repository.EdificioRepository;
-import it.exprivia.location.repository.PostazioneRepository;
+import it.exprivia.location.repository.PianoRepository;
 import it.exprivia.location.repository.SedeRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -32,8 +29,8 @@ public class EdificioService {
 
     private final EdificioRepository edificioRepository;
     private final SedeRepository sedeRepository;
-    private final PostazioneRepository postazioneRepository;
-    private final PlanimetriaEventPublisher planimetriaEventPublisher;
+    private final PianoRepository pianoRepository;
+    private final PlanimetriaService planimetriaService;
 
     /** Restituisce tutti gli edifici di una sede, verificando che la sede esista. */
     public List<EdificioResponse> findBySedeId(Long sedeId) {
@@ -81,17 +78,20 @@ public class EdificioService {
         if (!edificioRepository.existsById(id)) {
             throw new EntityNotFoundException("Edificio non trovato con id: " + id);
         }
-        List<Long> postazioneIds = postazioneRepository.findByStanzaPianoEdificioId(id).stream()
-                .map(Postazione::getId)
-                .toList();
+        pianoRepository.findByEdificioId(id).stream()
+                .map(EdificioService::getPianoId)
+                .forEach(planimetriaService::cleanupResourcesForPianoDeletion);
         edificioRepository.deleteById(id);
-        planimetriaEventPublisher.pubblicaEliminazione(new PlanimetriaEliminataEvent(null, postazioneIds));
     }
 
     // Metodo helper: cerca l'edificio o lancia eccezione 404
     private Edificio getOrThrow(Long id) {
         return edificioRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Edificio non trovato con id: " + id));
+    }
+
+    private static Long getPianoId(it.exprivia.location.entity.Piano piano) {
+        return piano.getId();
     }
 
     // Metodo helper: converte l'entità Edificio nel DTO di risposta

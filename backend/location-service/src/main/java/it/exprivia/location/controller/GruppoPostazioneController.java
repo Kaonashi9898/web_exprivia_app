@@ -43,6 +43,12 @@ public class GruppoPostazioneController {
         return ResponseEntity.ok(gruppoPostazioneService.findByPostazioneId(postazioneId));
     }
 
+    /** Restituisce tutte le associazioni gruppo-postazione di un piano. */
+    @GetMapping("/piano/{pianoId}")
+    public ResponseEntity<List<GruppoPostazioneResponse>> getByPiano(@PathVariable Long pianoId) {
+        return ResponseEntity.ok(gruppoPostazioneService.findByPianoId(pianoId));
+    }
+
     /** Crea un'associazione tra un gruppo e una postazione. Restituisce 201 Created. */
     @PostMapping("/gruppo/{gruppoId}/postazione/{postazioneId}")
     public ResponseEntity<GruppoPostazioneResponse> aggiungi(@PathVariable Long gruppoId, @PathVariable Long postazioneId) {

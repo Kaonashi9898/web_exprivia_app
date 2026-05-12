@@ -19,6 +19,9 @@ public interface GruppoPostazioneRepository extends JpaRepository<GruppoPostazio
     // Gruppi che hanno accesso a una postazione specifica
     List<GruppoPostazione> findByPostazioneId(Long postazioneId);
 
+    // Tutte le associazioni gruppo-postazione presenti in un piano
+    List<GruppoPostazione> findByPostazioneStanzaPianoId(Long pianoId);
+
     // Verifica se esiste già l'associazione (evita duplicati)
     boolean existsByGruppoIdAndPostazioneId(Long gruppoId, Long postazioneId);
 

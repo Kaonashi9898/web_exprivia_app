@@ -43,6 +43,7 @@ public class UtenteService {
         return utenti;
     }
 
+    @Transactional
     public UtenteDTO create(RegisterRequest request, String operatorEmail) {
         Utente operatore = getOperatore(operatorEmail);
         String normalizedEmail = normalizeEmail(request.getEmail());
@@ -80,6 +81,7 @@ public class UtenteService {
         return dto;
     }
 
+    @Transactional
     public UtenteDTO update(Long id, UtenteDTO dto, String operatorEmail) {
         Utente operatore = getOperatore(operatorEmail);
         Utente utente = utenteRepository.findById(id)
@@ -96,6 +98,7 @@ public class UtenteService {
         return updated;
     }
 
+    @Transactional
     public UtenteDTO updateRole(Long id, RuoloUtente ruolo, String operatorEmail) {
         Utente operatore = getOperatore(operatorEmail);
         Utente utente = utenteRepository.findById(id)

@@ -2,11 +2,9 @@ package it.exprivia.location.service;
 
 import it.exprivia.location.dto.SedeRequest;
 import it.exprivia.location.dto.SedeResponse;
-import it.exprivia.location.entity.Postazione;
 import it.exprivia.location.entity.Sede;
-import it.exprivia.location.messaging.PlanimetriaEliminataEvent;
-import it.exprivia.location.messaging.PlanimetriaEventPublisher;
-import it.exprivia.location.repository.PostazioneRepository;
+import it.exprivia.location.entity.Piano;
+import it.exprivia.location.repository.PianoRepository;
 import it.exprivia.location.repository.SedeRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -28,8 +26,8 @@ import java.util.stream.Collectors;
 public class SedeService {
 
     private final SedeRepository sedeRepository;
-    private final PostazioneRepository postazioneRepository;
-    private final PlanimetriaEventPublisher planimetriaEventPublisher;
+    private final PianoRepository pianoRepository;
+    private final PlanimetriaService planimetriaService;
 
     /** Restituisce tutte le sedi. */
     public List<SedeResponse> findAll() {
@@ -83,11 +81,10 @@ public class SedeService {
         if (!sedeRepository.existsById(id)) {
             throw new EntityNotFoundException("Sede non trovata con id: " + id);
         }
-        List<Long> postazioneIds = postazioneRepository.findByStanzaPianoEdificioSedeId(id).stream()
-                .map(Postazione::getId)
-                .toList();
+        pianoRepository.findByEdificioSedeId(id).stream()
+                .map(Piano::getId)
+                .forEach(planimetriaService::cleanupResourcesForPianoDeletion);
         sedeRepository.deleteById(id);
-        planimetriaEventPublisher.pubblicaEliminazione(new PlanimetriaEliminataEvent(null, postazioneIds));
     }
 
     // Metodo helper: cerca la sede o lancia eccezione 404

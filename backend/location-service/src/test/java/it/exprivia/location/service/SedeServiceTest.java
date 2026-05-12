@@ -1,16 +1,13 @@
 package it.exprivia.location.service;
 
 import it.exprivia.location.dto.SedeRequest;
-import it.exprivia.location.entity.Postazione;
+import it.exprivia.location.entity.Piano;
 import it.exprivia.location.entity.Sede;
-import it.exprivia.location.messaging.PlanimetriaEliminataEvent;
-import it.exprivia.location.messaging.PlanimetriaEventPublisher;
-import it.exprivia.location.repository.PostazioneRepository;
+import it.exprivia.location.repository.PianoRepository;
 import it.exprivia.location.repository.SedeRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -30,10 +27,10 @@ class SedeServiceTest {
     SedeRepository sedeRepository;
 
     @Mock
-    PostazioneRepository postazioneRepository;
+    PianoRepository pianoRepository;
 
     @Mock
-    PlanimetriaEventPublisher planimetriaEventPublisher;
+    PlanimetriaService planimetriaService;
 
     @InjectMocks
     SedeService sedeService;
@@ -53,22 +50,20 @@ class SedeServiceTest {
     }
 
     @Test
-    void delete_pubblicaEventoConLePostazioniCoinvolte() {
-        Postazione prima = new Postazione();
-        prima.setId(7L);
-        Postazione seconda = new Postazione();
-        seconda.setId(8L);
+    void delete_pulisceLeRisorseDiTuttiIPianiPrimaDiEliminareLaSede() {
+        Piano primoPiano = new Piano();
+        primoPiano.setId(7L);
+        Piano secondoPiano = new Piano();
+        secondoPiano.setId(8L);
 
         when(sedeRepository.existsById(12L)).thenReturn(true);
-        when(postazioneRepository.findByStanzaPianoEdificioSedeId(12L)).thenReturn(List.of(prima, seconda));
+        when(pianoRepository.findByEdificioSedeId(12L)).thenReturn(List.of(primoPiano, secondoPiano));
 
         sedeService.delete(12L);
 
-        ArgumentCaptor<PlanimetriaEliminataEvent> captor = ArgumentCaptor.forClass(PlanimetriaEliminataEvent.class);
+        verify(planimetriaService).cleanupResourcesForPianoDeletion(7L);
+        verify(planimetriaService).cleanupResourcesForPianoDeletion(8L);
         verify(sedeRepository).deleteById(12L);
-        verify(planimetriaEventPublisher).pubblicaEliminazione(captor.capture());
-        assertEquals(List.of(7L, 8L), captor.getValue().postazioneIds());
-        assertEquals(null, captor.getValue().pianoId());
     }
 
     @Test

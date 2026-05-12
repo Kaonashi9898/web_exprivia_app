@@ -39,6 +39,13 @@ public class PostazioneService {
                 .collect(Collectors.toList());
     }
 
+    /** Restituisce tutte le postazioni di un piano. */
+    public List<PostazioneResponse> findByPianoId(Long pianoId) {
+        return postazioneRepository.findByStanzaPianoId(pianoId).stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
     /** Restituisce solo le postazioni con stato DISPONIBILE in una stanza. */
     public List<PostazioneResponse> findDisponibiliByStanzaId(Long stanzaId) {
         return postazioneRepository.findByStanzaIdAndStato(stanzaId, StatoPostazione.DISPONIBILE).stream()

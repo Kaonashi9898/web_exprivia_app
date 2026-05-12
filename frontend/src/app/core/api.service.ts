@@ -83,6 +83,10 @@ export class ApiService {
     return this.http.get<GruppoPostazione[]>(`${LOCATION_API}/api/gruppi-postazioni/postazione/${postazioneId}`);
   }
 
+  listSeatGroupsByPiano(pianoId: number) {
+    return this.http.get<GruppoPostazione[]>(`${LOCATION_API}/api/gruppi-postazioni/piano/${pianoId}`);
+  }
+
   addGroupToSeat(groupId: number, postazioneId: number) {
     return this.http.post<GruppoPostazione>(`${LOCATION_API}/api/gruppi-postazioni/gruppo/${groupId}/postazione/${postazioneId}`, null);
   }
@@ -139,6 +143,10 @@ export class ApiService {
     return this.http.get<Postazione[]>(`${LOCATION_API}/api/postazioni/stanza/${stanzaId}`);
   }
 
+  listPostazioniByPiano(pianoId: number) {
+    return this.http.get<Postazione[]>(`${LOCATION_API}/api/postazioni/piano/${pianoId}`);
+  }
+
   createPostazione(request: PostazioneRequest) {
     return this.http.post<Postazione>(`${LOCATION_API}/api/postazioni`, request);
   }
@@ -179,6 +187,22 @@ export class ApiService {
       params = params.set('postazioneId', postazioneId);
     }
     return this.http.get<Prenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni`, { params }).pipe(
+      map((bookings) => bookings.map((booking) => this.normalizeBookingTimes(booking))),
+    );
+  }
+
+  listBookingsByResources(data?: string, postazioneIds: number[] = [], meetingRoomStanzaIds: number[] = []) {
+    let params = new HttpParams();
+    if (data) {
+      params = params.set('data', data);
+    }
+    for (const postazioneId of postazioneIds) {
+      params = params.append('postazioneIds', postazioneId);
+    }
+    for (const meetingRoomStanzaId of meetingRoomStanzaIds) {
+      params = params.append('meetingRoomStanzaIds', meetingRoomStanzaId);
+    }
+    return this.http.get<Prenotazione[]>(`${PRENOTAZIONI_API}/api/prenotazioni/risorse`, { params }).pipe(
       map((bookings) => bookings.map((booking) => this.normalizeBookingTimes(booking))),
     );
   }

@@ -27,6 +27,7 @@ public class PianoService {
 
     private final PianoRepository pianoRepository;
     private final EdificioRepository edificioRepository;
+    private final PlanimetriaService planimetriaService;
 
     /** Restituisce tutti i piani di un edificio. Verifica che l'edificio esista. */
     public List<PianoResponse> findByEdificioId(Long edificioId) {
@@ -76,6 +77,7 @@ public class PianoService {
         if (!pianoRepository.existsById(id)) {
             throw new EntityNotFoundException("Piano non trovato con id: " + id);
         }
+        planimetriaService.cleanupResourcesForPianoDeletion(id);
         pianoRepository.deleteById(id);
     }
 

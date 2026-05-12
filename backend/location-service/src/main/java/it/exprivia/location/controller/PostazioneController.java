@@ -42,6 +42,12 @@ public class PostazioneController {
         return ResponseEntity.ok(postazioneService.findByStanzaId(stanzaId));
     }
 
+    /** Restituisce tutte le postazioni di un piano. */
+    @GetMapping("/piano/{pianoId}")
+    public ResponseEntity<List<PostazioneResponse>> getByPiano(@PathVariable Long pianoId) {
+        return ResponseEntity.ok(postazioneService.findByPianoId(pianoId));
+    }
+
     /** Restituisce solo le postazioni con stato DISPONIBILE in una stanza. */
     @GetMapping("/stanza/{stanzaId}/disponibili")
     public ResponseEntity<List<PostazioneResponse>> getDisponibiliByStanza(@PathVariable Long stanzaId) {
