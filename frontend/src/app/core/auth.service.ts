@@ -32,6 +32,10 @@ export class AuthService {
     return this.http.post<Utente>(`${UTENTI_API}/api/auth/register`, request);
   }
 
+  requestPasswordReset(email: string): Observable<void> {
+    return this.http.post<void>(`${UTENTI_API}/api/auth/password-reset-request`, { email });
+  }
+
   loadProfile(): Observable<Utente | null> {
     return this.http.get<Utente>(`${UTENTI_API}/api/utenti/me`).pipe(
       tap((user) => this.currentUser.set(user)),

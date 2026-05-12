@@ -101,6 +101,71 @@
     <div class="panel">
       <div class="panel-header users-toolbar">
         <div>
+          <h2>Richieste reset password</h2>
+          <p class="section-hint">
+            Il form pubblico non conferma mai se una mail esiste. Le richieste aperte vengono prese in carico qui da
+            {{ isAdmin() ? 'ADMIN' : 'RECEPTION' }} e la gestione viene tracciata lato backend.
+          </p>
+        </div>
+        <div class="toolbar-actions">
+          <button class="ghost-button" type="button" (click)="loadUsers(false)">Aggiorna richieste</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Richiedente</th>
+              <th>Email</th>
+              <th>Ruolo</th>
+              <th>Data richiesta</th>
+              <th>Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (request of passwordResetRequests; track request.id) {
+              <tr>
+                <td>{{ passwordResetTargetLabel(request) }}</td>
+                <td>{{ request.email }}</td>
+                <td>{{ passwordResetRoleLabel(request) }}</td>
+                <td>{{ formatPasswordResetRequestedAt(request.requestedAt) }}</td>
+                <td>
+                  <div class="actions-cell">
+                    <button
+                      class="ghost-button"
+                      type="button"
+                      (click)="openPasswordResetModal(request)"
+                      [disabled]="!canCompletePasswordResetRequest(request) || passwordResetActionBusy(request.id)"
+                    >
+                      {{ passwordResetActionBusy(request.id) ? 'Attendere...' : 'Imposta password' }}
+                    </button>
+                    <button
+                      class="danger-button"
+                      type="button"
+                      (click)="rejectPasswordResetRequest(request)"
+                      [disabled]="!canRejectPasswordResetRequest(request) || passwordResetActionBusy(request.id)"
+                    >
+                      {{ passwordResetActionBusy(request.id) ? 'Attendere...' : 'Rifiuta' }}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="5">
+                  {{ loading ? 'Caricamento richieste reset password...' : 'Nessuna richiesta reset password aperta.' }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header users-toolbar">
+        <div>
           <h2>Account e gruppi</h2>
           <p class="section-hint">Filtra per ruolo o gruppo dalla sidebar e gestisci gli account abilitati.</p>
         </div>
@@ -258,6 +323,60 @@
     }
   </div>
 </section>
+
+@if (showPasswordResetModal && selectedPasswordResetRequest) {
+  <div class="modal-backdrop" (click)="closePasswordResetModal()">
+    <section class="modal-card password-reset-modal-card" role="dialog" aria-modal="true" aria-labelledby="passwordResetTitle" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div>
+          <h2 id="passwordResetTitle">Imposta password temporanea</h2>
+          <p class="section-hint">
+            {{ passwordResetTargetLabel(selectedPasswordResetRequest) }} • {{ selectedPasswordResetRequest.email }}
+          </p>
+        </div>
+      </header>
+
+      <form class="form-panel users-modal-form" autocomplete="off" (ngSubmit)="submitPasswordReset()">
+        <div class="form-grid single-column-grid">
+          <label>
+            Password temporanea
+            <span class="password-field">
+              <input
+                [type]="showTemporaryPassword ? 'text' : 'password'"
+                name="temporary-password-field"
+                autocomplete="new-password"
+                placeholder="Almeno 8 caratteri"
+                [(ngModel)]="temporaryPassword"
+                minlength="8"
+                required
+              />
+              <button
+                class="password-toggle"
+                type="button"
+                (click)="toggleTemporaryPasswordVisibility()"
+                [attr.aria-label]="showTemporaryPassword ? 'Nascondi password temporanea' : 'Mostra password temporanea'"
+                [title]="showTemporaryPassword ? 'Nascondi password temporanea' : 'Mostra password temporanea'"
+              >
+                &#128065;
+              </button>
+            </span>
+          </label>
+
+          <p class="section-hint">
+            Dopo il salvataggio comunica la password all'utente con un canale sicuro. La presa in carico viene registrata.
+          </p>
+        </div>
+
+        <footer class="modal-actions">
+          <button class="ghost-button" type="button" (click)="closePasswordResetModal()" [disabled]="passwordResetActionId !== null">Annulla</button>
+          <button class="btn btn-primary" type="submit" [disabled]="passwordResetActionId !== null">
+            {{ passwordResetActionId !== null ? 'Salvataggio...' : 'Conferma password temporanea' }}
+          </button>
+        </footer>
+      </form>
+    </section>
+  </div>
+}
 
 @if (showCreateUserModal) {
   <div class="modal-backdrop" (click)="closeCreateUserModal()">

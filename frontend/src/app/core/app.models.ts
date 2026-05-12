@@ -18,6 +18,20 @@ export interface RegisterRequest {
   ruolo: RuoloUtente;
 }
 
+export type PasswordResetRequestStatus = 'OPEN' | 'DONE' | 'REJECTED';
+
+export interface PasswordResetRequest {
+  id: number;
+  email: string;
+  requestedAt: string;
+  status: PasswordResetRequestStatus;
+  handledByEmail?: string | null;
+  handledAt?: string | null;
+  userId?: number | null;
+  userFullName?: string | null;
+  userRole?: RuoloUtente | null;
+}
+
 export interface Gruppo {
   id: number;
   nome: string;

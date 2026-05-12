@@ -85,8 +85,43 @@
         </button>
 
         <div class="forgot-password-container">
-          <span class="forgot-pwd">Password gestita dall'amministratore</span>
+          <button class="forgot-pwd" type="button" (click)="toggleForgotPassword()">
+            {{ forgotPasswordOpen ? 'Chiudi richiesta reset password' : 'Password dimenticata?' }}
+          </button>
+          <p class="forgot-copy">La richiesta viene gestita da amministrazione o reception.</p>
         </div>
+
+        @if (forgotPasswordOpen) {
+          <div class="forgot-password-panel">
+            <label for="forgotPasswordEmail">Email aziendale</label>
+            <input
+              type="email"
+              id="forgotPasswordEmail"
+              name="forgot-password-email-field"
+              class="form-control"
+              placeholder="nome.cognome@exprivia.com"
+              autocomplete="off"
+              [(ngModel)]="forgotPasswordEmail"
+              required
+            />
+            <p class="forgot-panel-copy">
+              Se l'indirizzo e' valido, registreremo la richiesta senza mostrare dettagli sull'account.
+            </p>
+            <div class="forgot-actions">
+              <button
+                class="btn btn-secondary"
+                type="button"
+                (click)="submitForgotPassword()"
+                [disabled]="forgotPasswordSubmitting"
+              >
+                {{ forgotPasswordSubmitting ? 'Invio in corso...' : 'Invia richiesta' }}
+              </button>
+              <button class="ghost-action" type="button" (click)="toggleForgotPassword()" [disabled]="forgotPasswordSubmitting">
+                Annulla
+              </button>
+            </div>
+          </div>
+        }
       </form>
       } @else {
       <form class="login-form" autocomplete="off" (ngSubmit)="register()">

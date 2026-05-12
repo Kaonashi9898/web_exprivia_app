@@ -32,6 +32,9 @@ export class HomeComponent {
   registrationSuccessEmail = '';
   showPassword = false;
   showRegisterPassword = false;
+  forgotPasswordOpen = false;
+  forgotPasswordEmail = '';
+  forgotPasswordSubmitting = false;
 
   scrollTo(sectionId: string) {
     const section = document.getElementById(sectionId);
@@ -133,6 +136,8 @@ export class HomeComponent {
     this.mode = 'login';
     this.error = '';
     this.message = '';
+    this.forgotPasswordOpen = false;
+    this.forgotPasswordEmail = '';
     this.registrationSuccessOpen = false;
   }
 
@@ -140,6 +145,8 @@ export class HomeComponent {
     this.mode = 'register';
     this.error = '';
     this.message = '';
+    this.forgotPasswordOpen = false;
+    this.forgotPasswordEmail = '';
     this.registrationSuccessOpen = false;
   }
 
@@ -149,6 +156,50 @@ export class HomeComponent {
 
   toggleRegisterPasswordVisibility() {
     this.showRegisterPassword = !this.showRegisterPassword;
+  }
+
+  toggleForgotPassword(): void {
+    this.error = '';
+    this.message = '';
+    this.forgotPasswordOpen = !this.forgotPasswordOpen;
+    this.forgotPasswordEmail = this.forgotPasswordOpen ? this.email.trim() : '';
+  }
+
+  submitForgotPassword(): void {
+    this.error = '';
+    this.message = '';
+    const email = this.forgotPasswordEmail.trim();
+    if (!email) {
+      this.error = 'Inserisci la tua email aziendale per inviare la richiesta di reset.';
+      return;
+    }
+    if (!this.isExpriviaEmail(email)) {
+      this.error = DOMAIN_ERROR;
+      return;
+    }
+
+    this.forgotPasswordSubmitting = true;
+    this.auth
+      .requestPasswordReset(email)
+      .pipe(
+        timeout(10000),
+        finalize(() => (this.forgotPasswordSubmitting = false)),
+      )
+      .subscribe({
+        next: () => {
+          this.message =
+            "Se l'indirizzo e' valido, la richiesta e' stata registrata e verra presa in carico da un operatore.";
+          this.forgotPasswordOpen = false;
+          this.forgotPasswordEmail = '';
+        },
+        error: (err) => {
+          if (err?.name === 'TimeoutError') {
+            this.error = 'Richiesta non completata entro il tempo previsto. Controlla la connessione e riprova.';
+            return;
+          }
+          this.error = apiErrorMessage(err, 'Invio richiesta non riuscito. Riprova.');
+        },
+      });
   }
 
   goToLoginAfterRegistration(): void {

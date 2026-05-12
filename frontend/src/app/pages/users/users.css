@@ -263,8 +263,16 @@
   width: min(920px, 100%);
 }
 
+.password-reset-modal-card {
+  width: min(560px, 100%);
+}
+
 .users-modal-form {
   gap: 1rem;
+}
+
+.single-column-grid {
+  grid-template-columns: 1fr;
 }
 
 .modal-actions {

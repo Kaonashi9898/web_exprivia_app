@@ -1,9 +1,9 @@
 import { ChangeDetectorRef, Component, ElementRef, ViewChild, inject, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { finalize, forkJoin, of, retry, switchMap, timer, timeout } from 'rxjs';
+import { finalize, forkJoin, map, of, retry, switchMap, timer, timeout } from 'rxjs';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
-import { Gruppo, RegisterRequest, RuoloUtente, Utente } from '../../core/app.models';
+import { Gruppo, PasswordResetRequest, RegisterRequest, RuoloUtente, Utente } from '../../core/app.models';
 import { apiErrorMessage } from '../../core/api-error.utils';
 
 const DOMAIN_ERROR = 'Dominio non autorizzato. Utilizzare esclusivamente un indirizzo @exprivia.com';
@@ -29,6 +29,10 @@ export class UsersComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly requestDateFormatter = new Intl.DateTimeFormat('it-IT', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
   private createRefreshTimers: number[] = [];
   private initialRefreshTimers: number[] = [];
   @ViewChild('groupsManagerPanel') private groupsManagerPanel?: ElementRef<HTMLElement>;
@@ -36,6 +40,7 @@ export class UsersComponent implements OnInit, OnDestroy {
   roles: RuoloUtente[] = ['USER', 'BUILDING_MANAGER', 'RECEPTION', 'ADMIN', 'GUEST'];
   users: UserWithGroups[] = [];
   groups: GroupWithUsers[] = [];
+  passwordResetRequests: PasswordResetRequest[] = [];
   loading = false;
   saving = false;
   message = '';
@@ -53,6 +58,11 @@ export class UsersComponent implements OnInit, OnDestroy {
   renameGroupName = '';
   groupMembershipAction = '';
   showCreateUserModal = false;
+  showPasswordResetModal = false;
+  selectedPasswordResetRequest: PasswordResetRequest | null = null;
+  temporaryPassword = '';
+  showTemporaryPassword = false;
+  passwordResetActionId: number | null = null;
 
   ngOnInit(): void {
     this.loadUsers();
@@ -89,17 +99,20 @@ export class UsersComponent implements OnInit, OnDestroy {
                   ),
                 ),
               ).pipe(
-                switchMap((groupUsers) =>
-                  of({
-                    users,
-                    groups: groups.map((group, index) => ({
-                      ...group,
-                      users: groupUsers[index] ?? [],
-                    })),
-                  }),
-                ),
+                map((groupUsers) => ({
+                  users,
+                  groups: groups.map((group, index) => ({
+                    ...group,
+                    users: groupUsers[index] ?? [],
+                  })),
+                })),
               );
             }),
+          ),
+        ),
+        switchMap(({ users, groups }) =>
+          this.api.listPasswordResetRequests().pipe(
+            map((passwordResetRequests) => ({ users, groups, passwordResetRequests })),
           ),
         ),
         retry({ count: 2, delay: () => timer(350) }),
@@ -110,8 +123,9 @@ export class UsersComponent implements OnInit, OnDestroy {
         }),
       )
       .subscribe({
-        next: ({ users, groups }) => {
+        next: ({ users, groups, passwordResetRequests }) => {
           this.groups = groups;
+          this.passwordResetRequests = passwordResetRequests;
           this.users = users.map((user) => ({
             ...user,
             groups: groups
@@ -129,6 +143,106 @@ export class UsersComponent implements OnInit, OnDestroy {
           this.refreshView();
         },
       });
+  }
+
+  openPasswordResetModal(request: PasswordResetRequest): void {
+    if (!this.canCompletePasswordResetRequest(request)) {
+      this.error = 'Non sei autorizzato a impostare una password temporanea per questa richiesta.';
+      this.refreshView();
+      return;
+    }
+    this.selectedPasswordResetRequest = request;
+    this.temporaryPassword = '';
+    this.showTemporaryPassword = false;
+    this.showPasswordResetModal = true;
+    this.error = '';
+    this.message = '';
+    this.refreshView();
+  }
+
+  closePasswordResetModal(): void {
+    if (this.passwordResetActionId !== null) {
+      return;
+    }
+    this.showPasswordResetModal = false;
+    this.selectedPasswordResetRequest = null;
+    this.temporaryPassword = '';
+    this.showTemporaryPassword = false;
+    this.refreshView();
+  }
+
+  submitPasswordReset(): void {
+    const request = this.selectedPasswordResetRequest;
+    const temporaryPassword = this.temporaryPassword.trim();
+    if (!request) {
+      return;
+    }
+    if (!temporaryPassword || temporaryPassword.length < 8) {
+      this.error = 'La password temporanea deve essere di almeno 8 caratteri.';
+      this.refreshView();
+      return;
+    }
+
+    this.passwordResetActionId = request.id;
+    this.error = '';
+    this.message = '';
+    this.api.completePasswordResetRequest(request.id, temporaryPassword).pipe(
+      timeout(7000),
+      finalize(() => {
+        this.passwordResetActionId = null;
+        this.refreshView();
+      }),
+    ).subscribe({
+      next: () => {
+        this.showPasswordResetModal = false;
+        this.selectedPasswordResetRequest = null;
+        this.temporaryPassword = '';
+        this.showTemporaryPassword = false;
+        this.message = 'Password temporanea impostata. Comunicala all\'utente tramite un canale sicuro.';
+        this.loadUsers(false);
+      },
+      error: (err) => {
+        this.error = apiErrorMessage(err, 'Impostazione password temporanea non riuscita.');
+        this.refreshView();
+      },
+    });
+  }
+
+  rejectPasswordResetRequest(request: PasswordResetRequest): void {
+    if (!this.canRejectPasswordResetRequest(request)) {
+      this.error = 'Non sei autorizzato a rifiutare questa richiesta.';
+      this.refreshView();
+      return;
+    }
+    if (!confirm(`Rifiutare la richiesta reset password per ${request.email}?`)) {
+      return;
+    }
+
+    this.passwordResetActionId = request.id;
+    this.error = '';
+    this.message = '';
+    this.api.rejectPasswordResetRequest(request.id).pipe(
+      timeout(7000),
+      finalize(() => {
+        this.passwordResetActionId = null;
+        this.refreshView();
+      }),
+    ).subscribe({
+      next: () => {
+        if (this.selectedPasswordResetRequest?.id === request.id) {
+          this.showPasswordResetModal = false;
+          this.selectedPasswordResetRequest = null;
+          this.temporaryPassword = '';
+          this.showTemporaryPassword = false;
+        }
+        this.message = 'Richiesta reset password rifiutata.';
+        this.loadUsers(false);
+      },
+      error: (err) => {
+        this.error = apiErrorMessage(err, 'Rifiuto richiesta non riuscito.');
+        this.refreshView();
+      },
+    });
   }
 
   createUser(): void {
@@ -259,6 +373,11 @@ export class UsersComponent implements OnInit, OnDestroy {
 
   togglePasswordVisibility(): void {
     this.showPassword = !this.showPassword;
+    this.refreshView();
+  }
+
+  toggleTemporaryPasswordVisibility(): void {
+    this.showTemporaryPassword = !this.showTemporaryPassword;
     this.refreshView();
   }
 
@@ -505,6 +624,33 @@ export class UsersComponent implements OnInit, OnDestroy {
     return user.ruolo === 'GUEST' && this.canEditRole(user) && this.availableRoleOptionsForUser(user).includes('USER');
   }
 
+  canCompletePasswordResetRequest(request: PasswordResetRequest): boolean {
+    return !!request.userRole && !!request.userId && this.canManagePasswordResetTargetRole(request.userRole);
+  }
+
+  canRejectPasswordResetRequest(request: PasswordResetRequest): boolean {
+    return !request.userRole || this.canManagePasswordResetTargetRole(request.userRole);
+  }
+
+  passwordResetActionBusy(requestId: number): boolean {
+    return this.passwordResetActionId === requestId;
+  }
+
+  passwordResetTargetLabel(request: PasswordResetRequest): string {
+    if (request.userFullName) {
+      return request.userFullName;
+    }
+    return request.email;
+  }
+
+  passwordResetRoleLabel(request: PasswordResetRequest): string {
+    return request.userRole ?? 'Utente non disponibile';
+  }
+
+  formatPasswordResetRequestedAt(value: string): string {
+    return this.requestDateFormatter.format(new Date(value));
+  }
+
   isGroupAssignedToSelectedUser(groupId: number): boolean {
     return this.selectedUserForGroups?.groups.some((item) => item.id === groupId) ?? false;
   }
@@ -613,6 +759,10 @@ export class UsersComponent implements OnInit, OnDestroy {
 
   isReception(): boolean {
     return this.auth.ruolo() === 'RECEPTION';
+  }
+
+  private canManagePasswordResetTargetRole(role: RuoloUtente): boolean {
+    return this.isAdmin() || (this.isReception() && this.isReceptionManageableRole(role));
   }
 
   private isReceptionManageableRole(role: RuoloUtente): boolean {

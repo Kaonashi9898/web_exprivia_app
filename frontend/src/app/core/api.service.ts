@@ -7,6 +7,7 @@ import {
   Edificio,
   Gruppo,
   GruppoPostazione,
+  PasswordResetRequest,
   Piano,
   PlanimetriaLayout,
   PlanimetriaResponse,
@@ -77,6 +78,20 @@ export class ApiService {
 
   removeUserFromGroup(groupId: number, userId: number) {
     return this.http.delete<void>(`${UTENTI_API}/api/gruppi/${groupId}/utenti/${userId}`);
+  }
+
+  listPasswordResetRequests() {
+    return this.http.get<PasswordResetRequest[]>(`${UTENTI_API}/api/password-reset-requests`);
+  }
+
+  completePasswordResetRequest(id: number, temporaryPassword: string) {
+    return this.http.post<PasswordResetRequest>(`${UTENTI_API}/api/password-reset-requests/${id}/complete`, {
+      temporaryPassword,
+    });
+  }
+
+  rejectPasswordResetRequest(id: number) {
+    return this.http.post<PasswordResetRequest>(`${UTENTI_API}/api/password-reset-requests/${id}/reject`, null);
   }
 
   listSeatGroups(postazioneId: number) {

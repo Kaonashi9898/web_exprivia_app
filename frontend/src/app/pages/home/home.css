@@ -241,6 +241,52 @@
   font-weight: 700;
 }
 
+.forgot-password-container {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 1rem;
+}
+
+.forgot-pwd,
+.ghost-action {
+  width: fit-content;
+  padding: 0;
+  color: var(--color-primary);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.forgot-copy,
+.forgot-panel-copy {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.forgot-password-panel {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(0, 65, 102, 0.05);
+  border: 1px solid rgba(0, 65, 102, 0.12);
+  border-radius: var(--radius-sm);
+}
+
+.forgot-password-panel label {
+  margin-bottom: 0;
+}
+
+.forgot-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .success-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -290,5 +336,10 @@
 
   .login-card {
     padding: 2rem;
+  }
+
+  .forgot-actions {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

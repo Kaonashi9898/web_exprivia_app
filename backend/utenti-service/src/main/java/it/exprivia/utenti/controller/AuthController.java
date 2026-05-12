@@ -2,9 +2,11 @@ package it.exprivia.utenti.controller;
 
 import it.exprivia.utenti.dto.LoginRequest;
 import it.exprivia.utenti.dto.LoginResponse;
+import it.exprivia.utenti.dto.PasswordResetRequestCreateRequest;
 import it.exprivia.utenti.dto.RegisterRequest;
 import it.exprivia.utenti.dto.UtenteDTO;
 import it.exprivia.utenti.service.AuthService;
+import it.exprivia.utenti.service.PasswordResetRequestService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,6 +28,7 @@ public class AuthController {
     private static final String AUTH_COOKIE_NAME = "EXPRIVIA_AUTH_TOKEN";
 
     private final AuthService authService;
+    private final PasswordResetRequestService passwordResetRequestService;
 
     @Value("${auth.cookie.secure:false}")
     private boolean authCookieSecure;
@@ -51,6 +54,12 @@ public class AuthController {
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, buildAuthCookie("", 0).toString())
                 .build();
+    }
+
+    @PostMapping("/password-reset-request")
+    public ResponseEntity<Void> requestPasswordReset(@Valid @RequestBody PasswordResetRequestCreateRequest request) {
+        passwordResetRequestService.createPublicRequest(request.getEmail());
+        return ResponseEntity.accepted().build();
     }
 
     private ResponseCookie buildAuthCookie(String value, long maxAgeMillis) {

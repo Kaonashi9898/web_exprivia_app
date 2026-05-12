@@ -42,3 +42,6 @@ admin-bootstrap:
   full-name: ${ADMIN_BOOTSTRAP_FULL_NAME:}
   email: ${ADMIN_BOOTSTRAP_EMAIL:}
   password: ${ADMIN_BOOTSTRAP_PASSWORD:}
+
+password-reset-request:
+  cooldown-minutes: ${PASSWORD_RESET_REQUEST_COOLDOWN_MINUTES:15}

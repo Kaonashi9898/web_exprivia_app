@@ -9,6 +9,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import it.exprivia.utenti.repository.GruppoRepository;
 import it.exprivia.utenti.repository.GruppoUtenteRepository;
+import it.exprivia.utenti.repository.PasswordResetRequestRepository;
 import it.exprivia.utenti.repository.UtenteRepository;
 
 @SpringBootTest(classes = UtentiServiceApplication.class)
@@ -23,6 +24,9 @@ class UtentiServiceApplicationTests {
 
 	@MockitoBean
 	GruppoUtenteRepository gruppoUtenteRepository;
+
+	@MockitoBean
+	PasswordResetRequestRepository passwordResetRequestRepository;
 
 	@MockitoBean
 	ConnectionFactory connectionFactory;
