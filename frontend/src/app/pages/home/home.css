@@ -11,8 +11,9 @@
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
-  align-items: center;
+  align-items: stretch;
   gap: clamp(2rem, 5vw, 5rem);
+  height: 100vh;
   min-height: 100vh;
   width: 100%;
   padding: clamp(2rem, 6vw, 5rem);
@@ -28,6 +29,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  min-height: 0;
   z-index: 1;
 }
 
@@ -67,6 +69,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 0;
   z-index: 1;
 }
 
@@ -77,6 +80,10 @@
   background: rgba(255, 255, 255, 0.88);
   border-radius: var(--radius-sm);
   box-shadow: 0 20px 44px rgba(0, 49, 77, 0.1);
+}
+
+.login-card.reset-card {
+  padding: 1.6rem 2rem;
 }
 
 .login-card.register-card {
@@ -131,6 +138,11 @@
   font-size: 1rem;
 }
 
+.reset-card .login-subtitle {
+  margin-bottom: 1rem;
+  font-size: 0.94rem;
+}
+
 .register-card .login-subtitle {
   margin-bottom: 1.15rem;
   font-size: 0.94rem;
@@ -138,6 +150,10 @@
 
 .login-form .form-group {
   margin-bottom: 1.5rem;
+}
+
+.reset-card .login-form .form-group {
+  margin-bottom: 0.8rem;
 }
 
 .register-card .login-form .form-group {
@@ -247,6 +263,11 @@
   margin-top: 1rem;
 }
 
+.reset-card .forgot-password-container {
+  gap: 0.2rem;
+  margin-top: 0.65rem;
+}
+
 .forgot-pwd,
 .ghost-action {
   width: fit-content;
@@ -274,6 +295,36 @@
   background: rgba(0, 65, 102, 0.05);
   border: 1px solid rgba(0, 65, 102, 0.12);
   border-radius: var(--radius-sm);
+}
+
+.reset-card .forgot-password-panel {
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+  padding: 0.75rem;
+}
+
+.reset-card h2 {
+  font-size: 1.8rem;
+  margin-bottom: 0.35rem;
+}
+
+.reset-card .auth-tabs {
+  margin-bottom: 1rem;
+}
+
+.reset-card .form-control {
+  min-height: 46px;
+  padding: 0.7rem 0.9rem;
+}
+
+.reset-card .btn-block {
+  padding: 0.75rem;
+}
+
+.reset-card .forgot-copy,
+.reset-card .forgot-panel-copy {
+  font-size: 0.8rem;
+  line-height: 1.4;
 }
 
 .forgot-password-panel label {

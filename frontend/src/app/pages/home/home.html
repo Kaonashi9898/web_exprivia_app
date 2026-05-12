@@ -16,7 +16,11 @@
   </div>
 
   <div class="login-side">
-    <div class="login-card" [class.register-card]="mode === 'register'">
+    <div
+      class="login-card"
+      [class.register-card]="mode === 'register'"
+      [class.reset-card]="mode === 'login' && forgotPasswordOpen"
+    >
       <div class="auth-tabs" aria-label="Accesso o registrazione">
         <button type="button" [class.active]="mode === 'login'" (click)="showLogin()">Accedi</button>
         <button type="button" [class.active]="mode === 'register'" (click)="showRegister()">Registrati</button>
