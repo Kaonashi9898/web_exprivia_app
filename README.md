@@ -1,4 +1,94 @@
-# Webapp Exprivia Prenotazioni
+# prenotazioniExpBA v04
+
+## Nota v05 - pubblicazione Apache
+
+La v05 corregge il comportamento del frontend quando l'applicazione viene aperta tramite dominio pubblico o reverse proxy Apache.
+In accesso locale diretto resta possibile usare `http://localhost:13010`; in accesso pubblico il frontend usa path relativi e Apache instrada verso i tre microservizi.
+
+Vedere anche:
+
+- `APACHE_prenotazioniExpBA-8444.conf`
+- `PUBLIC_EXPOSURE_NOTES_v05.md`
+
+
+## Deploy rapido con script
+
+Dopo aver copiato `prenotazioniExpBA_v04.zip` in `~/dockerITSBA`:
+
+```bash
+cd ~/dockerITSBA
+unzip prenotazioniExpBA_v04.zip
+chmod +x deploy.sh stop.sh
+./deploy.sh 04
+```
+
+Lo ZIP contiene già `prenotazioniExpBA_v04/.env` configurato con la famiglia porte 13000.
+
+URL principali:
+
+- Frontend: `http://localhost:13010`
+- Editor planimetria: `http://localhost:13020/editor`
+- RabbitMQ management: `http://localhost:13060`
+
+---
+
+# prenotazioniExpBA v03
+
+Applicazione per la prenotazione delle postazioni di lavoro Exprivia - versione laboratorio/demo.
+
+## Deploy rapido
+
+Gli script devono stare nella cartella `~/dockerITSBA`, fuori dalla cartella versionata.
+
+```bash
+cd ~/dockerITSBA
+unzip prenotazioniExpBA_v03.zip
+chmod +x deploy-prenotazioniExpBA.sh stop-prenotazioniExpBA.sh
+./deploy-prenotazioniExpBA.sh 03
+```
+
+URL principali:
+
+```text
+Frontend:             http://localhost:13010
+Editor planimetria:   http://localhost:13020/editor
+RabbitMQ management:  http://localhost:13060
+```
+
+---
+
+# prenotazioniExpBA v03
+
+Prima versione rinominata del progetto di prenotazione postazioni Exprivia BA/ITS.
+
+- ZIP: `prenotazioniExpBA_v03.zip`
+- Cartella contenuta nello ZIP: `prenotazioniExpBA_v03/`
+- Docker Compose project name: `prenotazioniexpba`
+- Porte host dedicate: famiglia `13000`
+
+> Nota: `COMPOSE_PROJECT_NAME` è scritto in minuscolo (`prenotazioniexpba`) perché Docker Compose richiede nomi progetto compatibili con lettere minuscole, numeri, trattini o underscore.
+
+
+## Porte host dedicate - famiglia 13000
+
+Questa versione espone l'applicazione sull'host usando la famiglia di porte `13000`, lasciando invariate le porte interne dei container.
+
+| Componente | Porta host | Porta interna container |
+| --- | ---: | ---: |
+| Frontend principale | 13010 | 4200 |
+| Editor planimetria | 13020 | 4201 |
+| utenti-service | 13030 | 8081 |
+| location-service | 13040 | 8082 |
+| prenotazioni-service | 13050 | 8083 |
+| RabbitMQ management | 13060 | 15672 |
+| RabbitMQ AMQP | 13061 | 5672 |
+| PostgreSQL utenti | 13070 | 5432 |
+| PostgreSQL location | 13080 | 5432 |
+| PostgreSQL prenotazioni | 13090 | 5432 |
+
+Le porte PostgreSQL e RabbitMQ sono vincolate a `127.0.0.1` tramite `INFRA_BIND_ADDRESS`, quindi sono esposte solo localmente per debug.
+
+# prenotazioniExpBA
 
 Guida completa per avviare il progetto:
 - da zero su una macchina dove Docker non e ancora configurato
@@ -8,17 +98,17 @@ Guida completa per avviare il progetto:
 ## 1) Architettura e porte
 
 Servizi principali:
-- `frontend` (Angular): `http://localhost:4200`
-- `PlanimetriaEditor` (Angular): `http://localhost:4201/editor`
-- `utenti-service`: `http://localhost:8081`
-- `location-service`: `http://localhost:8082`
-- `prenotazioni-service`: `http://localhost:8083`
-- `rabbitmq management`: `http://localhost:15672` (user/pass: `guest` / `guest`)
+- `frontend` (Angular): `http://localhost:13010`
+- `PlanimetriaEditor` (Angular): `http://localhost:13020/editor`
+- `utenti-service`: `http://localhost:13030`
+- `location-service`: `http://localhost:13040`
+- `prenotazioni-service`: `http://localhost:13050`
+- `rabbitmq management`: `http://localhost:13060` (user/pass: `guest` / `guest`)
 
 Database PostgreSQL:
-- utenti DB: `localhost:5432`
-- location DB: `localhost:5433`
-- prenotazioni DB: `localhost:5434`
+- utenti DB: `localhost:13070`
+- location DB: `localhost:13080`
+- prenotazioni DB: `localhost:13090`
 
 Nota importante:
 - `docker compose` della root avvia backend + frontend + editor planimetria.
@@ -40,7 +130,7 @@ ADMIN_BOOTSTRAP_EMAIL=mario.rossi@exprivia.com
 ADMIN_BOOTSTRAP_PASSWORD=Password123!
 ```
 
-Poi accedi dal frontend (`http://localhost:4200`) con:
+Poi accedi dal frontend (`http://localhost:13010`) con:
 - email: valore di `ADMIN_BOOTSTRAP_EMAIL`
 - password: valore di `ADMIN_BOOTSTRAP_PASSWORD`
 
@@ -114,12 +204,12 @@ docker compose logs -f utenti-service location-service prenotazioni-service fron
 ### 3.4 Verifica accesso UI
 
 Editor disponibile su:
-- `http://localhost:4201/editor`
+- `http://localhost:13020/editor`
 
 ### 3.5 Primo login piattaforma
 
 Apri:
-- frontend: `http://localhost:4200`
+- frontend: `http://localhost:13010`
 
 Accedi con le credenziali bootstrap:
 - email = `ADMIN_BOOTSTRAP_EMAIL`
@@ -181,18 +271,18 @@ docker compose up -d
 
 Per lavorare:
 1. `docker compose up -d` (root)
-2. Apri `http://localhost:4200`
-3. (opzionale) Apri anche `http://localhost:4201/editor`
+2. Apri `http://localhost:13010`
+3. (opzionale) Apri anche `http://localhost:13020/editor`
 4. Login con credenziali admin del tuo `.env`
 
 ## 7) Troubleshooting veloce
 
-### Porta occupata (4200, 4201, 8081, 8082, 8083)
+### Porta occupata (13010, 13020, 13030, 13040, 13050)
 
 Controlla processi in ascolto:
 
 ```powershell
-Get-NetTCPConnection -LocalPort 4200,4201,8081,8082,8083 -ErrorAction SilentlyContinue
+Get-NetTCPConnection -LocalPort 13010,13020,13030,13040,13050 -ErrorAction SilentlyContinue
 ```
 
 ### Login fallito subito

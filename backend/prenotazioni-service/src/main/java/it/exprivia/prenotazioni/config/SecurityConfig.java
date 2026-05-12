@@ -76,7 +76,12 @@ public class SecurityConfig {
                 "http://localhost:4201",
                 "http://localhost:8081",
                 "http://localhost:8082",
-                "http://localhost:8083"
+                "http://localhost:8083",
+                "http://localhost:13010",
+                "http://localhost:13020",
+                "http://localhost:13030",
+                "http://localhost:13040",
+                "http://localhost:13050"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));

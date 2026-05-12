@@ -9,4 +9,6 @@ COPY . .
 
 EXPOSE 4201
 
-CMD ["npm", "run", "start", "--", "--host", "0.0.0.0"]
+# v05: l'editor viene servito sotto /editor/ per poter essere pubblicato
+# dietro Apache sullo stesso virtual host del frontend principale.
+CMD ["npm", "run", "start", "--", "--host", "0.0.0.0", "--port", "4201", "--serve-path", "/editor/"]

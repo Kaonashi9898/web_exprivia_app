@@ -3,12 +3,16 @@ import { FloorPlanEditorComponent } from './floor-plan-editor/floor-plan-editor'
 
 export const routes: Routes = [
     {
-        path:'',
-        redirectTo:'editor',
-        pathMatch:'full'
+        path: '',
+        component: FloorPlanEditorComponent
     },
     {
-        path:'editor',
-        component: FloorPlanEditorComponent
+        path: 'editor',
+        redirectTo: '',
+        pathMatch: 'full'
+    },
+    {
+        path: '**',
+        redirectTo: ''
     }
 ];

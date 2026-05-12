@@ -1,13 +1,14 @@
+# Docker Compose per prenotazioniExpBA v02.
 # Docker Compose per l'avvio dell'intero stack applicativo.
 #
 # Architettura dei servizi:
-#   postgres-utenti  → DB PostgreSQL per utenti-service (porta 5432)
-#   postgres-location → DB PostgreSQL per location-service (porta 5433)
-#   postgres-prenotazioni → DB PostgreSQL per prenotazioni-service (porta 5434)
+#   postgres-utenti  → DB PostgreSQL per utenti-service (host 13070 → container 5432)
+#   postgres-location → DB PostgreSQL per location-service (host 13080 → container 5432)
+#   postgres-prenotazioni → DB PostgreSQL per prenotazioni-service (host 13090 → container 5432)
 #   rabbitmq         → Message broker per la comunicazione asincrona tra servizi
-#   utenti-service   → Microservizio Java Spring Boot (porta 8081)
-#   location-service → Microservizio Java Spring Boot (porta 8082)
-#   prenotazioni-service → Microservizio Java Spring Boot (porta 8083)
+#   utenti-service   → Microservizio Java Spring Boot (host 13030 → container 8081)
+#   location-service → Microservizio Java Spring Boot (host 13040 → container 8082)
+#   prenotazioni-service → Microservizio Java Spring Boot (host 13050 → container 8083)
 #
 # Tutti i servizi comunicano sulla rete Docker interna "backend".
 # Le variabili ${DB_USERNAME}, ${DB_PASSWORD}, ${JWT_SECRET} e ${JWT_EXPIRATION}
@@ -19,7 +20,7 @@ services:
   # Ogni microservizio ha il suo DB separato (pattern "database per servizio").
   postgres-utenti:
     image: postgres:16-alpine
-    container_name: db_utenti
+    container_name: prenotazioniexpba_db_utenti
     restart: always  # Si riavvia automaticamente se crasha
     environment:
       POSTGRES_USER: ${DB_USERNAME_UTENTI}
@@ -32,7 +33,7 @@ services:
       timeout: 5s
       retries: 10
     ports:
-      - "5432:5432"  # Espone la porta 5432 sull'host per connessioni dirette in sviluppo
+      - "${INFRA_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_UTENTI_PORT:-13070}:5432"  # Host 13070 → container 5432, solo debug locale
     networks:
       - backend
     volumes:
@@ -41,10 +42,10 @@ services:
 
   # ─── DATABASE LOCATION ──────────────────────────────────────────────
   # Database dedicato esclusivamente al microservizio location.
-  # Usa la porta 5433 sull'host per non confliggere con postgres-utenti (5432).
+  # Usa la porta 13080 sull'host per non confliggere con postgres-utenti (5432).
   postgres-location:
     image: postgres:16-alpine
-    container_name: db_location
+    container_name: prenotazioniexpba_db_location
     restart: always
     environment:
       POSTGRES_USER: ${DB_USERNAME_LOCATION}
@@ -56,7 +57,7 @@ services:
       timeout: 5s
       retries: 10
     ports:
-      - "5433:5432"  # Porta 5433 sull'host → 5432 nel container
+      - "${INFRA_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_LOCATION_PORT:-13080}:5432"  # Host 13080 → container 5432, solo debug locale
     networks:
       - backend
     volumes:
@@ -65,10 +66,10 @@ services:
 
   # ─── DATABASE PRENOTAZIONI ────────────────────────────────────────────────
   # Database dedicato esclusivamente al microservizio prenotazioni.
-  # Usa la porta 5434 sull'host per non confliggere con gli altri PostgreSQL.
+  # Usa la porta 13090 sull'host per non confliggere con gli altri PostgreSQL.
   postgres-prenotazioni:
     image: postgres:16-alpine
-    container_name: db_prenotazioni
+    container_name: prenotazioniexpba_db_prenotazioni
     restart: always
     environment:
       POSTGRES_USER: ${DB_USERNAME_PRENOTAZIONI}
@@ -80,7 +81,7 @@ services:
       timeout: 5s
       retries: 10
     ports:
-      - "5434:5432"
+      - "${INFRA_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PRENOTAZIONI_PORT:-13090}:5432"
     networks:
       - backend
     volumes:
@@ -93,11 +94,11 @@ services:
   # su RabbitMQ che location-service riceve e usa per pulire i propri dati.
   rabbitmq:
     image: rabbitmq:3-management-alpine  # "management" include la UI web di amministrazione
-    container_name: rabbitmq
+    container_name: prenotazioniexpba_rabbitmq
     restart: always
     ports:
-      - "5672:5672"    # Porta AMQP (usata dai microservizi per connettersi)
-      - "15672:15672"  # Porta UI web di gestione (accessibile su http://localhost:15672)
+      - "${INFRA_BIND_ADDRESS:-127.0.0.1}:${RABBITMQ_PORT:-13061}:5672"    # Host 13061 → container 5672
+      - "${INFRA_BIND_ADDRESS:-127.0.0.1}:${RABBITMQ_MANAGEMENT_PORT:-13060}:15672"  # Host 13060 → container 15672
     environment:
       RABBITMQ_DEFAULT_USER: guest  # Credenziali di accesso (solo per sviluppo)
       RABBITMQ_DEFAULT_PASS: guest
@@ -116,7 +117,7 @@ services:
     build:
       context: ./backend/utenti-service  # Cartella contenente il Dockerfile
       dockerfile: Dockerfile
-    container_name: utenti_service
+    container_name: prenotazioniexpba_utenti_service
     restart: on-failure:2
     environment:
       # Indirizzo DB: usa il nome del container Docker (postgres-utenti) come hostname
@@ -131,7 +132,7 @@ services:
       ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
       ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-}
     ports:
-      - "8081:8081"
+      - "${UTENTI_SERVICE_PORT:-13030}:8081"
     depends_on:
       postgres-utenti:
         condition: service_healthy  # Aspetta che il DB sia pronto (non solo avviato)
@@ -147,7 +148,7 @@ services:
     build:
       context: ./backend/location-service
       dockerfile: Dockerfile
-    container_name: location_service
+    container_name: prenotazioniexpba_location_service
     restart: on-failure:2
     environment:
       DB_URL: jdbc:postgresql://postgres-location:5432/postgres
@@ -161,7 +162,7 @@ services:
       SERVER_TOMCAT_MAX_SWALLOW_SIZE: 100MB
       SERVER_TOMCAT_MAX_HTTP_FORM_POST_SIZE: 100MB
     ports:
-      - "8082:8082"
+      - "${LOCATION_SERVICE_PORT:-13040}:8082"
     depends_on:
       postgres-location:
         condition: service_healthy
@@ -179,7 +180,7 @@ services:
     build:
       context: ./backend/prenotazioni-service
       dockerfile: Dockerfile
-    container_name: prenotazioni_service
+    container_name: prenotazioniexpba_prenotazioni_service
     restart: on-failure:2
     environment:
       DB_URL: jdbc:postgresql://postgres-prenotazioni:5432/postgres
@@ -191,7 +192,7 @@ services:
       UTENTI_SERVICE_URL: http://utenti-service:8081
       LOCATION_SERVICE_URL: http://location-service:8082
     ports:
-      - "8083:8083"
+      - "${PRENOTAZIONI_SERVICE_PORT:-13050}:8083"
     depends_on:
       postgres-prenotazioni:
         condition: service_healthy
@@ -208,10 +209,10 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: frontend_app
+    container_name: prenotazioniexpba_frontend_app
     restart: always
     ports:
-      - "4200:4200"
+      - "${FRONTEND_PORT:-13010}:4200"
     depends_on:
       utenti-service:
         condition: service_started
@@ -226,10 +227,10 @@ services:
     build:
       context: ./PlanimetriaEditor-main
       dockerfile: Dockerfile
-    container_name: planimetria_editor_app
+    container_name: prenotazioniexpba_planimetria_editor_app
     restart: always
     ports:
-      - "4201:4201"
+      - "${PLANIMETRIA_EDITOR_PORT:-13020}:4201"
     depends_on:
       location-service:
         condition: service_started
