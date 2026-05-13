@@ -28,6 +28,7 @@ CREATE TABLE stanza (
     id                BIGSERIAL PRIMARY KEY,
     nome              VARCHAR(100) NOT NULL,
     tipo              tipo_stanza NOT NULL,
+    stato             stato_postazione NOT NULL DEFAULT 'DISPONIBILE',
     layout_element_id VARCHAR(50),
     x_pct             DECIMAL(6,3),
     y_pct             DECIMAL(6,3),

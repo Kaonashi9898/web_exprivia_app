@@ -1,6 +1,7 @@
 package it.exprivia.location.dto;
 
 import it.exprivia.location.entity.TipoStanza;
+import it.exprivia.location.entity.StatoPostazione;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -15,6 +16,7 @@ public class StanzaResponse {
     private Long id;
     private String nome;
     private TipoStanza tipo;
+    private StatoPostazione stato;
     private String layoutElementId;
     private BigDecimal xPct;
     private BigDecimal yPct;

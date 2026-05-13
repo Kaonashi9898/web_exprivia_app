@@ -3,7 +3,11 @@ package it.exprivia.location.service;
 import it.exprivia.location.dto.StanzaRequest;
 import it.exprivia.location.dto.StanzaResponse;
 import it.exprivia.location.entity.Piano;
+import it.exprivia.location.entity.StatoPostazione;
 import it.exprivia.location.entity.Stanza;
+import it.exprivia.location.entity.TipoStanza;
+import it.exprivia.location.messaging.MeetingRoomNonPrenotabileEvent;
+import it.exprivia.location.messaging.PostazioneEventPublisher;
 import it.exprivia.location.repository.PianoRepository;
 import it.exprivia.location.repository.StanzaRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -27,6 +31,7 @@ public class StanzaService {
 
     private final StanzaRepository stanzaRepository;
     private final PianoRepository pianoRepository;
+    private final PostazioneEventPublisher postazioneEventPublisher;
 
     /** Restituisce tutte le stanze di un piano. */
     public List<StanzaResponse> findByPianoId(Long pianoId) {
@@ -54,6 +59,7 @@ public class StanzaService {
         Stanza stanza = new Stanza();
         stanza.setNome(request.getNome());
         stanza.setTipo(request.getTipo());
+        stanza.setStato(resolveStato(request.getStato()));
         stanza.setLayoutElementId(request.getLayoutElementId());
         stanza.setXPct(request.getXPct());
         stanza.setYPct(request.getYPct());
@@ -67,13 +73,28 @@ public class StanzaService {
         Stanza stanza = getOrThrow(id);
         Piano piano = pianoRepository.findById(request.getPianoId())
                 .orElseThrow(() -> new EntityNotFoundException("Piano non trovato con id: " + request.getPianoId()));
+        StatoPostazione statoPrecedente = stanza.getStato();
         stanza.setNome(request.getNome());
         stanza.setTipo(request.getTipo());
+        stanza.setStato(resolveStato(request.getStato()));
         stanza.setLayoutElementId(request.getLayoutElementId());
         stanza.setXPct(request.getXPct());
         stanza.setYPct(request.getYPct());
         stanza.setPiano(piano);
-        return toResponse(stanzaRepository.save(stanza));
+        Stanza saved = stanzaRepository.save(stanza);
+        publishIfMeetingRoomBecameNonBookable(saved, statoPrecedente);
+        return toResponse(saved);
+    }
+
+    /** Aggiorna solo lo stato di una stanza o meeting room. */
+    @Transactional
+    public StanzaResponse aggiornaStato(Long id, StatoPostazione stato) {
+        Stanza stanza = getOrThrow(id);
+        StatoPostazione statoPrecedente = stanza.getStato();
+        stanza.setStato(resolveStato(stato));
+        Stanza saved = stanzaRepository.save(stanza);
+        publishIfMeetingRoomBecameNonBookable(saved, statoPrecedente);
+        return toResponse(saved);
     }
 
     /** Elimina una stanza (le postazioni vengono eliminate a cascata). */
@@ -97,11 +118,32 @@ public class StanzaService {
                 s.getId(),
                 s.getNome(),
                 s.getTipo(),
+                resolveStato(s.getStato()),
                 s.getLayoutElementId(),
                 s.getXPct(),
                 s.getYPct(),
                 s.getPiano().getId(),
                 s.getPiano().getNumero()
         );
+    }
+
+    private StatoPostazione resolveStato(StatoPostazione stato) {
+        return stato != null ? stato : StatoPostazione.DISPONIBILE;
+    }
+
+    private void publishIfMeetingRoomBecameNonBookable(Stanza stanza, StatoPostazione statoPrecedente) {
+        StatoPostazione statoAttuale = resolveStato(stanza.getStato());
+        if (stanza.getTipo() != TipoStanza.MEETING_ROOM || statoAttuale == StatoPostazione.DISPONIBILE) {
+            return;
+        }
+        if (statoPrecedente == statoAttuale) {
+            return;
+        }
+
+        postazioneEventPublisher.pubblicaMeetingRoomNonPrenotabile(new MeetingRoomNonPrenotabileEvent(
+                stanza.getId(),
+                stanza.getNome(),
+                statoAttuale
+        ));
     }
 }

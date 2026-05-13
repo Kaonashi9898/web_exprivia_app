@@ -26,9 +26,11 @@ public class RabbitMQConfig {
     public static final String ROUTING_KEY_UTENTE_ELIMINATO = "utente.eliminato";
     public static final String ROUTING_KEY_PLANIMETRIA_ELIMINATA = "planimetria.eliminata";
     public static final String ROUTING_KEY_POSTAZIONE_NON_PRENOTABILE = "postazione.non.prenotabile";
+    public static final String ROUTING_KEY_MEETING_ROOM_NON_PRENOTABILE = "meeting-room.non.prenotabile";
     public static final String QUEUE_UTENTE_ELIMINATO = "prenotazioni.utente.eliminato";
     public static final String QUEUE_PLANIMETRIA_ELIMINATA = "prenotazioni.planimetria.eliminata";
     public static final String QUEUE_POSTAZIONE_NON_PRENOTABILE = "prenotazioni.postazione.non.prenotabile";
+    public static final String QUEUE_MEETING_ROOM_NON_PRENOTABILE = "prenotazioni.meeting-room.non.prenotabile";
 
     @Bean
     public TopicExchange prenotazioniExchange() {
@@ -61,6 +63,11 @@ public class RabbitMQConfig {
     }
 
     @Bean
+    public Queue queueMeetingRoomNonPrenotabile() {
+        return QueueBuilder.durable(QUEUE_MEETING_ROOM_NON_PRENOTABILE).build();
+    }
+
+    @Bean
     public Binding bindingUtenteEliminato(@Qualifier("queueUtenteEliminato") Queue queueUtenteEliminato,
                                           @Qualifier("utentiExchange") TopicExchange utentiExchange) {
         return BindingBuilder.bind(queueUtenteEliminato).to(utentiExchange).with(ROUTING_KEY_UTENTE_ELIMINATO);
@@ -79,6 +86,15 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(queuePostazioneNonPrenotabile)
                 .to(locationExchange)
                 .with(ROUTING_KEY_POSTAZIONE_NON_PRENOTABILE);
+    }
+
+    @Bean
+    public Binding bindingMeetingRoomNonPrenotabile(
+            @Qualifier("queueMeetingRoomNonPrenotabile") Queue queueMeetingRoomNonPrenotabile,
+            @Qualifier("locationExchange") TopicExchange locationExchange) {
+        return BindingBuilder.bind(queueMeetingRoomNonPrenotabile)
+                .to(locationExchange)
+                .with(ROUTING_KEY_MEETING_ROOM_NON_PRENOTABILE);
     }
 
     @Bean

@@ -72,6 +72,7 @@ export interface Stanza {
   id: number;
   nome: string;
   tipo: TipoStanza;
+  stato?: StatoPostazione | null;
   layoutElementId?: string | null;
   xPct?: number | null;
   yPct?: number | null;

@@ -155,6 +155,11 @@ export class ApiService {
     return this.http.post<Stanza>(`${LOCATION_API}/api/stanze`, request);
   }
 
+  updateStanzaStato(id: number, stato: string) {
+    const params = new HttpParams().set('stato', stato);
+    return this.http.patch<Stanza>(`${LOCATION_API}/api/stanze/${id}/stato`, null, { params });
+  }
+
   listPostazioni(stanzaId: number) {
     return this.http.get<Postazione[]>(`${LOCATION_API}/api/postazioni/stanza/${stanzaId}`);
   }

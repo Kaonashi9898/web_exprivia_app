@@ -17,4 +17,12 @@ public class PostazioneEventPublisher {
                 event
         );
     }
+
+    public void pubblicaMeetingRoomNonPrenotabile(MeetingRoomNonPrenotabileEvent event) {
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.EXCHANGE_LOCATION,
+                RabbitMQConfig.ROUTING_KEY_MEETING_ROOM_NON_PRENOTABILE,
+                event
+        );
+    }
 }

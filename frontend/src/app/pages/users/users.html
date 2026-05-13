@@ -113,14 +113,14 @@
       </div>
 
       <div class="table-wrap">
-        <table>
+        <table class="password-reset-table">
           <thead>
             <tr>
               <th>Richiedente</th>
               <th>Email</th>
               <th>Ruolo</th>
               <th>Data richiesta</th>
-              <th>Azioni</th>
+              <th class="actions-header">Azioni</th>
             </tr>
           </thead>
           <tbody>
@@ -153,7 +153,7 @@
               </tr>
             } @empty {
               <tr>
-                <td colspan="5">
+                <td class="password-reset-empty-cell" colspan="5">
                   {{ loading ? 'Caricamento richieste reset password...' : 'Nessuna richiesta reset password aperta.' }}
                 </td>
               </tr>
@@ -181,7 +181,7 @@
       </div>
 
       @if (message) {
-        <div class="notice success">{{ message }}</div>
+        <div class="notice success account-notice" [class.notice-fade-out]="messageAutoDismiss">{{ message }}</div>
       }
       @if (error) {
         <div class="notice error">{{ error }}</div>
@@ -337,6 +337,10 @@
       </header>
 
       <form class="form-panel users-modal-form" autocomplete="off" (ngSubmit)="submitPasswordReset()">
+        @if (passwordResetModalError) {
+          <div class="notice error modal-notice">{{ passwordResetModalError }}</div>
+        }
+
         <div class="form-grid single-column-grid">
           <label>
             Password temporanea

@@ -112,8 +112,34 @@
 .actions-cell {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 0.55rem;
   text-align: right;
+}
+
+.users-workspace table th:last-child {
+  width: 230px;
+}
+
+.password-reset-empty-cell {
+  text-align: center;
+}
+
+.account-notice.notice-fade-out {
+  animation: notice-fade-out 3s ease forwards;
+}
+
+@keyframes notice-fade-out {
+  0%,
+  78% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
 }
 
 .compact-select {
@@ -257,6 +283,10 @@
   margin: 0;
   color: var(--color-primary-dark);
   font-size: 1.2rem;
+}
+
+.modal-notice {
+  margin-bottom: 0;
 }
 
 .users-modal-card {

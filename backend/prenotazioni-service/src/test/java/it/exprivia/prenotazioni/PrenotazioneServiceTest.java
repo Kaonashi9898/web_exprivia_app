@@ -610,6 +610,8 @@ class PrenotazioneServiceTest {
 
         when(prenotazioneRepository.findById(30L)).thenReturn(Optional.of(prenotazione));
         when(utentiServiceClient.getCurrentUser("Bearer token")).thenReturn(buildUser(11L, RuoloUtente.USER));
+        when(locationServiceClient.getStanza(3L, "Bearer token"))
+                .thenReturn(new ExternalStanzaResponse(3L, "Meeting 1", "MEETING_ROOM", null, 4L, 1));
         when(prenotazioneRepository.existsActiveOverlapForUserExcludingId(
                 30L,
                 11L,
@@ -745,6 +747,8 @@ class PrenotazioneServiceTest {
 
     @Test
     void isMeetingRoomDisponibile_restituisceFalseQuandoEsisteOverlap() {
+        when(locationServiceClient.getStanza(3L, "Bearer token"))
+                .thenReturn(new ExternalStanzaResponse(3L, "Meeting 1", "MEETING_ROOM", null, 4L, 1));
         when(prenotazioneRepository.existsActiveOverlapForMeetingRoom(
                 3L,
                 LocalDate.of(2026, 4, 28),
@@ -753,7 +757,13 @@ class PrenotazioneServiceTest {
                 StatoPrenotazione.CONFERMATA
         )).thenReturn(true);
 
-        boolean disponibile = prenotazioneService.isMeetingRoomDisponibile(3L, LocalDate.of(2026, 4, 28), LocalTime.of(14, 0), LocalTime.of(16, 0));
+        boolean disponibile = prenotazioneService.isMeetingRoomDisponibile(
+                3L,
+                LocalDate.of(2026, 4, 28),
+                LocalTime.of(14, 0),
+                LocalTime.of(16, 0),
+                "Bearer token"
+        );
 
         assertThat(disponibile).isFalse();
     }

@@ -3,7 +3,7 @@ import { NgStyle } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin, Observable, of, Subscription, map } from 'rxjs';
 import { ApiService } from '../../core/api.service';
-import { Edificio, Piano, PlanimetriaLayout, PlanimetriaResponse, Postazione, Prenotazione, Sede, Stanza } from '../../core/app.models';
+import { Edificio, Piano, PlanimetriaLayout, PlanimetriaResponse, Postazione, Prenotazione, Sede, Stanza, StatoPostazione } from '../../core/app.models';
 import { apiErrorMessage, apiErrorStatus } from '../../core/api-error.utils';
 import { AuthService } from '../../core/auth.service';
 import {
@@ -402,7 +402,8 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
 
   roomIsRestricted(room: DisplayRoom): boolean {
     if (this.roomIsMeeting(room)) {
-      return false;
+      const stanza = this.findStanzaForRoom(room);
+      return !stanza || !this.meetingRoomIsBookable(stanza);
     }
 
     const roomStations = this.stationsForRoom(room.id);
@@ -417,17 +418,19 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
   }
 
   roomPinTooltip(room: DisplayRoom): string {
-    if (this.roomIsRestricted(room)) {
-      return 'Nessuna postazione accessibile per i tuoi gruppi';
-    }
-
     if (!this.roomIsMeeting(room)) {
+      if (this.roomIsRestricted(room)) {
+        return 'Nessuna postazione accessibile per i tuoi gruppi';
+      }
       return room.label;
     }
 
     const stanza = this.findStanzaForRoom(room);
     if (!stanza) {
       return 'Sala riunioni non sincronizzata';
+    }
+    if (!this.meetingRoomIsBookable(stanza)) {
+      return `Sala riunioni non prenotabile: ${this.statoLabel(stanza.stato ?? 'DISPONIBILE')}`;
     }
 
     const dateError = this.validateBookingDateSelection(false);
@@ -550,6 +553,7 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
       return this.bookingsAreReady()
         && this.hasValidBookingWindow()
         && !this.bookingControlsLocked()
+        && this.meetingRoomIsBookable(this.selectedMeetingRoom)
         && !this.selectedMeetingRoomHasOverlap();
     }
 
@@ -1157,6 +1161,9 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
     }
 
     if (this.selectedMeetingRoom) {
+      if (!this.meetingRoomIsBookable(this.selectedMeetingRoom)) {
+        return false;
+      }
       return !this.bookingsForMeetingRoom(this.selectedMeetingRoom).some((booking) =>
         this.bookingOverlapsWindow(booking, startTime, endTime),
       );
@@ -1203,6 +1210,25 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
 
   private bookingsAreReady(): boolean {
     return this.bookingsLoaded && !this.bookingsLoading && !this.availabilityError;
+  }
+
+  private meetingRoomIsBookable(stanza: Stanza): boolean {
+    return (stanza.stato ?? 'DISPONIBILE') === 'DISPONIBILE';
+  }
+
+  private statoLabel(stato: StatoPostazione): string {
+    switch (stato) {
+      case 'DISPONIBILE':
+        return 'Disponibile';
+      case 'NON_DISPONIBILE':
+        return 'Non disponibile';
+      case 'MANUTENZIONE':
+        return 'Manutenzione';
+      case 'CAMBIO_DESTINAZIONE':
+        return 'Cambio destinazione';
+      default:
+        return stato;
+    }
   }
 
   private availabilityStatusMessage(): string {

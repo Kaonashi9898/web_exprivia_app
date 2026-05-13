@@ -46,6 +46,11 @@ public class Stanza {
     @Column(nullable = false)
     private TipoStanza tipo;
 
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(nullable = false)
+    private StatoPostazione stato = StatoPostazione.DISPONIBILE;
+
     @Column(name = "layout_element_id")
     private String layoutElementId;
 

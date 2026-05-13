@@ -466,6 +466,9 @@ public class PlanimetriaService {
 
         stanza.setNome(resolvedRoomName);
         stanza.setTipo(tipoStanza);
+        if (stanza.getStato() == null) {
+            stanza.setStato(StatoPostazione.DISPONIBILE);
+        }
         stanza.setLayoutElementId(roomId);
         stanza.setXPct(importedRoom.getPosition() != null ? importedRoom.getPosition().getXPct() : null);
         stanza.setYPct(importedRoom.getPosition() != null ? importedRoom.getPosition().getYPct() : null);

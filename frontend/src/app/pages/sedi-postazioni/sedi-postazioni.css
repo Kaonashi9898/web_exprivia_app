@@ -80,6 +80,16 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1rem;
+  align-items: start;
+}
+
+.rooms-panel,
+.bookings-panel {
+  align-self: start;
+}
+
+.rooms-panel-header {
+  align-items: center;
 }
 
 .room-list,
@@ -407,6 +417,12 @@
   .room-group-bulk-actions,
   .room-group-summary-card {
     grid-template-columns: 1fr;
+  }
+
+  .room-switch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
   }
 
   .booking-row-side {

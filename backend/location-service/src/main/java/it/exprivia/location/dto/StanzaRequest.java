@@ -1,6 +1,7 @@
 package it.exprivia.location.dto;
 
 import it.exprivia.location.entity.TipoStanza;
+import it.exprivia.location.entity.StatoPostazione;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -19,6 +20,8 @@ public class StanzaRequest {
 
     @NotNull
     private TipoStanza tipo;
+
+    private StatoPostazione stato = StatoPostazione.DISPONIBILE;
 
     private String layoutElementId;
 

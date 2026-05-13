@@ -63,6 +63,9 @@ export class UsersComponent implements OnInit, OnDestroy {
   temporaryPassword = '';
   showTemporaryPassword = false;
   passwordResetActionId: number | null = null;
+  passwordResetModalError = '';
+  messageAutoDismiss = false;
+  private messageDismissTimer: number | null = null;
 
   ngOnInit(): void {
     this.loadUsers();
@@ -74,6 +77,7 @@ export class UsersComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.clearCreateRefreshTimers();
     this.initialRefreshTimers.forEach((timerId) => window.clearTimeout(timerId));
+    this.clearMessageDismissTimer();
   }
 
   loadUsers(clearError = true): void {
@@ -154,9 +158,10 @@ export class UsersComponent implements OnInit, OnDestroy {
     this.selectedPasswordResetRequest = request;
     this.temporaryPassword = '';
     this.showTemporaryPassword = false;
+    this.passwordResetModalError = '';
     this.showPasswordResetModal = true;
     this.error = '';
-    this.message = '';
+    this.clearMessage();
     this.refreshView();
   }
 
@@ -168,6 +173,7 @@ export class UsersComponent implements OnInit, OnDestroy {
     this.selectedPasswordResetRequest = null;
     this.temporaryPassword = '';
     this.showTemporaryPassword = false;
+    this.passwordResetModalError = '';
     this.refreshView();
   }
 
@@ -178,14 +184,15 @@ export class UsersComponent implements OnInit, OnDestroy {
       return;
     }
     if (!temporaryPassword || temporaryPassword.length < 8) {
-      this.error = 'La password temporanea deve essere di almeno 8 caratteri.';
+      this.passwordResetModalError = 'La password temporanea deve essere di almeno 8 caratteri.';
       this.refreshView();
       return;
     }
 
     this.passwordResetActionId = request.id;
+    this.passwordResetModalError = '';
     this.error = '';
-    this.message = '';
+    this.clearMessage();
     this.api.completePasswordResetRequest(request.id, temporaryPassword).pipe(
       timeout(7000),
       finalize(() => {
@@ -198,11 +205,12 @@ export class UsersComponent implements OnInit, OnDestroy {
         this.selectedPasswordResetRequest = null;
         this.temporaryPassword = '';
         this.showTemporaryPassword = false;
-        this.message = 'Password temporanea impostata. Comunicala all\'utente tramite un canale sicuro.';
+        this.passwordResetModalError = '';
+        this.showSuccessMessage('Password temporanea impostata. Comunicala all\'utente tramite un canale sicuro.', true);
         this.loadUsers(false);
       },
       error: (err) => {
-        this.error = apiErrorMessage(err, 'Impostazione password temporanea non riuscita.');
+        this.passwordResetModalError = apiErrorMessage(err, 'Impostazione password temporanea non riuscita.');
         this.refreshView();
       },
     });
@@ -220,7 +228,7 @@ export class UsersComponent implements OnInit, OnDestroy {
 
     this.passwordResetActionId = request.id;
     this.error = '';
-    this.message = '';
+    this.clearMessage();
     this.api.rejectPasswordResetRequest(request.id).pipe(
       timeout(7000),
       finalize(() => {
@@ -235,7 +243,7 @@ export class UsersComponent implements OnInit, OnDestroy {
           this.temporaryPassword = '';
           this.showTemporaryPassword = false;
         }
-        this.message = 'Richiesta reset password rifiutata.';
+        this.showSuccessMessage('Richiesta reset password rifiutata.', true);
         this.loadUsers(false);
       },
       error: (err) => {
@@ -253,14 +261,14 @@ export class UsersComponent implements OnInit, OnDestroy {
     const email = this.form.email.trim();
     if (!EXPRIVIA_EMAIL_PATTERN.test(email)) {
       this.error = DOMAIN_ERROR;
-      this.message = '';
+      this.clearMessage();
       this.refreshView();
       return;
     }
 
     this.saving = true;
     this.error = '';
-    this.message = '';
+    this.clearMessage();
     this.form = {
       ...this.form,
       fullName: this.form.fullName.trim(),
@@ -283,7 +291,7 @@ export class UsersComponent implements OnInit, OnDestroy {
           this.form = this.emptyForm();
           this.ensureFormRoleAllowed();
           this.showCreateUserModal = false;
-          this.message = 'Utente creato correttamente.';
+          this.showSuccessMessage('Utente creato correttamente.');
           this.refreshView();
           this.loadUsers();
         },
@@ -310,7 +318,7 @@ export class UsersComponent implements OnInit, OnDestroy {
         if (this.selectedUserForGroups?.id === updated.id) {
           this.selectedUserForGroups = this.users.find((item) => item.id === updated.id) ?? null;
         }
-        this.message = 'Ruolo aggiornato.';
+        this.showSuccessMessage('Ruolo aggiornato.', true);
         this.refreshView();
       },
       error: (err) => {
@@ -330,7 +338,7 @@ export class UsersComponent implements OnInit, OnDestroy {
     this.api.updateUserRole(user.id, 'USER').subscribe({
       next: (updated) => {
         this.users = this.users.map((item) => (item.id === updated.id ? { ...item, ...updated } : item));
-        this.message = "Richiesta approvata. L'utente ora ha ruolo USER.";
+        this.showSuccessMessage("Richiesta approvata. L'utente ora ha ruolo USER.", true);
         this.refreshView();
       },
       error: (err) => {
@@ -360,7 +368,7 @@ export class UsersComponent implements OnInit, OnDestroy {
         if (this.selectedUserForGroups?.id === user.id) {
           this.selectedUserForGroups = null;
         }
-        this.message = 'Utente eliminato.';
+        this.showSuccessMessage('Utente eliminato.');
         this.refreshView();
         this.loadUsers(false);
       },
@@ -441,7 +449,7 @@ export class UsersComponent implements OnInit, OnDestroy {
     }
     this.selectedUserForGroups = user;
     this.groupMembershipAction = '';
-    this.message = '';
+    this.clearMessage();
     this.refreshView();
     window.setTimeout(() => {
       this.groupsManagerPanel?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -463,7 +471,7 @@ export class UsersComponent implements OnInit, OnDestroy {
     this.groupMembershipAction = `add-${group.id}`;
     this.api.addUserToGroup(group.id, user.id).subscribe({
       next: () => {
-        this.message = 'Gruppo assegnato correttamente.';
+        this.showSuccessMessage('Gruppo assegnato correttamente.');
         this.groupMembershipAction = '';
         this.loadUsers(false);
       },
@@ -484,7 +492,7 @@ export class UsersComponent implements OnInit, OnDestroy {
     this.groupMembershipAction = `remove-${group.id}`;
     this.api.removeUserFromGroup(group.id, user.id).subscribe({
       next: () => {
-        this.message = 'Gruppo rimosso correttamente.';
+        this.showSuccessMessage('Gruppo rimosso correttamente.');
         this.groupMembershipAction = '';
         this.loadUsers(false);
       },
@@ -511,7 +519,7 @@ export class UsersComponent implements OnInit, OnDestroy {
     ).subscribe({
       next: () => {
         this.newGroupName = '';
-        this.message = 'Gruppo creato correttamente.';
+        this.showSuccessMessage('Gruppo creato correttamente.');
         this.loadUsers(false);
       },
       error: (err) => {
@@ -549,7 +557,7 @@ export class UsersComponent implements OnInit, OnDestroy {
       next: () => {
         this.renamingGroupId = null;
         this.renameGroupName = '';
-        this.message = 'Gruppo aggiornato.';
+        this.showSuccessMessage('Gruppo aggiornato.');
         this.loadUsers(false);
       },
       error: (err) => {
@@ -575,7 +583,7 @@ export class UsersComponent implements OnInit, OnDestroy {
         if (this.activeFilter === `group:${group.id}`) {
           this.activeFilter = 'all';
         }
-        this.message = 'Gruppo eliminato.';
+        this.showSuccessMessage('Gruppo eliminato.');
         this.loadUsers(false);
       },
       error: (err) => {
@@ -677,7 +685,7 @@ export class UsersComponent implements OnInit, OnDestroy {
     this.showPassword = false;
     this.showCreateUserModal = true;
     this.error = '';
-    this.message = '';
+    this.clearMessage();
     this.refreshView();
   }
 
@@ -706,6 +714,35 @@ export class UsersComponent implements OnInit, OnDestroy {
   clearActiveFilter(): void {
     this.activeFilter = 'all';
     this.refreshView();
+  }
+
+  private showSuccessMessage(message: string, autoDismiss = false): void {
+    this.clearMessageDismissTimer();
+    this.error = '';
+    this.message = message;
+    this.messageAutoDismiss = autoDismiss;
+    if (autoDismiss) {
+      this.messageDismissTimer = window.setTimeout(() => {
+        if (this.message === message) {
+          this.message = '';
+          this.messageAutoDismiss = false;
+          this.refreshView();
+        }
+      }, 3000);
+    }
+  }
+
+  private clearMessage(): void {
+    this.clearMessageDismissTimer();
+    this.message = '';
+    this.messageAutoDismiss = false;
+  }
+
+  private clearMessageDismissTimer(): void {
+    if (this.messageDismissTimer !== null) {
+      window.clearTimeout(this.messageDismissTimer);
+      this.messageDismissTimer = null;
+    }
   }
 
   private emptyForm(): RegisterRequest {

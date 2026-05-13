@@ -29,6 +29,8 @@ interface RoomStats {
   blockedCodes: string[];
 }
 
+type RoomView = 'rooms' | 'meetingRooms';
+
 interface CreateSedeForm {
   nome: string;
   citta: string;
@@ -69,6 +71,7 @@ export class SediPostazioniComponent implements OnInit, OnDestroy {
   postazioni: Postazione[] = [];
   bookings: Prenotazione[] = [];
   roomStats: RoomStats[] = [];
+  activeRoomView: RoomView = 'rooms';
 
   selectedSedeId: number | null = null;
   selectedEdificioId: number | null = null;
@@ -92,6 +95,8 @@ export class SediPostazioniComponent implements OnInit, OnDestroy {
   showSeatStateModal = false;
   selectedRoomForState: RoomStats | null = null;
   updatingSeatId: number | null = null;
+  updatingMeetingRoomState = false;
+  meetingRoomStateDraft: StatoPostazione = 'DISPONIBILE';
   seatStateDrafts: Record<number, StatoPostazione> = {};
   seatStateError = '';
   seatStateMessage = '';
@@ -699,7 +704,118 @@ export class SediPostazioniComponent implements OnInit, OnDestroy {
   }
 
   canManageRoomSeats(room: RoomStats): boolean {
-    return this.canManageDeskStates() && !room.meetingRoom;
+    return this.canManageDeskStates() && !!room;
+  }
+
+  manageRoomButtonLabel(room: RoomStats): string {
+    return room.meetingRoom ? 'Gestisci meeting room' : 'Gestisci postazioni';
+  }
+
+  roomState(room: RoomStats): StatoPostazione {
+    return room.stanza.stato ?? 'DISPONIBILE';
+  }
+
+  roomStateLabel(room: RoomStats): string {
+    return this.statoLabel(this.roomState(room));
+  }
+
+  roomIsNotBookable(room: RoomStats): boolean {
+    return this.roomState(room) !== 'DISPONIBILE';
+  }
+
+  selectedRoomManagementTitle(): string {
+    return this.selectedRoomForState?.meetingRoom ? 'Gestisci meeting room' : 'Stato postazioni';
+  }
+
+  selectedRoomManagementSubtitle(): string {
+    const room = this.selectedRoomForState;
+    if (!room) {
+      return '';
+    }
+    return room.meetingRoom ? `Meeting room: ${room.stanza.nome}` : `Stanza: ${room.stanza.nome}`;
+  }
+
+  meetingRoomStateChanged(): boolean {
+    const room = this.selectedRoomForState;
+    return !!room && this.meetingRoomStateDraft !== this.roomState(room);
+  }
+
+  saveMeetingRoomState(): void {
+    const room = this.selectedRoomForState;
+    if (!room || !room.meetingRoom || !this.canManageDeskStates() || this.updatingMeetingRoomState) {
+      return;
+    }
+
+    const nextState = this.meetingRoomStateDraft;
+    if (nextState === this.roomState(room)) {
+      this.seatStateMessage = `Nessuna modifica per ${room.stanza.nome}.`;
+      this.seatStateError = '';
+      this.refreshView();
+      return;
+    }
+
+    this.updatingMeetingRoomState = true;
+    this.seatStateError = '';
+    this.seatStateMessage = '';
+
+    this.api.updateStanzaStato(room.stanza.id, nextState).subscribe({
+      next: (updatedRoom) => {
+        this.stanze = this.stanze.map((item) => item.id === updatedRoom.id ? updatedRoom : item);
+        this.roomStats = this.buildRoomStats();
+        this.selectedRoomForState = this.roomStats.find((item) => item.stanza.id === updatedRoom.id) ?? null;
+        this.meetingRoomStateDraft = updatedRoom.stato ?? 'DISPONIBILE';
+        this.updatingMeetingRoomState = false;
+        this.seatStateMessage = `Stato aggiornato per ${updatedRoom.nome}: ${this.statoLabel(this.meetingRoomStateDraft)}.`;
+        this.refreshView();
+      },
+      error: (err) => {
+        this.updatingMeetingRoomState = false;
+        this.meetingRoomStateDraft = this.roomState(room);
+        this.seatStateError = apiErrorMessage(err, 'Aggiornamento stato meeting room non riuscito.');
+        this.refreshView();
+      },
+    });
+  }
+
+  selectRoomsView(): void {
+    this.activeRoomView = 'rooms';
+    this.refreshView();
+  }
+
+  selectMeetingRoomsView(): void {
+    this.activeRoomView = 'meetingRooms';
+    this.refreshView();
+  }
+
+  showingRooms(): boolean {
+    return this.activeRoomView === 'rooms';
+  }
+
+  showingMeetingRooms(): boolean {
+    return this.activeRoomView === 'meetingRooms';
+  }
+
+  roomCount(): number {
+    return this.roomStats.filter((room) => !room.meetingRoom).length;
+  }
+
+  meetingRoomCount(): number {
+    return this.roomStats.filter((room) => room.meetingRoom).length;
+  }
+
+  visibleRoomStats(): RoomStats[] {
+    return this.roomStats.filter((room) =>
+      this.activeRoomView === 'rooms' ? !room.meetingRoom : room.meetingRoom,
+    );
+  }
+
+  roomListEmptyMessage(): string {
+    if (this.loading) {
+      return 'Caricamento riepilogo...';
+    }
+    return this.activeRoomView === 'rooms'
+      ? 'Nessuna stanza configurata.'
+      : 'Nessuna meeting room configurata.';
   }
 
   openSeatStateModal(room: RoomStats): void {
@@ -710,6 +826,8 @@ export class SediPostazioniComponent implements OnInit, OnDestroy {
     this.selectedRoomForState = room;
     this.showSeatStateModal = true;
     this.updatingSeatId = null;
+    this.updatingMeetingRoomState = false;
+    this.meetingRoomStateDraft = this.roomState(room);
     this.seatStateError = '';
     this.seatStateMessage = '';
     this.seatStateDrafts = Object.fromEntries(
@@ -727,16 +845,20 @@ export class SediPostazioniComponent implements OnInit, OnDestroy {
     this.seatGroupError = '';
     this.seatGroupMessage = '';
     this.refreshView();
-    this.loadSeatGroupsForSelectedRoom();
+    if (!room.meetingRoom) {
+      this.loadSeatGroupsForSelectedRoom();
+    }
   }
 
   closeSeatStateModal(): void {
-    if (this.updatingSeatId !== null || !!this.updatingSeatGroupKey || !!this.updatingRoomGroupAction) {
+    if (this.updatingSeatId !== null || this.updatingMeetingRoomState || !!this.updatingSeatGroupKey || !!this.updatingRoomGroupAction) {
       return;
     }
 
     this.showSeatStateModal = false;
     this.selectedRoomForState = null;
+    this.updatingMeetingRoomState = false;
+    this.meetingRoomStateDraft = 'DISPONIBILE';
     this.seatStateError = '';
     this.seatStateMessage = '';
     this.seatStateDrafts = {};

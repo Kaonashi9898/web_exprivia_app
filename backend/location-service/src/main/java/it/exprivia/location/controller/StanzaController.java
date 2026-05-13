@@ -2,6 +2,7 @@ package it.exprivia.location.controller;
 
 import it.exprivia.location.dto.StanzaRequest;
 import it.exprivia.location.dto.StanzaResponse;
+import it.exprivia.location.entity.StatoPostazione;
 import it.exprivia.location.service.StanzaService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -54,6 +55,12 @@ public class StanzaController {
     @PutMapping("/{id}")
     public ResponseEntity<StanzaResponse> update(@PathVariable Long id, @Valid @RequestBody StanzaRequest request) {
         return ResponseEntity.ok(stanzaService.update(id, request));
+    }
+
+    /** Aggiorna solo lo stato di una stanza o meeting room. */
+    @PatchMapping("/{id}/stato")
+    public ResponseEntity<StanzaResponse> aggiornaStato(@PathVariable Long id, @RequestParam StatoPostazione stato) {
+        return ResponseEntity.ok(stanzaService.aggiornaStato(id, stato));
     }
 
     /** Elimina una stanza (a cascata vengono eliminate tutte le postazioni). */

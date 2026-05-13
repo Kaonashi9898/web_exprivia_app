@@ -46,6 +46,7 @@ public class RabbitMQConfig {
     public static final String ROUTING_KEY_UTENTE_ELIMINATO = "utente.eliminato";
     public static final String ROUTING_KEY_PLANIMETRIA_ELIMINATA = "planimetria.eliminata";
     public static final String ROUTING_KEY_POSTAZIONE_NON_PRENOTABILE = "postazione.non.prenotabile";
+    public static final String ROUTING_KEY_MEETING_ROOM_NON_PRENOTABILE = "meeting-room.non.prenotabile";
 
     /**
      * Dichiara l'exchange su cui ascoltiamo (TopicExchange per pattern matching nelle routing key).

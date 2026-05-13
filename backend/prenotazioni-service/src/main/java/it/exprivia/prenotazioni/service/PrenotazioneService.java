@@ -351,8 +351,10 @@ public class PrenotazioneService {
     public boolean isMeetingRoomDisponibile(Long meetingRoomStanzaId,
                                             LocalDate dataPrenotazione,
                                             LocalTime oraInizio,
-                                            LocalTime oraFine) {
+                                            LocalTime oraFine,
+                                            String authorizationHeader) {
         validateBookableSlot(dataPrenotazione, oraInizio, oraFine);
+        ensureMeetingRoomPrenotabile(locationServiceClient.getStanza(meetingRoomStanzaId, authorizationHeader));
         return !prenotazioneRepository.existsActiveOverlapForMeetingRoom(
                 meetingRoomStanzaId,
                 dataPrenotazione,
@@ -425,6 +427,27 @@ public class PrenotazioneService {
     }
 
     @Transactional
+    public void annullaPrenotazioniFuturePerMeetingRoomNonDisponibile(Long meetingRoomStanzaId, String statoPostazione) {
+        List<Prenotazione> prenotazioni =
+                prenotazioneRepository.findByMeetingRoomStanzaIdAndStatoAndDataPrenotazioneGreaterThanEqual(
+                        meetingRoomStanzaId,
+                        StatoPrenotazione.CONFERMATA,
+                        LocalDate.now(clock)
+                );
+
+        for (Prenotazione prenotazione : prenotazioni) {
+            if (!isFutura(prenotazione)) {
+                continue;
+            }
+
+            prenotazioneNotificaRepository.save(buildNotification(prenotazione, statoPostazione));
+            PrenotazioneResponse response = toResponse(prenotazione);
+            prenotazioneRepository.delete(prenotazione);
+            prenotazioneEventPublisher.pubblicaAnnullamento(response);
+        }
+    }
+
+    @Transactional
     public void eliminaPrenotazioniPerPlanimetria(List<Long> postazioneIds) {
         if (postazioneIds == null || postazioneIds.isEmpty()) {
             return;
@@ -467,10 +490,16 @@ public class PrenotazioneService {
     }
 
     private void ensureRisorsaAncoraPrenotabile(Prenotazione prenotazione, String authorizationHeader) {
-        if (prenotazione.getTipoRisorsaPrenotata() != TipoRisorsaPrenotata.POSTAZIONE || prenotazione.getPostazioneId() == null) {
+        if (prenotazione.getTipoRisorsaPrenotata() == TipoRisorsaPrenotata.MEETING_ROOM) {
+            ExternalStanzaResponse stanza =
+                    locationServiceClient.getStanza(prenotazione.getMeetingRoomStanzaId(), authorizationHeader);
+            ensureMeetingRoomPrenotabile(stanza);
             return;
         }
 
+        if (prenotazione.getPostazioneId() == null) {
+            return;
+        }
         ExternalPostazioneResponse postazione =
                 locationServiceClient.getPostazione(prenotazione.getPostazioneId(), authorizationHeader);
         ensurePostazionePrenotabile(postazione);
@@ -479,6 +508,9 @@ public class PrenotazioneService {
     private void ensureMeetingRoomPrenotabile(ExternalStanzaResponse stanza) {
         if (!TIPO_STANZA_MEETING_ROOM.equals(stanza.tipo())) {
             throw new IllegalArgumentException("La stanza selezionata non e' una sala riunioni prenotabile");
+        }
+        if (!STATO_POSTAZIONE_DISPONIBILE.equals(stanza.stato())) {
+            throw new IllegalArgumentException("La sala riunioni non e' prenotabile nello stato attuale");
         }
     }
 

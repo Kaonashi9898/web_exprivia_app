@@ -157,8 +157,9 @@ public class PrenotazioneController {
             @PathVariable Long stanzaId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime oraInizio,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime oraFine) {
-        return ResponseEntity.ok(prenotazioneService.isMeetingRoomDisponibile(stanzaId, data, oraInizio, oraFine));
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime oraFine,
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader) {
+        return ResponseEntity.ok(prenotazioneService.isMeetingRoomDisponibile(stanzaId, data, oraInizio, oraFine, authorizationHeader));
     }
 
     @DeleteMapping("/{id}")

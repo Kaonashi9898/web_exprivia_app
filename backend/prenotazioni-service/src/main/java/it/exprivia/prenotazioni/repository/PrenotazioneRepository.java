@@ -123,6 +123,10 @@ public interface PrenotazioneRepository extends JpaRepository<Prenotazione, Long
                                                                                      StatoPrenotazione stato,
                                                                                      LocalDate dataPrenotazione);
 
+    List<Prenotazione> findByMeetingRoomStanzaIdAndStatoAndDataPrenotazioneGreaterThanEqual(Long meetingRoomStanzaId,
+                                                                                            StatoPrenotazione stato,
+                                                                                            LocalDate dataPrenotazione);
+
     List<Prenotazione> findByUtenteIdAndStatoAndDataPrenotazioneGreaterThanEqual(Long utenteId,
                                                                                  StatoPrenotazione stato,
                                                                                  LocalDate dataPrenotazione);

@@ -60,6 +60,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PUT, "/api/postazioni/**").hasAnyRole("BUILDING_MANAGER", "ADMIN")
                 .requestMatchers(HttpMethod.PATCH, "/api/postazioni/**").hasAnyRole("BUILDING_MANAGER", "ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/postazioni/**").hasAnyRole("BUILDING_MANAGER", "ADMIN")
+                .requestMatchers(HttpMethod.PATCH, "/api/stanze/**").hasAnyRole("BUILDING_MANAGER", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/sedi/**", "/api/edifici/**", "/api/piani/**", "/api/stanze/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/sedi/**", "/api/edifici/**", "/api/piani/**", "/api/stanze/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/sedi/**", "/api/edifici/**", "/api/piani/**", "/api/stanze/**").hasRole("ADMIN")
