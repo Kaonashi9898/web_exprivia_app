@@ -1,6 +1,7 @@
 .quick-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  align-items: start;
   gap: 1rem;
   margin-bottom: 1rem;
 }
@@ -16,6 +17,12 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
+}
+
+.action-card-compact {
+  min-height: 190px;
+  height: 190px;
+  align-self: start;
 }
 
 .action-card:hover {
@@ -59,6 +66,31 @@
   background: rgba(24, 95, 165, 0.11);
 }
 
+.weather-icon.sun {
+  color: #d97706;
+  background: rgba(217, 119, 6, 0.12);
+}
+
+.weather-icon.cloud {
+  color: #5b6b82;
+  background: rgba(91, 107, 130, 0.12);
+}
+
+.weather-icon.rain {
+  color: #1d6fa5;
+  background: rgba(29, 111, 165, 0.12);
+}
+
+.weather-icon.storm {
+  color: #7750c8;
+  background: rgba(119, 80, 200, 0.12);
+}
+
+.weather-icon.snow {
+  color: #4b89b4;
+  background: rgba(75, 137, 180, 0.12);
+}
+
 .card-icon svg {
   width: 25px;
   height: 25px;
@@ -67,6 +99,38 @@
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.weather-card {
+  align-self: start;
+  height: fit-content;
+  min-height: 190px;
+  justify-content: space-between;
+}
+
+.weather-copy {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.weather-location {
+  color: var(--color-text-main);
+  font-weight: 700;
+}
+
+.weather-temperature {
+  color: var(--color-primary-dark);
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.weather-error {
+  color: #8a2d18 !important;
+}
+
+.weather-action {
+  align-self: flex-start;
 }
 
 .dashboard-bookings {

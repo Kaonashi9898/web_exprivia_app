@@ -3,7 +3,7 @@ import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { catchError, forkJoin, map, of, Subscription, switchMap } from 'rxjs';
 import { ApiService } from '../../core/api.service';
-import { DashboardPrenotazione, PlanimetriaResponse, PrenotazioneNotifica } from '../../core/app.models';
+import { DashboardPrenotazione, PlanimetriaResponse, PrenotazioneNotifica, Sede, WeatherSnapshot } from '../../core/app.models';
 import { apiErrorMessage, bookingCancellationErrorMessage } from '../../core/api-error.utils';
 import { AuthService } from '../../core/auth.service';
 import {
@@ -46,6 +46,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
   cancellationNotifications: PrenotazioneNotifica[] = [];
   notificationAcknowledgeBusy = false;
   notificationError = '';
+  weather: WeatherSnapshot | null = null;
+  weatherLoading = false;
+  weatherError = '';
+  weatherLocationLabel = '';
+  weatherSourceLabel = '';
   editBookingDate = '';
   editStartTime = BOOKING_DAY_START;
   editEndTime = BOOKING_DAY_END;
@@ -75,11 +80,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
   protected readonly canBook = computed(() =>
     this.auth.hasAnyRole(BOOKING_ROLES),
   );
+  protected readonly canSeeWeather = computed(() => this.auth.hasAnyRole(['USER']));
 
   ngOnInit(): void {
     this.loadBookings();
     this.loadPendingGuests();
     this.loadCancellationNotifications();
+    this.loadWeatherFallback();
   }
 
   ngOnDestroy(): void {
@@ -204,6 +211,78 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   visibleBookingsCount(): number {
     return this.showingFutureBookings() ? this.futureBookings.length : this.pastBookings.length;
+  }
+
+  useCurrentPositionForWeather(): void {
+    if (!this.canSeeWeather()) {
+      return;
+    }
+    if (!navigator.geolocation) {
+      this.weatherError = 'Geolocalizzazione non supportata dal browser.';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.weatherLoading = true;
+    this.weatherError = '';
+    this.cdr.detectChanges();
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        this.loadWeather(position.coords.latitude, position.coords.longitude, 'Posizione corrente', 'Meteo locale');
+      },
+      () => {
+        this.weatherLoading = false;
+        this.weatherError = 'Posizione non disponibile. Ti mostro il meteo della sede aziendale, se presente.';
+        this.cdr.detectChanges();
+        if (!this.weather) {
+          this.loadWeatherFallback();
+        }
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 15 * 60 * 1000 },
+    );
+  }
+
+  weatherSummary(): string {
+    if (!this.weather) {
+      return 'Meteo non disponibile';
+    }
+    return this.describeWeatherCode(this.weather.weatherCode, this.weather.isDay);
+  }
+
+  weatherTemperature(): string {
+    if (!this.weather) {
+      return '--';
+    }
+    return `${Math.round(this.weather.temperatureC)}°C`;
+  }
+
+  weatherRange(): string {
+    if (!this.weather) {
+      return '--';
+    }
+    return `Min ${Math.round(this.weather.minTemperatureC)}° / Max ${Math.round(this.weather.maxTemperatureC)}°`;
+  }
+
+  weatherIconType(): 'sun' | 'cloud' | 'rain' | 'storm' | 'snow' {
+    if (!this.weather) {
+      return 'sun';
+    }
+
+    const code = this.weather.weatherCode;
+    if ([95, 96, 99].includes(code)) {
+      return 'storm';
+    }
+    if ([71, 73, 75, 77, 85, 86].includes(code)) {
+      return 'snow';
+    }
+    if ([45, 48, 51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) {
+      return 'rain';
+    }
+    if ([2, 3].includes(code)) {
+      return 'cloud';
+    }
+    return 'sun';
   }
 
   isPastBooking(booking: DashboardPrenotazione): boolean {
@@ -426,6 +505,124 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.cdr.detectChanges();
       },
     });
+  }
+
+  private loadWeatherFallback(): void {
+    if (!this.canSeeWeather()) {
+      this.weather = null;
+      this.weatherLoading = false;
+      this.weatherError = '';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.weatherLoading = true;
+    this.weatherError = '';
+    this.api.listSedi().pipe(
+      map((sedi) => this.selectFallbackSede(sedi)),
+      switchMap((sede) => {
+        if (!sede || sede.latitudine == null || sede.longitudine == null) {
+          return of(null);
+        }
+        return this.api.getWeatherForecast(sede.latitudine, sede.longitudine).pipe(
+          map((weather) => ({
+            weather,
+            locationLabel: this.buildSedeWeatherLabel(sede),
+            sourceLabel: 'Sede aziendale',
+          })),
+          catchError(() => of(null)),
+        );
+      }),
+    ).subscribe({
+      next: (result) => {
+        this.weatherLoading = false;
+        if (!result) {
+          this.weather = null;
+          this.weatherLocationLabel = '';
+          this.weatherSourceLabel = '';
+          if (!this.weatherError) {
+            this.weatherError = 'Nessuna sede con coordinate disponibili per il meteo.';
+          }
+          this.cdr.detectChanges();
+          return;
+        }
+        this.weather = result.weather;
+        this.weatherLocationLabel = result.locationLabel;
+        this.weatherSourceLabel = result.sourceLabel;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.weatherLoading = false;
+        this.weather = null;
+        if (!this.weatherError) {
+          this.weatherError = 'Impossibile caricare il meteo della sede aziendale.';
+        }
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  private loadWeather(latitude: number, longitude: number, locationLabel: string, sourceLabel: string): void {
+    this.api.getWeatherForecast(latitude, longitude).subscribe({
+      next: (weather) => {
+        this.weather = weather;
+        this.weatherLoading = false;
+        this.weatherError = '';
+        this.weatherLocationLabel = locationLabel;
+        this.weatherSourceLabel = sourceLabel;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.weatherLoading = false;
+        this.weatherError = 'Impossibile aggiornare il meteo in questo momento.';
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  private selectFallbackSede(sedi: Sede[]): Sede | null {
+    return sedi.find((sede) => sede.latitudine != null && sede.longitudine != null) ?? null;
+  }
+
+  private buildSedeWeatherLabel(sede: Sede): string {
+    const nome = sede.nome?.trim();
+    const citta = sede.citta?.trim();
+    if (nome && citta) {
+      return `${nome} - ${citta}`;
+    }
+    return nome || citta || 'Sede aziendale';
+  }
+
+  private describeWeatherCode(code: number, isDay: boolean): string {
+    const clearLabel = isDay ? 'Sereno' : 'Cielo sereno';
+    if (code === 0) {
+      return clearLabel;
+    }
+    if (code === 1) {
+      return isDay ? 'Prevalentemente sereno' : 'Prevalentemente limpido';
+    }
+    if (code === 2) {
+      return 'Parzialmente nuvoloso';
+    }
+    if (code === 3) {
+      return 'Coperto';
+    }
+    if (code === 45 || code === 48) {
+      return 'Nebbia';
+    }
+    if ([51, 53, 55, 56, 57].includes(code)) {
+      return 'Pioviggine';
+    }
+    if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) {
+      return 'Pioggia';
+    }
+    if ([71, 73, 75, 77, 85, 86].includes(code)) {
+      return 'Neve';
+    }
+    if ([95, 96, 99].includes(code)) {
+      return 'Temporale';
+    }
+    return 'Condizioni variabili';
   }
 
   private refreshBookingSections(): void {

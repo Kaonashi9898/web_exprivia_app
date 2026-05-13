@@ -56,6 +56,7 @@ type LocationDeletionTarget =
   styleUrl: './sedi-postazioni.css',
 })
 export class SediPostazioniComponent implements OnInit, OnDestroy {
+  private readonly roomPreviewLimit = 5;
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -77,6 +78,8 @@ export class SediPostazioniComponent implements OnInit, OnDestroy {
   bookings: Prenotazione[] = [];
   roomStats: RoomStats[] = [];
   activeRoomView: RoomView = 'rooms';
+  roomsExpanded = false;
+  meetingRoomsExpanded = false;
 
   selectedSedeId: number | null = null;
   selectedEdificioId: number | null = null;
@@ -565,16 +568,32 @@ export class SediPostazioniComponent implements OnInit, OnDestroy {
     return this.postazioni.length;
   }
 
+  get totalMeetingRooms(): number {
+    return this.roomStats.filter((room) => room.meetingRoom).length;
+  }
+
   get freeSeats(): number {
     return this.postazioni.filter((seat) => seat.stato === 'DISPONIBILE' && !this.isBooked(seat.id)).length;
+  }
+
+  get freeMeetingRooms(): number {
+    return this.roomStats.filter((room) => room.meetingRoom && !this.roomIsNotBookable(room) && !room.meetingRoomSlots.length).length;
   }
 
   get occupiedSeats(): number {
     return this.postazioni.filter((seat) => this.isBooked(seat.id)).length;
   }
 
+  get occupiedMeetingRooms(): number {
+    return this.roomStats.filter((room) => room.meetingRoom && !this.roomIsNotBookable(room) && room.meetingRoomSlots.length > 0).length;
+  }
+
   get blockedSeats(): number {
     return this.postazioni.filter((seat) => seat.stato !== 'DISPONIBILE').length;
+  }
+
+  get blockedMeetingRooms(): number {
+    return this.roomStats.filter((room) => room.meetingRoom && this.roomIsNotBookable(room)).length;
   }
 
   getPianoLabel(numero: number): string {
@@ -844,9 +863,31 @@ export class SediPostazioniComponent implements OnInit, OnDestroy {
   }
 
   visibleRoomStats(): RoomStats[] {
-    return this.roomStats.filter((room) =>
-      this.activeRoomView === 'rooms' ? !room.meetingRoom : room.meetingRoom,
-    );
+    return this.roomStats
+      .filter((room) => this.activeRoomView === 'rooms' ? !room.meetingRoom : room.meetingRoom)
+      .sort((left, right) => this.compareRoomNames(left.stanza.nome, right.stanza.nome));
+  }
+
+  displayedRoomStats(): RoomStats[] {
+    const rooms = this.visibleRoomStats();
+    return this.isCurrentRoomListExpanded() ? rooms : rooms.slice(0, this.roomPreviewLimit);
+  }
+
+  canExpandCurrentRoomList(): boolean {
+    return this.visibleRoomStats().length > this.roomPreviewLimit;
+  }
+
+  currentRoomToggleLabel(): string {
+    return this.isCurrentRoomListExpanded() ? 'Mostra meno' : 'Mostra tutte';
+  }
+
+  toggleCurrentRoomList(): void {
+    if (this.activeRoomView === 'rooms') {
+      this.roomsExpanded = !this.roomsExpanded;
+    } else {
+      this.meetingRoomsExpanded = !this.meetingRoomsExpanded;
+    }
+    this.refreshView();
   }
 
   roomListEmptyMessage(): string {
@@ -1145,6 +1186,8 @@ export class SediPostazioniComponent implements OnInit, OnDestroy {
     this.postazioni = [];
     this.bookings = [];
     this.roomStats = [];
+    this.roomsExpanded = false;
+    this.meetingRoomsExpanded = false;
     this.bookingActionError = '';
     this.bookingActionMessage = '';
     this.bookingPendingDeletion = null;
@@ -1332,6 +1375,18 @@ export class SediPostazioniComponent implements OnInit, OnDestroy {
 
   private hasSeatGroup(seatId: number, groupId: number): boolean {
     return (this.seatGroupsBySeatId[seatId] ?? []).some((item) => item.gruppoId === groupId);
+  }
+
+  private isCurrentRoomListExpanded(): boolean {
+    return this.activeRoomView === 'rooms' ? this.roomsExpanded : this.meetingRoomsExpanded;
+  }
+
+  private compareRoomNames(left: string, right: string): number {
+    return left.localeCompare(right, 'it-IT', {
+      numeric: true,
+      sensitivity: 'base',
+      ignorePunctuation: true,
+    });
   }
 
   private refreshView(): void {

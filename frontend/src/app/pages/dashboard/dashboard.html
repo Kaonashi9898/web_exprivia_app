@@ -16,13 +16,49 @@
 
 <section class="quick-grid">
   @if (canBook()) {
-    <a routerLink="/prenotazioni" class="action-card">
+    <a routerLink="/prenotazioni" class="action-card action-card-compact">
       <span class="card-icon">
         <svg viewBox="0 0 24 24"><path d="M7 3v3M17 3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v12H4V7a2 2 0 0 1 2-2z" /></svg>
       </span>
       <strong>Prenota postazione</strong>
       <span>Postazioni e sale riunioni</span>
     </a>
+  }
+
+  @if (canSeeWeather()) {
+    <article class="action-card weather-card">
+      <span class="card-icon weather-icon" [class.sun]="weatherIconType() === 'sun'" [class.cloud]="weatherIconType() === 'cloud'" [class.rain]="weatherIconType() === 'rain'" [class.storm]="weatherIconType() === 'storm'" [class.snow]="weatherIconType() === 'snow'">
+        @if (weatherIconType() === 'cloud') {
+          <svg viewBox="0 0 24 24"><path d="M7 18h9a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 6.2 8.4 3.7 3.7 0 0 0 7 18Z" /></svg>
+        } @else if (weatherIconType() === 'rain') {
+          <svg viewBox="0 0 24 24"><path d="M7 15.5h9a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 6.2 5.9 3.7 3.7 0 0 0 7 15.5Z" /><path d="M9 17.5l-.8 2.5M13 17.5l-.8 2.5M17 17.5l-.8 2.5" /></svg>
+        } @else if (weatherIconType() === 'storm') {
+          <svg viewBox="0 0 24 24"><path d="M7 14.5h9a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 6.2 4.9 3.7 3.7 0 0 0 7 14.5Z" /><path d="m12 15.5-1.8 3h2.1l-1.3 2.5 4-4.8h-2.1l1.1-2.7" /></svg>
+        } @else if (weatherIconType() === 'snow') {
+          <svg viewBox="0 0 24 24"><path d="M7 14.8h9a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 6.2 5.2 3.7 3.7 0 0 0 7 14.8Z" /><path d="M9.5 18.2h.01M12.5 20h.01M15.5 18.2h.01M12.5 16.4v3.6M10.9 17.4l3.2 1.8M14.1 17.4l-3.2 1.8" /></svg>
+        } @else {
+          <svg viewBox="0 0 24 24"><path d="M12 3v2.2M12 18.8V21M4.8 4.8l1.6 1.6M17.6 17.6l1.6 1.6M3 12h2.2M18.8 12H21M4.8 19.2l1.6-1.6M17.6 6.4l1.6-1.6M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" /></svg>
+        }
+      </span>
+      <strong>Meteo locale</strong>
+      @if (weatherLoading) {
+        <span>Aggiornamento meteo in corso...</span>
+      } @else if (weather) {
+        <div class="weather-copy">
+          <span class="weather-location">{{ weatherLocationLabel }}</span>
+          <span class="weather-temperature">{{ weatherTemperature() }}</span>
+          <span>{{ weatherSummary() }}</span>
+          <span>{{ weatherRange() }}</span>
+          <span>{{ weatherSourceLabel }}</span>
+        </div>
+      }
+      @if (weatherError && weather) {
+        <span class="weather-error">{{ weatherError }}</span>
+      }
+      <button class="ghost-button weather-action" type="button" [disabled]="weatherLoading" (click)="useCurrentPositionForWeather()">
+        {{ weatherLoading ? 'Ricerca posizione...' : 'Usa la mia posizione' }}
+      </button>
+    </article>
   }
 
   @if (canManageUsers()) {

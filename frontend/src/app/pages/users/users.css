@@ -318,6 +318,10 @@
   width: min(560px, 100%);
 }
 
+.create-group-modal-card {
+  width: min(520px, 100%);
+}
+
 .confirm-card {
   width: min(520px, 100%);
 }

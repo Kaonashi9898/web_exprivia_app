@@ -53,6 +53,14 @@ export interface Sede {
   longitudine?: number | null;
 }
 
+export interface WeatherSnapshot {
+  temperatureC: number;
+  minTemperatureC: number;
+  maxTemperatureC: number;
+  weatherCode: number;
+  isDay: boolean;
+}
+
 export interface Edificio {
   id: number;
   nome: string;

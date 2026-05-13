@@ -1,4 +1,4 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpBackend, HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { map } from 'rxjs';
 import {
@@ -21,16 +21,31 @@ import {
   Stanza,
   UpdatePrenotazioneRequest,
   Utente,
+  WeatherSnapshot,
 } from './app.models';
 import { environment } from '../../environments/environment';
 
 const UTENTI_API = environment.utentiApiBaseUrl;
 const LOCATION_API = environment.locationApiBaseUrl;
 const PRENOTAZIONI_API = environment.prenotazioniApiBaseUrl;
+const OPEN_METEO_API = 'https://api.open-meteo.com/v1/forecast';
+
+interface OpenMeteoForecastResponse {
+  current?: {
+    temperature_2m?: number;
+    weather_code?: number;
+    is_day?: number;
+  };
+  daily?: {
+    temperature_2m_max?: number[];
+    temperature_2m_min?: number[];
+  };
+}
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private readonly http = inject(HttpClient);
+  private readonly rawHttp = new HttpClient(inject(HttpBackend));
 
   listUsers() {
     return this.http.get<Utente[]>(`${UTENTI_API}/api/utenti`);
@@ -113,6 +128,42 @@ export class ApiService {
 
   listSedi() {
     return this.http.get<Sede[]>(`${LOCATION_API}/api/sedi`);
+  }
+
+  getWeatherForecast(latitude: number, longitude: number) {
+    const params = new HttpParams()
+      .set('latitude', latitude)
+      .set('longitude', longitude)
+      .set('current', 'temperature_2m,weather_code,is_day')
+      .set('daily', 'temperature_2m_max,temperature_2m_min')
+      .set('forecast_days', 1)
+      .set('timezone', 'auto');
+
+    return this.rawHttp.get<OpenMeteoForecastResponse>(OPEN_METEO_API, { params }).pipe(
+      map((response) => {
+        const current = response.current;
+        const daily = response.daily;
+        const max = daily?.temperature_2m_max?.[0];
+        const min = daily?.temperature_2m_min?.[0];
+        if (
+          current?.temperature_2m === undefined
+          || current.weather_code === undefined
+          || current.is_day === undefined
+          || max === undefined
+          || min === undefined
+        ) {
+          throw new Error('Risposta meteo incompleta');
+        }
+
+        return {
+          temperatureC: current.temperature_2m,
+          minTemperatureC: min,
+          maxTemperatureC: max,
+          weatherCode: current.weather_code,
+          isDay: current.is_day === 1,
+        } satisfies WeatherSnapshot;
+      }),
+    );
   }
 
   createSede(request: Omit<Sede, 'id'>) {

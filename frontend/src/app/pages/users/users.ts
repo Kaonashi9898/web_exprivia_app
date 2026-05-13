@@ -65,12 +65,14 @@ export class UsersComponent implements OnInit, OnDestroy {
   renameGroupName = '';
   groupMembershipAction = '';
   showCreateUserModal = false;
+  showCreateGroupModal = false;
   showPasswordResetModal = false;
   selectedPasswordResetRequest: PasswordResetRequest | null = null;
   temporaryPassword = '';
   showTemporaryPassword = false;
   passwordResetActionId: number | null = null;
   passwordResetModalError = '';
+  createGroupModalError = '';
   pendingConfirmAction: UserConfirmAction | null = null;
   confirmActionBusy = false;
   confirmActionError = '';
@@ -621,6 +623,7 @@ export class UsersComponent implements OnInit, OnDestroy {
     }
 
     this.creatingGroup = true;
+    this.createGroupModalError = '';
     this.api.createGroup(nome).pipe(
       finalize(() => {
         this.creatingGroup = false;
@@ -629,11 +632,13 @@ export class UsersComponent implements OnInit, OnDestroy {
     ).subscribe({
       next: () => {
         this.newGroupName = '';
+        this.showCreateGroupModal = false;
+        this.createGroupModalError = '';
         this.showSuccessMessage('Gruppo creato correttamente.');
         this.loadUsers(false);
       },
       error: (err) => {
-        this.error = apiErrorMessage(err, 'Creazione gruppo non riuscita.');
+        this.createGroupModalError = apiErrorMessage(err, 'Creazione gruppo non riuscita.');
         this.refreshView();
       },
     });
@@ -800,6 +805,25 @@ export class UsersComponent implements OnInit, OnDestroy {
     this.showCreateUserModal = true;
     this.error = '';
     this.clearMessage();
+    this.refreshView();
+  }
+
+  openCreateGroupModal(): void {
+    this.newGroupName = '';
+    this.createGroupModalError = '';
+    this.showCreateGroupModal = true;
+    this.error = '';
+    this.clearMessage();
+    this.refreshView();
+  }
+
+  closeCreateGroupModal(): void {
+    if (this.creatingGroup) {
+      return;
+    }
+    this.showCreateGroupModal = false;
+    this.newGroupName = '';
+    this.createGroupModalError = '';
     this.refreshView();
   }
 
