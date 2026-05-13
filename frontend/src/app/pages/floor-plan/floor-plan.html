@@ -173,3 +173,29 @@
   </div>
 </section>
 }
+
+@if (planPendingDeletion) {
+  <div class="modal-backdrop" (click)="closeDeletePlanModal()">
+    <section class="modal-card confirm-card" role="dialog" aria-modal="true" aria-labelledby="deletePlanTitle" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div>
+          <p class="eyebrow">Conferma eliminazione</p>
+          <h2 id="deletePlanTitle">Eliminare la planimetria?</h2>
+        </div>
+      </header>
+
+      <p class="modal-copy">
+        Stai per eliminare la planimetria del piano selezionato. Verranno rimossi anche i dati di layout collegati.
+      </p>
+
+      <div class="modal-actions">
+        <button class="ghost-button" type="button" [disabled]="deletingPlan" (click)="closeDeletePlanModal()">
+          Annulla
+        </button>
+        <button class="danger-button" type="button" [disabled]="deletingPlan" (click)="confirmDeletePlan()">
+          {{ deletingPlan ? 'Eliminazione...' : 'Elimina planimetria' }}
+        </button>
+      </div>
+    </section>
+  </div>
+}

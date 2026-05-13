@@ -47,7 +47,7 @@ public class SecurityConfig {
                             writeError(response, HttpStatus.FORBIDDEN, "Permessi insufficienti"))
             )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").hasRole("ADMIN")
                 // Regole specifiche PRIMA di quella generica GET (Spring Security: vince la prima che fa match)
                 .requestMatchers(HttpMethod.GET, "/api/gruppi-postazioni/postazione/**")
                     .hasAnyRole("USER", "RECEPTION", "BUILDING_MANAGER", "ADMIN")

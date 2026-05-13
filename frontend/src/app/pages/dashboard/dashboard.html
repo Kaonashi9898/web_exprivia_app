@@ -81,20 +81,28 @@
 
     <div class="booking-switch" role="tablist" aria-label="Filtro prenotazioni dashboard">
       <button
+        id="futureBookingsTab"
         type="button"
         class="booking-switch-button"
+        role="tab"
         [class.active]="showingFutureBookings()"
         [attr.aria-selected]="showingFutureBookings()"
+        aria-controls="dashboardBookingsPanel"
+        [attr.tabindex]="showingFutureBookings() ? 0 : -1"
         (click)="selectFutureBookings()"
       >
         Prenotazioni future
         <span class="booking-switch-count">{{ futureBookings.length }}</span>
       </button>
       <button
+        id="pastBookingsTab"
         type="button"
         class="booking-switch-button"
+        role="tab"
         [class.active]="showingPastBookings()"
         [attr.aria-selected]="showingPastBookings()"
+        aria-controls="dashboardBookingsPanel"
+        [attr.tabindex]="showingPastBookings() ? 0 : -1"
         (click)="selectPastBookings()"
       >
         Prenotazioni passate
@@ -110,7 +118,12 @@
     </div>
 
     @if (visibleBookings().length) {
-      <div class="booking-cards">
+      <div
+        id="dashboardBookingsPanel"
+        class="booking-cards"
+        role="tabpanel"
+        [attr.aria-labelledby]="showingFutureBookings() ? 'futureBookingsTab' : 'pastBookingsTab'"
+      >
         @for (booking of visibleBookings(); track booking.id) {
           <article class="booking-card" [class.readonly]="isPastBooking(booking)">
             <div class="booking-plan-preview">

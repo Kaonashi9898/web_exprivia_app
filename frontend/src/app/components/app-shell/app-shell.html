@@ -17,7 +17,10 @@
         >
           Utenti
           @if (passwordResetCount() > 0) {
-            <span class="nav-notification-badge" aria-label="{{ passwordResetCount() }} richieste reset password aperte">
+            <span
+              class="nav-notification-badge"
+              [attr.aria-label]="passwordResetCount() + ' notifiche utenti aperte'"
+            >
               {{ passwordResetBadgeLabel() }}
             </span>
           }

@@ -51,7 +51,7 @@ public class SecurityConfig {
                                 writeError(response, HttpStatus.FORBIDDEN, "Permessi insufficienti"))
                 )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/prenotazioni").hasAnyRole("USER", "BUILDING_MANAGER", "RECEPTION", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/prenotazioni/meeting-room").hasAnyRole("USER", "BUILDING_MANAGER", "RECEPTION", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/prenotazioni/mie/notifiche-annullamento/ack").hasAnyRole("USER", "BUILDING_MANAGER", "RECEPTION", "ADMIN")

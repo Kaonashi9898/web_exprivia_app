@@ -44,6 +44,11 @@ interface CreatePianoForm {
   numero: string;
 }
 
+type LocationDeletionTarget =
+  | { type: 'sede'; id: number; title: string; message: string }
+  | { type: 'edificio'; id: number; title: string; message: string }
+  | { type: 'piano'; id: number; title: string; message: string };
+
 @Component({
   selector: 'app-sedi-postazioni',
   imports: [FormsModule],
@@ -112,6 +117,8 @@ export class SediPostazioniComponent implements OnInit, OnDestroy {
   bookingActionError = '';
   bookingActionMessage = '';
   bookingPendingDeletion: Prenotazione | null = null;
+  locationPendingDeletion: LocationDeletionTarget | null = null;
+  deletingLocation = false;
   editingBooking: Prenotazione | null = null;
   deletingBookingId: number | null = null;
   savingBookingId: number | null = null;
@@ -160,22 +167,14 @@ export class SediPostazioniComponent implements OnInit, OnDestroy {
 
     if (!this.selectedSedeId) return;
     const sede = this.sedi.find((item) => item.id === this.selectedSedeId);
-    if (!confirm(`Eliminare la sede ${sede?.nome ?? ''}? Verranno rimossi anche edifici, piani e postazioni collegati.`)) {
-      return;
-    }
-
-    const deletedId = this.selectedSedeId;
-    this.api.deleteSede(deletedId).subscribe({
-      next: () => {
-        this.sedi = this.sedi.filter((item) => item.id !== deletedId);
-        this.selectedSedeId = null;
-        this.resetSelection('sede');
-      },
-      error: (err) => {
-        this.error = apiErrorMessage(err, 'Eliminazione sede non riuscita.');
-        this.refreshView();
-      },
-    });
+    this.locationPendingDeletion = {
+      type: 'sede',
+      id: this.selectedSedeId,
+      title: `Eliminare la sede ${sede?.nome ?? ''}?`,
+      message: 'Verranno rimossi anche edifici, piani, stanze, postazioni e planimetrie collegate.',
+    };
+    this.error = '';
+    this.refreshView();
   }
 
   createEdificio(): void {
@@ -318,22 +317,14 @@ export class SediPostazioniComponent implements OnInit, OnDestroy {
 
     if (!this.selectedEdificioId) return;
     const edificio = this.edifici.find((item) => item.id === this.selectedEdificioId);
-    if (!confirm(`Eliminare l'edificio ${edificio?.nome ?? ''}? Verranno rimossi anche piani e postazioni collegati.`)) {
-      return;
-    }
-
-    const deletedId = this.selectedEdificioId;
-    this.api.deleteEdificio(deletedId).subscribe({
-      next: () => {
-        this.edifici = this.edifici.filter((item) => item.id !== deletedId);
-        this.selectedEdificioId = null;
-        this.resetSelection('edificio');
-      },
-      error: (err) => {
-        this.error = apiErrorMessage(err, 'Eliminazione edificio non riuscita.');
-        this.refreshView();
-      },
-    });
+    this.locationPendingDeletion = {
+      type: 'edificio',
+      id: this.selectedEdificioId,
+      title: `Eliminare l'edificio ${edificio?.nome ?? ''}?`,
+      message: 'Verranno rimossi anche piani, stanze, postazioni e planimetrie collegate.',
+    };
+    this.error = '';
+    this.refreshView();
   }
 
   createPiano(): void {
@@ -422,19 +413,67 @@ export class SediPostazioniComponent implements OnInit, OnDestroy {
     const piano = this.piani.find((item) => item.id === this.selectedPianoId);
     const pianoLabel = piano ? this.getPianoDisplayName(piano) : 'il piano selezionato';
 
-    if (!confirm(`Eliminare ${pianoLabel}? Verranno rimosse anche stanza, postazioni e planimetria collegate.`)) {
+    this.locationPendingDeletion = {
+      type: 'piano',
+      id: this.selectedPianoId,
+      title: `Eliminare ${pianoLabel}?`,
+      message: 'Verranno rimosse anche stanze, postazioni e planimetria collegate.',
+    };
+    this.error = '';
+    this.refreshView();
+  }
+
+  closeLocationDeleteModal(): void {
+    if (this.deletingLocation) {
       return;
     }
 
-    const deletedId = this.selectedPianoId;
-    this.api.deletePiano(deletedId).subscribe({
+    this.locationPendingDeletion = null;
+    this.refreshView();
+  }
+
+  confirmLocationDeletion(): void {
+    const target = this.locationPendingDeletion;
+    if (!this.isAdmin() || !target || this.deletingLocation) {
+      return;
+    }
+
+    this.deletingLocation = true;
+    this.error = '';
+
+    const request = target.type === 'sede'
+      ? this.api.deleteSede(target.id)
+      : target.type === 'edificio'
+        ? this.api.deleteEdificio(target.id)
+        : this.api.deletePiano(target.id);
+
+    request.subscribe({
       next: () => {
-        this.piani = this.piani.filter((item) => item.id !== deletedId);
+        this.deletingLocation = false;
+        this.locationPendingDeletion = null;
+
+        if (target.type === 'sede') {
+          this.sedi = this.sedi.filter((item) => item.id !== target.id);
+          this.selectedSedeId = null;
+          this.resetSelection('sede');
+          return;
+        }
+
+        if (target.type === 'edificio') {
+          this.edifici = this.edifici.filter((item) => item.id !== target.id);
+          this.selectedEdificioId = null;
+          this.resetSelection('edificio');
+          return;
+        }
+
+        this.piani = this.piani.filter((item) => item.id !== target.id);
         this.selectedPianoId = null;
         this.resetSelection('piano');
       },
       error: (err) => {
-        this.error = apiErrorMessage(err, 'Eliminazione piano non riuscita.');
+        this.deletingLocation = false;
+        this.locationPendingDeletion = null;
+        this.error = apiErrorMessage(err, this.locationDeletionErrorMessage(target.type));
         this.refreshView();
       },
     });
@@ -486,6 +525,7 @@ export class SediPostazioniComponent implements OnInit, OnDestroy {
     this.bookingActionError = '';
     this.bookingActionMessage = '';
     this.bookingPendingDeletion = null;
+    this.locationPendingDeletion = null;
     this.editingBooking = null;
     this.deletingBookingId = null;
     this.savingBookingId = null;
@@ -1108,6 +1148,7 @@ export class SediPostazioniComponent implements OnInit, OnDestroy {
     this.bookingActionError = '';
     this.bookingActionMessage = '';
     this.bookingPendingDeletion = null;
+    this.locationPendingDeletion = null;
     this.editingBooking = null;
     this.deletingBookingId = null;
     this.savingBookingId = null;
@@ -1276,6 +1317,17 @@ export class SediPostazioniComponent implements OnInit, OnDestroy {
     }
 
     return { value: parsed, error: null };
+  }
+
+  private locationDeletionErrorMessage(type: LocationDeletionTarget['type']): string {
+    switch (type) {
+      case 'sede':
+        return 'Eliminazione sede non riuscita.';
+      case 'edificio':
+        return 'Eliminazione edificio non riuscita.';
+      case 'piano':
+        return 'Eliminazione piano non riuscita.';
+    }
   }
 
   private hasSeatGroup(seatId: number, groupId: number): boolean {

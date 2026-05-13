@@ -222,6 +222,30 @@
   </section>
 }
 
+@if (locationPendingDeletion) {
+  <div class="modal-backdrop" (click)="closeLocationDeleteModal()">
+    <section class="modal-card confirm-card" role="dialog" aria-modal="true" aria-labelledby="deleteLocationTitle" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div>
+          <p class="eyebrow">Conferma eliminazione</p>
+          <h2 id="deleteLocationTitle">{{ locationPendingDeletion.title }}</h2>
+        </div>
+      </header>
+
+      <p class="modal-copy">{{ locationPendingDeletion.message }}</p>
+
+      <div class="modal-actions">
+        <button class="ghost-button" type="button" [disabled]="deletingLocation" (click)="closeLocationDeleteModal()">
+          Annulla
+        </button>
+        <button class="danger-button" type="button" [disabled]="deletingLocation" (click)="confirmLocationDeletion()">
+          {{ deletingLocation ? 'Eliminazione...' : 'Elimina' }}
+        </button>
+      </div>
+    </section>
+  </div>
+}
+
 @if (editingBooking) {
   <div class="modal-backdrop" (click)="closeEditBookingModal()">
     <section class="modal-card booking-edit-card" role="dialog" aria-modal="true" aria-labelledby="editBookingTitle" (click)="$event.stopPropagation()">

@@ -64,6 +64,8 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
   error = '';
   sediLoading = false;
   pianiLoading = false;
+  planPendingDeletion = false;
+  deletingPlan = false;
   readonly editorUrl = environment.floorPlanEditorUrl;
 
   ngOnInit(): void {
@@ -275,17 +277,44 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
   }
 
   deletePlan(): void {
-    if (!this.selectedPianoId || !confirm('Eliminare la planimetria del piano selezionato?')) return;
+    if (!this.selectedPianoId || !this.planimetria || this.deletingPlan) {
+      return;
+    }
+
+    this.clearMessages();
+    this.planPendingDeletion = true;
+    this.refreshView();
+  }
+
+  closeDeletePlanModal(): void {
+    if (this.deletingPlan) {
+      return;
+    }
+
+    this.planPendingDeletion = false;
+    this.refreshView();
+  }
+
+  confirmDeletePlan(): void {
+    if (!this.selectedPianoId || !this.planimetria || this.deletingPlan) {
+      return;
+    }
+
     this.clearMessages();
     this.deleteSubscription?.unsubscribe();
+    this.deletingPlan = true;
     this.deleteSubscription = this.api.deletePlanimetria(this.selectedPianoId).subscribe({
       next: () => {
         this.message = 'Planimetria eliminata.';
         this.pianiConPlanimetria.set(this.selectedPianoId!, false);
+        this.deletingPlan = false;
+        this.planPendingDeletion = false;
         this.clearPlan();
         this.refreshView();
       },
       error: (err) => {
+        this.deletingPlan = false;
+        this.planPendingDeletion = false;
         this.error = apiErrorMessage(err, 'Eliminazione planimetria non riuscita.');
         this.refreshView();
       },
