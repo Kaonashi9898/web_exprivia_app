@@ -1,6 +1,8 @@
 package it.exprivia.utenti.controller;
 
+import it.exprivia.utenti.dto.ChangeMyPasswordRequest;
 import it.exprivia.utenti.dto.RegisterRequest;
+import it.exprivia.utenti.dto.UpdateMyProfileRequest;
 import it.exprivia.utenti.dto.UpdateUserRoleRequest;
 import it.exprivia.utenti.dto.UtenteDTO;
 import it.exprivia.utenti.service.UtenteService;
@@ -31,6 +33,19 @@ public class UtenteController {
     @GetMapping("/me")
     public ResponseEntity<UtenteDTO> getMe(@AuthenticationPrincipal String email) {
         return ResponseEntity.ok(utenteService.findByEmail(email, email));
+    }
+
+    @PatchMapping("/me")
+    public ResponseEntity<UtenteDTO> updateMe(@Valid @RequestBody UpdateMyProfileRequest request,
+                                              @AuthenticationPrincipal String email) {
+        return ResponseEntity.ok(utenteService.updateMyProfile(email, request));
+    }
+
+    @PostMapping("/me/password")
+    public ResponseEntity<Void> changeMyPassword(@Valid @RequestBody ChangeMyPasswordRequest request,
+                                                 @AuthenticationPrincipal String email) {
+        utenteService.changeMyPassword(email, request);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping

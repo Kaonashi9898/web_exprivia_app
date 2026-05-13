@@ -18,6 +18,15 @@ export interface RegisterRequest {
   ruolo: RuoloUtente;
 }
 
+export interface UpdateMyProfileRequest {
+  fullName: string;
+}
+
+export interface ChangeMyPasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
 export type PasswordResetRequestStatus = 'OPEN' | 'DONE' | 'REJECTED';
 
 export interface PasswordResetRequest {

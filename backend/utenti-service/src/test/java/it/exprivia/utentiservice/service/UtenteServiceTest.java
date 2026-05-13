@@ -1,6 +1,8 @@
 package it.exprivia.utentiservice.service;
 
+import it.exprivia.utenti.dto.ChangeMyPasswordRequest;
 import it.exprivia.utenti.dto.RegisterRequest;
+import it.exprivia.utenti.dto.UpdateMyProfileRequest;
 import it.exprivia.utenti.messaging.EventPublicationException;
 import it.exprivia.utenti.messaging.GruppoEventPublisher;
 import it.exprivia.utenti.messaging.UtenteEliminatoEvent;
@@ -38,6 +40,77 @@ class UtenteServiceTest {
     @Mock PasswordEncoder passwordEncoder;
 
     @InjectMocks UtenteService utenteService;
+
+    @Test
+    void updateMyProfile_normalizzaNomeEPubblicaEvento() {
+        when(utenteRepository.findByEmail("user@exprivia.com"))
+                .thenReturn(java.util.Optional.of(buildUser(15L, "Mario Rossi", "user@exprivia.com", RuoloUtente.USER)));
+        when(utenteRepository.save(any(Utente.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UpdateMyProfileRequest request = new UpdateMyProfileRequest();
+        request.setFullName("  Mario   Rossi Bianchi  ");
+
+        var response = utenteService.updateMyProfile("user@exprivia.com", request);
+
+        ArgumentCaptor<Utente> captor = ArgumentCaptor.forClass(Utente.class);
+        verify(utenteRepository).save(captor.capture());
+        assertThat(captor.getValue().getFullName()).isEqualTo("Mario Rossi Bianchi");
+        assertThat(response.getFullName()).isEqualTo("Mario Rossi Bianchi");
+        verify(gruppoEventPublisher).pubblicaAggiornamentoUtente(response, "user@exprivia.com");
+    }
+
+    @Test
+    void updateMyProfile_propagaErroreQuandoIlPublishCriticoFallisce() {
+        when(utenteRepository.findByEmail("user@exprivia.com"))
+                .thenReturn(java.util.Optional.of(buildUser(15L, "Mario Rossi", "user@exprivia.com", RuoloUtente.USER)));
+        when(utenteRepository.save(any(Utente.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doThrow(new EventPublicationException("rabbit failure", new RuntimeException("down")))
+                .when(gruppoEventPublisher).pubblicaAggiornamentoUtente(any(), any());
+
+        UpdateMyProfileRequest request = new UpdateMyProfileRequest();
+        request.setFullName("Mario Rossi Bianchi");
+
+        assertThatThrownBy(() -> utenteService.updateMyProfile("user@exprivia.com", request))
+                .isInstanceOf(EventPublicationException.class)
+                .hasMessageContaining("rabbit failure");
+    }
+
+    @Test
+    void changeMyPassword_rifiutaPasswordAttualeErrata() {
+        when(utenteRepository.findByEmail("user@exprivia.com"))
+                .thenReturn(java.util.Optional.of(buildUser(15L, "Mario Rossi", "user@exprivia.com", RuoloUtente.USER)));
+        when(passwordEncoder.matches("wrong-password", "hash")).thenReturn(false);
+
+        ChangeMyPasswordRequest request = new ChangeMyPasswordRequest();
+        request.setCurrentPassword("wrong-password");
+        request.setNewPassword("nuovaPassword123");
+
+        assertThatThrownBy(() -> utenteService.changeMyPassword("user@exprivia.com", request))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("password attuale");
+
+        verify(utenteRepository, never()).save(any(Utente.class));
+    }
+
+    @Test
+    void changeMyPassword_aggiornaHashQuandoLaPasswordAttualeECorretta() {
+        when(utenteRepository.findByEmail("user@exprivia.com"))
+                .thenReturn(java.util.Optional.of(buildUser(15L, "Mario Rossi", "user@exprivia.com", RuoloUtente.USER)));
+        when(passwordEncoder.matches("passwordAttuale123", "hash")).thenReturn(true);
+        when(passwordEncoder.matches("nuovaPassword123", "hash")).thenReturn(false);
+        when(passwordEncoder.encode("nuovaPassword123")).thenReturn("new-hash");
+        when(utenteRepository.save(any(Utente.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ChangeMyPasswordRequest request = new ChangeMyPasswordRequest();
+        request.setCurrentPassword("passwordAttuale123");
+        request.setNewPassword("nuovaPassword123");
+
+        utenteService.changeMyPassword("user@exprivia.com", request);
+
+        ArgumentCaptor<Utente> captor = ArgumentCaptor.forClass(Utente.class);
+        verify(utenteRepository).save(captor.capture());
+        assertThat(captor.getValue().getPasswordHash()).isEqualTo("new-hash");
+    }
 
     @Test
     void create_normalizzaEmailPrimaDiSalvarla() {

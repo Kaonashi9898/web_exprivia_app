@@ -35,10 +35,16 @@
     </nav>
 
     <div class="user-menu">
-      <div class="user-copy">
+      <button type="button" class="user-copy user-profile-trigger" (click)="openProfileModal()" aria-label="Apri il mio profilo">
         <strong>{{ user()?.fullName }}</strong>
-        <span>{{ user()?.ruolo }}</span>
-      </div>
+        <span>{{ profileRoleLabel() }}</span>
+      </button>
+      <button type="button" class="icon-button profile-icon-button" title="Il mio profilo" (click)="openProfileModal()" aria-label="Il mio profilo">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+          <path d="M5 20a7 7 0 0 1 14 0" />
+        </svg>
+      </button>
       <button type="button" class="icon-button" title="Esci" (click)="logout()" aria-label="Esci">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M15 17l5-5-5-5M20 12H9" />
@@ -52,3 +58,130 @@
     <router-outlet></router-outlet>
   </main>
 </div>
+
+@if (showProfileModal) {
+  <div class="modal-backdrop" (click)="closeProfileModal()">
+    <section class="modal-card profile-modal-card" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div>
+          <h2 id="profileModalTitle">Il mio profilo</h2>
+          <p class="modal-subtitle">{{ user()?.email }}</p>
+        </div>
+      </header>
+
+      @if (profileMessage) {
+        <div class="notice success">{{ profileMessage }}</div>
+      }
+      @if (profileError) {
+        <div class="notice error">{{ profileError }}</div>
+      }
+
+      <section class="profile-section">
+        <div class="profile-section-header">
+          <h3>Informazioni personali</h3>
+          <p>Aggiorna i dati visibili nel tuo account.</p>
+        </div>
+
+        <div class="profile-grid">
+          <div class="profile-readonly-field profile-edit-card">
+            <span class="profile-field-label">Nome completo</span>
+            <input
+              name="profile-full-name"
+              placeholder="Nome e cognome"
+              [(ngModel)]="profileFullName"
+              maxlength="50"
+              [disabled]="profileInfoSaving"
+            />
+          </div>
+
+          <div class="profile-readonly-field">
+            <span class="profile-field-label">Email aziendale</span>
+            <strong>{{ user()?.email }}</strong>
+          </div>
+
+          <div class="profile-readonly-field">
+            <span class="profile-field-label">Ruolo</span>
+            <strong>{{ profileRoleLabel() }}</strong>
+          </div>
+
+          <div class="profile-readonly-field">
+            <span class="profile-field-label">Gruppi</span>
+            @if (profileGroupsLoading) {
+              <span class="profile-muted">Caricamento gruppi...</span>
+            } @else if (profileGroupsError) {
+              <span class="profile-muted">{{ profileGroupsError }}</span>
+            } @else if (profileGroups.length) {
+              <div class="profile-group-list">
+                @for (group of profileGroups; track group.id) {
+                  <span class="profile-group-pill">{{ group.nome }}</span>
+                }
+              </div>
+            } @else {
+              <span class="profile-muted">Nessun gruppo assegnato.</span>
+            }
+          </div>
+        </div>
+
+        <div class="profile-section-actions">
+          <button class="btn btn-primary" type="button" [disabled]="profileInfoSaving" (click)="saveProfileInfo()">
+            {{ profileInfoSaving ? 'Salvataggio...' : 'Salva profilo' }}
+          </button>
+        </div>
+      </section>
+
+      <section class="profile-section">
+        <div class="profile-section-header">
+          <h3>Sicurezza</h3>
+          <p>Puoi cambiare la password senza modificare gli altri dati del profilo.</p>
+        </div>
+
+        <div class="profile-grid profile-security-grid">
+          <label>
+            Password attuale
+            <input
+              type="password"
+              name="profile-current-password"
+              autocomplete="current-password"
+              [(ngModel)]="profileCurrentPassword"
+              [disabled]="profilePasswordSaving"
+            />
+          </label>
+
+          <label>
+            Nuova password
+            <input
+              type="password"
+              name="profile-new-password"
+              autocomplete="new-password"
+              [(ngModel)]="profileNewPassword"
+              [disabled]="profilePasswordSaving"
+            />
+          </label>
+
+          <label>
+            Conferma nuova password
+            <input
+              type="password"
+              name="profile-confirm-password"
+              autocomplete="new-password"
+              [(ngModel)]="profileConfirmPassword"
+              [disabled]="profilePasswordSaving"
+            />
+          </label>
+        </div>
+
+        <div class="profile-section-actions">
+          <button class="btn btn-primary" type="button" [disabled]="profilePasswordSaving" (click)="saveProfilePassword()">
+            {{ profilePasswordSaving ? 'Aggiornamento...' : 'Aggiorna password' }}
+          </button>
+        </div>
+      </section>
+
+      <footer class="modal-actions">
+        <button class="ghost-button" type="button" [disabled]="profileInfoSaving || profilePasswordSaving" (click)="closeProfileModal()">
+          Chiudi
+        </button>
+      </footer>
+    </section>
+  </div>
+}

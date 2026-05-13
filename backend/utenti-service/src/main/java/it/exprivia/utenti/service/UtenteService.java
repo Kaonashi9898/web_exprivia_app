@@ -1,6 +1,8 @@
 package it.exprivia.utenti.service;
 
+import it.exprivia.utenti.dto.ChangeMyPasswordRequest;
 import it.exprivia.utenti.dto.RegisterRequest;
+import it.exprivia.utenti.dto.UpdateMyProfileRequest;
 import it.exprivia.utenti.dto.UtenteDTO;
 import it.exprivia.utenti.entity.RuoloUtente;
 import it.exprivia.utenti.entity.Utente;
@@ -21,6 +23,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 
 @Service
@@ -79,6 +82,33 @@ public class UtenteService {
         UtenteDTO dto = toDTO(utente);
         gruppoEventPublisher.pubblicaAccessoUtente(dto, normalizeEmail(actorEmail));
         return dto;
+    }
+
+    @Transactional
+    public UtenteDTO updateMyProfile(String email, UpdateMyProfileRequest request) {
+        Utente utente = getOperatore(email);
+        String normalizedFullName = normalizeFullName(request.getFullName());
+        if (Objects.equals(utente.getFullName(), normalizedFullName)) {
+            return toDTO(utente);
+        }
+
+        utente.setFullName(normalizedFullName);
+        UtenteDTO updated = toDTO(utenteRepository.save(utente));
+        gruppoEventPublisher.pubblicaAggiornamentoUtente(updated, normalizeEmail(email));
+        return updated;
+    }
+
+    @Transactional
+    public void changeMyPassword(String email, ChangeMyPasswordRequest request) {
+        Utente utente = getOperatore(email);
+        if (!passwordEncoder.matches(request.getCurrentPassword(), utente.getPasswordHash())) {
+            throw new ResponseStatusException(BAD_REQUEST, "La password attuale non e' corretta");
+        }
+        if (passwordEncoder.matches(request.getNewPassword(), utente.getPasswordHash())) {
+            throw new ResponseStatusException(BAD_REQUEST, "La nuova password deve essere diversa da quella attuale");
+        }
+        utente.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        utenteRepository.save(utente);
     }
 
     @Transactional
@@ -189,5 +219,9 @@ public class UtenteService {
 
     private String normalizeEmail(String email) {
         return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeFullName(String fullName) {
+        return fullName == null ? null : fullName.trim().replaceAll("\\s+", " ");
     }
 }

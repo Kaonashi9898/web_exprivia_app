@@ -2,7 +2,7 @@ import { computed, inject, Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { catchError, map, Observable, of, tap } from 'rxjs';
-import { LoginResponse, RegisterRequest, RuoloUtente, Utente } from './app.models';
+import { ChangeMyPasswordRequest, LoginResponse, RegisterRequest, RuoloUtente, UpdateMyProfileRequest, Utente } from './app.models';
 import { environment } from '../../environments/environment';
 
 const LEGACY_TOKEN_KEY = 'exprivia-booking-token';
@@ -34,6 +34,16 @@ export class AuthService {
 
   requestPasswordReset(email: string): Observable<void> {
     return this.http.post<void>(`${UTENTI_API}/api/auth/password-reset-request`, { email });
+  }
+
+  updateMyProfile(request: UpdateMyProfileRequest): Observable<Utente> {
+    return this.http.patch<Utente>(`${UTENTI_API}/api/utenti/me`, request).pipe(
+      tap((user) => this.currentUser.set(user)),
+    );
+  }
+
+  changeMyPassword(request: ChangeMyPasswordRequest): Observable<void> {
+    return this.http.post<void>(`${UTENTI_API}/api/utenti/me/password`, request);
   }
 
   loadProfile(): Observable<Utente | null> {

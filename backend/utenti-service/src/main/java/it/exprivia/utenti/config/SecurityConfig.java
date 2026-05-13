@@ -54,7 +54,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").hasRole("ADMIN")
                 .requestMatchers("/api/password-reset-requests/**").hasAnyRole("ADMIN", "RECEPTION")
-                .requestMatchers("/api/utenti/me").authenticated()
+                .requestMatchers("/api/utenti/me", "/api/utenti/me/**").authenticated()
                 .requestMatchers("/api/utenti").hasAnyRole("ADMIN", "RECEPTION")
                 .requestMatchers("/api/utenti/**").hasAnyRole("ADMIN", "RECEPTION")
                 .requestMatchers("/api/gruppi/me").authenticated()
