@@ -45,6 +45,7 @@ public class RabbitMQConfig {
     // Routing key usata da utenti-service per gli eventi di eliminazione utente
     public static final String ROUTING_KEY_UTENTE_ELIMINATO = "utente.eliminato";
     public static final String ROUTING_KEY_PLANIMETRIA_ELIMINATA = "planimetria.eliminata";
+    public static final String ROUTING_KEY_POSTAZIONE_NON_PRENOTABILE = "postazione.non.prenotabile";
 
     /**
      * Dichiara l'exchange su cui ascoltiamo (TopicExchange per pattern matching nelle routing key).

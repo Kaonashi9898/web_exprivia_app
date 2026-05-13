@@ -119,6 +119,10 @@ public interface PrenotazioneRepository extends JpaRepository<Prenotazione, Long
 
     List<Prenotazione> findByPostazioneIdIn(List<Long> postazioneIds);
 
+    List<Prenotazione> findByPostazioneIdAndStatoAndDataPrenotazioneGreaterThanEqual(Long postazioneId,
+                                                                                     StatoPrenotazione stato,
+                                                                                     LocalDate dataPrenotazione);
+
     List<Prenotazione> findByUtenteIdAndStatoAndDataPrenotazioneGreaterThanEqual(Long utenteId,
                                                                                  StatoPrenotazione stato,
                                                                                  LocalDate dataPrenotazione);

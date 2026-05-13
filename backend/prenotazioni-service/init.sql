@@ -2,6 +2,7 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 CREATE TYPE stato_prenotazione AS ENUM ('CONFERMATA', 'ANNULLATA');
 CREATE TYPE tipo_risorsa_prenotata AS ENUM ('POSTAZIONE', 'MEETING_ROOM');
+CREATE TYPE motivo_notifica_prenotazione AS ENUM ('POSTAZIONE_NON_PRENOTABILE');
 
 CREATE TABLE prenotazione (
     id                BIGSERIAL PRIMARY KEY,
@@ -95,11 +96,30 @@ CREATE TABLE prenotazione_postazione_gruppo_cache (
     PRIMARY KEY (postazione_id, gruppo_id)
 );
 
+CREATE TABLE prenotazione_notifica (
+    id                BIGSERIAL PRIMARY KEY,
+    utente_id         BIGINT NOT NULL,
+    prenotazione_id   BIGINT NOT NULL,
+    motivo            motivo_notifica_prenotazione NOT NULL,
+    risorsa_label     VARCHAR(120) NOT NULL,
+    stanza_nome       VARCHAR(120) NOT NULL,
+    data_prenotazione DATE NOT NULL,
+    ora_inizio        TIME NOT NULL,
+    ora_fine          TIME NOT NULL,
+    stato_postazione  VARCHAR(40) NOT NULL,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    read_at           TIMESTAMPTZ,
+    CONSTRAINT uq_prenotazione_notifica_univoca UNIQUE (prenotazione_id, motivo)
+);
+
 CREATE INDEX idx_prenotazione_utente_gruppo_cache_utente
     ON prenotazione_utente_gruppo_cache (utente_id);
 
 CREATE INDEX idx_prenotazione_postazione_gruppo_cache_postazione
     ON prenotazione_postazione_gruppo_cache (postazione_id);
+
+CREATE INDEX idx_prenotazione_notifica_utente_read_at
+    ON prenotazione_notifica (utente_id, read_at, created_at);
 
 CREATE OR REPLACE FUNCTION set_prenotazione_updated_at()
 RETURNS TRIGGER AS $$

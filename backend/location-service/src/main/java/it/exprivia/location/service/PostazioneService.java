@@ -5,6 +5,8 @@ import it.exprivia.location.dto.PostazioneResponse;
 import it.exprivia.location.entity.Postazione;
 import it.exprivia.location.entity.StatoPostazione;
 import it.exprivia.location.entity.Stanza;
+import it.exprivia.location.messaging.PostazioneEventPublisher;
+import it.exprivia.location.messaging.PostazioneNonPrenotabileEvent;
 import it.exprivia.location.repository.PostazioneRepository;
 import it.exprivia.location.repository.StanzaRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -28,6 +30,7 @@ public class PostazioneService {
 
     private final PostazioneRepository postazioneRepository;
     private final StanzaRepository stanzaRepository;
+    private final PostazioneEventPublisher postazioneEventPublisher;
 
     /** Restituisce tutte le postazioni di una stanza. */
     public List<PostazioneResponse> findByStanzaId(Long stanzaId) {
@@ -90,6 +93,7 @@ public class PostazioneService {
     public PostazioneResponse update(Long id, PostazioneRequest request) {
         Postazione postazione = getOrThrow(id);
         Stanza stanza = getStanzaOrThrow(request.getStanzaId());
+        StatoPostazione statoPrecedente = postazione.getStato();
         ensureCodiceUnivoco(request.getCodice(), postazione.getId());
         postazione.setCodice(request.getCodice());
         postazione.setLayoutElementId(request.getLayoutElementId());
@@ -97,7 +101,9 @@ public class PostazioneService {
         postazione.setXPct(request.getXPct());
         postazione.setYPct(request.getYPct());
         postazione.setStanza(stanza);
-        return toResponse(postazioneRepository.save(postazione));
+        Postazione saved = postazioneRepository.save(postazione);
+        publishIfBecameNonBookable(saved, statoPrecedente);
+        return toResponse(saved);
     }
 
     /**
@@ -107,8 +113,11 @@ public class PostazioneService {
     @Transactional
     public PostazioneResponse aggiornaStato(Long id, StatoPostazione stato) {
         Postazione postazione = getOrThrow(id);
+        StatoPostazione statoPrecedente = postazione.getStato();
         postazione.setStato(stato);
-        return toResponse(postazioneRepository.save(postazione));
+        Postazione saved = postazioneRepository.save(postazione);
+        publishIfBecameNonBookable(saved, statoPrecedente);
+        return toResponse(saved);
     }
 
     /** Elimina una postazione. */
@@ -141,6 +150,22 @@ public class PostazioneService {
 
     private StatoPostazione resolveStato(StatoPostazione stato) {
         return stato != null ? stato : StatoPostazione.DISPONIBILE;
+    }
+
+    private void publishIfBecameNonBookable(Postazione postazione, StatoPostazione statoPrecedente) {
+        StatoPostazione statoAttuale = postazione.getStato();
+        if (statoAttuale == null || statoAttuale == StatoPostazione.DISPONIBILE) {
+            return;
+        }
+        if (statoPrecedente == statoAttuale) {
+            return;
+        }
+
+        postazioneEventPublisher.pubblicaNonPrenotabile(new PostazioneNonPrenotabileEvent(
+                postazione.getId(),
+                postazione.getCodice(),
+                statoAttuale
+        ));
     }
 
     // Converte l'entità Postazione nel DTO di risposta

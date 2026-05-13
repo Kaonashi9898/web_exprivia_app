@@ -10,6 +10,10 @@
   <div class="notice success">{{ pendingApprovalMessage }}</div>
 }
 
+@if (notificationError && !hasCancellationNotifications()) {
+  <div class="notice error">{{ notificationError }}</div>
+}
+
 <section class="quick-grid">
   @if (canBook()) {
     <a routerLink="/prenotazioni" class="action-card">
@@ -236,6 +240,44 @@
         </button>
         <button class="danger-button" type="button" [disabled]="deletingBookingId !== null" (click)="cancelBooking()">
           {{ deletingBookingId !== null ? 'Eliminazione...' : 'Conferma eliminazione' }}
+        </button>
+      </footer>
+    </section>
+  </div>
+}
+
+@if (hasCancellationNotifications()) {
+  <div class="modal-backdrop notification-backdrop" role="presentation">
+    <section class="modal-card notification-card" role="dialog" aria-modal="true" aria-labelledby="bookingNotificationTitle">
+      <header class="modal-header">
+        <div>
+          <p class="eyebrow">Aggiornamento prenotazioni</p>
+          <h2 id="bookingNotificationTitle">Alcune tue prenotazioni sono state annullate</h2>
+        </div>
+      </header>
+
+      @if (notificationError) {
+        <div class="notice error">{{ notificationError }}</div>
+      }
+
+      <p class="modal-copy">
+        Le postazioni interessate non sono piu prenotabili. Qui sotto trovi il riepilogo delle prenotazioni rimosse automaticamente.
+      </p>
+
+      <div class="notification-list">
+        @for (notification of cancellationNotifications; track notification.id) {
+          <article class="notification-item">
+            <strong>{{ notification.risorsaLabel }}</strong>
+            <span>{{ notification.stanzaNome }}</span>
+            <span>{{ formatDate(notification.dataPrenotazione) }} • {{ notification.oraInizio }} - {{ notification.oraFine }}</span>
+            <span class="notification-reason">Motivo: postazione impostata in {{ notificationStatusLabel(notification) }}</span>
+          </article>
+        }
+      </div>
+
+      <footer class="modal-actions">
+        <button class="btn btn-primary" type="button" [disabled]="notificationAcknowledgeBusy" (click)="acknowledgeCancellationNotifications()">
+          {{ notificationAcknowledgeBusy ? 'Conferma in corso...' : 'Ho capito' }}
         </button>
       </footer>
     </section>

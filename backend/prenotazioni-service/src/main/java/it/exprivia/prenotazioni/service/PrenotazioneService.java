@@ -9,13 +9,17 @@ import it.exprivia.prenotazioni.dto.ExternalSedeResponse;
 import it.exprivia.prenotazioni.dto.ExternalStanzaResponse;
 import it.exprivia.prenotazioni.dto.ExternalUtenteResponse;
 import it.exprivia.prenotazioni.dto.PrenotazioneResponse;
+import it.exprivia.prenotazioni.dto.PrenotazioneNotificaResponse;
 import it.exprivia.prenotazioni.dto.UpdatePrenotazioneRequest;
+import it.exprivia.prenotazioni.entity.MotivoNotificaPrenotazione;
 import it.exprivia.prenotazioni.entity.RuoloUtente;
 import it.exprivia.prenotazioni.entity.Prenotazione;
+import it.exprivia.prenotazioni.entity.PrenotazioneNotifica;
 import it.exprivia.prenotazioni.entity.StatoPrenotazione;
 import it.exprivia.prenotazioni.entity.TipoRisorsaPrenotata;
 import it.exprivia.prenotazioni.messaging.PrenotazioneEventPublisher;
 import it.exprivia.prenotazioni.repository.PrenotazioneGroupAccessCacheRepository;
+import it.exprivia.prenotazioni.repository.PrenotazioneNotificaRepository;
 import it.exprivia.prenotazioni.repository.PrenotazioneRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +36,8 @@ import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
@@ -54,6 +60,7 @@ public class PrenotazioneService {
 
     private final PrenotazioneRepository prenotazioneRepository;
     private final PrenotazioneGroupAccessCacheRepository prenotazioneGroupAccessCacheRepository;
+    private final PrenotazioneNotificaRepository prenotazioneNotificaRepository;
     private final UtentiServiceClient utentiServiceClient;
     private final LocationServiceClient locationServiceClient;
     private final PrenotazioneEventPublisher prenotazioneEventPublisher;
@@ -187,6 +194,7 @@ public class PrenotazioneService {
                 request.getOraInizio(),
                 request.getOraFine()
         );
+        ensureRisorsaAncoraPrenotabile(prenotazione, authorizationHeader);
         ensureRisorsaSenzaOverlap(prenotazione, request.getDataPrenotazione(), request.getOraInizio(), request.getOraFine());
 
         PrenotazioneResponse precedente = toResponse(prenotazione);
@@ -261,6 +269,13 @@ public class PrenotazioneService {
 
         return prenotazioneRepository.findAll(specification, sort).stream()
                 .map(this::toResponse)
+                .toList();
+    }
+
+    public List<PrenotazioneNotificaResponse> findUnreadCancellationNotifications(String authorizationHeader) {
+        ExternalUtenteResponse utente = utentiServiceClient.getCurrentUser(authorizationHeader);
+        return prenotazioneNotificaRepository.findByUtenteIdAndReadAtIsNullOrderByCreatedAtAsc(utente.id()).stream()
+                .map(this::toNotificationResponse)
                 .toList();
     }
 
@@ -390,6 +405,26 @@ public class PrenotazioneService {
     }
 
     @Transactional
+    public void annullaPrenotazioniFuturePerPostazioneNonDisponibile(Long postazioneId, String statoPostazione) {
+        List<Prenotazione> prenotazioni = prenotazioneRepository.findByPostazioneIdAndStatoAndDataPrenotazioneGreaterThanEqual(
+                postazioneId,
+                StatoPrenotazione.CONFERMATA,
+                LocalDate.now(clock)
+        );
+
+        for (Prenotazione prenotazione : prenotazioni) {
+            if (!isFutura(prenotazione)) {
+                continue;
+            }
+
+            prenotazioneNotificaRepository.save(buildNotification(prenotazione, statoPostazione));
+            PrenotazioneResponse response = toResponse(prenotazione);
+            prenotazioneRepository.delete(prenotazione);
+            prenotazioneEventPublisher.pubblicaAnnullamento(response);
+        }
+    }
+
+    @Transactional
     public void eliminaPrenotazioniPerPlanimetria(List<Long> postazioneIds) {
         if (postazioneIds == null || postazioneIds.isEmpty()) {
             return;
@@ -403,6 +438,22 @@ public class PrenotazioneService {
         }
     }
 
+    @Transactional
+    public void acknowledgeUnreadCancellationNotifications(String authorizationHeader) {
+        ExternalUtenteResponse utente = utentiServiceClient.getCurrentUser(authorizationHeader);
+        List<PrenotazioneNotifica> notifiche =
+                prenotazioneNotificaRepository.findByUtenteIdAndReadAtIsNullOrderByCreatedAtAsc(utente.id());
+        if (notifiche.isEmpty()) {
+            return;
+        }
+
+        OffsetDateTime readAt = OffsetDateTime.now(clock).withOffsetSameInstant(ZoneOffset.UTC);
+        for (PrenotazioneNotifica notifica : notifiche) {
+            notifica.setReadAt(readAt);
+        }
+        prenotazioneNotificaRepository.saveAll(notifiche);
+    }
+
     private void ensureRuoloPuoPrenotare(ExternalUtenteResponse utente) {
         if (!RUOLI_ABILITATI_PRENOTAZIONE.contains(utente.ruolo())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Il tuo ruolo non puo' creare prenotazioni");
@@ -413,6 +464,16 @@ public class PrenotazioneService {
         if (!STATO_POSTAZIONE_DISPONIBILE.equals(postazione.stato())) {
             throw new IllegalArgumentException("La postazione non e' prenotabile nello stato attuale");
         }
+    }
+
+    private void ensureRisorsaAncoraPrenotabile(Prenotazione prenotazione, String authorizationHeader) {
+        if (prenotazione.getTipoRisorsaPrenotata() != TipoRisorsaPrenotata.POSTAZIONE || prenotazione.getPostazioneId() == null) {
+            return;
+        }
+
+        ExternalPostazioneResponse postazione =
+                locationServiceClient.getPostazione(prenotazione.getPostazioneId(), authorizationHeader);
+        ensurePostazionePrenotabile(postazione);
     }
 
     private void ensureMeetingRoomPrenotabile(ExternalStanzaResponse stanza) {
@@ -555,6 +616,17 @@ public class PrenotazioneService {
         }
     }
 
+    private boolean isFutura(Prenotazione prenotazione) {
+        LocalDate oggi = LocalDate.now(clock);
+        if (prenotazione.getDataPrenotazione().isAfter(oggi)) {
+            return true;
+        }
+        if (prenotazione.getDataPrenotazione().isBefore(oggi)) {
+            return false;
+        }
+        return prenotazione.getOraInizio().isAfter(LocalTime.now(clock));
+    }
+
     private boolean isConclusa(Prenotazione prenotazione) {
         LocalDate oggi = LocalDate.now(clock);
         if (prenotazione.getDataPrenotazione().isBefore(oggi)) {
@@ -644,6 +716,37 @@ public class PrenotazioneService {
                 prenotazione.getStato(),
                 prenotazione.getCreatedAt(),
                 prenotazione.getUpdatedAt()
+        );
+    }
+
+    private PrenotazioneNotifica buildNotification(Prenotazione prenotazione, String statoPostazione) {
+        return new PrenotazioneNotifica(
+                null,
+                prenotazione.getUtenteId(),
+                prenotazione.getId(),
+                MotivoNotificaPrenotazione.POSTAZIONE_NON_PRENOTABILE,
+                getRisorsaLabel(prenotazione),
+                prenotazione.getStanzaNome(),
+                prenotazione.getDataPrenotazione(),
+                prenotazione.getOraInizio(),
+                prenotazione.getOraFine(),
+                statoPostazione,
+                OffsetDateTime.now(clock).withOffsetSameInstant(ZoneOffset.UTC),
+                null
+        );
+    }
+
+    private PrenotazioneNotificaResponse toNotificationResponse(PrenotazioneNotifica notifica) {
+        return new PrenotazioneNotificaResponse(
+                notifica.getId(),
+                notifica.getMotivo(),
+                notifica.getRisorsaLabel(),
+                notifica.getStanzaNome(),
+                notifica.getDataPrenotazione(),
+                notifica.getOraInizio(),
+                notifica.getOraFine(),
+                notifica.getStatoPostazione(),
+                notifica.getCreatedAt()
         );
     }
 

@@ -2,6 +2,7 @@ package it.exprivia.prenotazioni.controller;
 
 import it.exprivia.prenotazioni.dto.CreatePrenotazioneRequest;
 import it.exprivia.prenotazioni.dto.DashboardPrenotazioneResponse;
+import it.exprivia.prenotazioni.dto.PrenotazioneNotificaResponse;
 import it.exprivia.prenotazioni.dto.PrenotazioneResponse;
 import it.exprivia.prenotazioni.dto.UpdatePrenotazioneRequest;
 import it.exprivia.prenotazioni.service.PrenotazioneService;
@@ -75,6 +76,27 @@ public class PrenotazioneController {
             @CookieValue(value = AUTH_COOKIE_NAME, required = false) String authCookie,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data) {
         return ResponseEntity.ok(prenotazioneService.findMineForDashboard(resolveAuthorizationHeader(authorizationHeader, authCookie), data));
+    }
+
+    @GetMapping("/mie/notifiche-annullamento")
+    public ResponseEntity<List<PrenotazioneNotificaResponse>> findUnreadCancellationNotifications(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
+            @CookieValue(value = AUTH_COOKIE_NAME, required = false) String authCookie) {
+        return ResponseEntity.ok(
+                prenotazioneService.findUnreadCancellationNotifications(
+                        resolveAuthorizationHeader(authorizationHeader, authCookie)
+                )
+        );
+    }
+
+    @PostMapping("/mie/notifiche-annullamento/ack")
+    public ResponseEntity<Void> acknowledgeUnreadCancellationNotifications(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
+            @CookieValue(value = AUTH_COOKIE_NAME, required = false) String authCookie) {
+        prenotazioneService.acknowledgeUnreadCancellationNotifications(
+                resolveAuthorizationHeader(authorizationHeader, authCookie)
+        );
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{id}")

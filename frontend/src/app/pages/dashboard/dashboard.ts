@@ -3,7 +3,7 @@ import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { catchError, forkJoin, map, of, Subscription, switchMap } from 'rxjs';
 import { ApiService } from '../../core/api.service';
-import { DashboardPrenotazione, PlanimetriaResponse } from '../../core/app.models';
+import { DashboardPrenotazione, PlanimetriaResponse, PrenotazioneNotifica } from '../../core/app.models';
 import { apiErrorMessage, bookingCancellationErrorMessage } from '../../core/api-error.utils';
 import { AuthService } from '../../core/auth.service';
 import {
@@ -43,6 +43,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   bookingPendingDeletion: DashboardPrenotazione | null = null;
   editingBookingId: number | null = null;
   savingBookingId: number | null = null;
+  cancellationNotifications: PrenotazioneNotifica[] = [];
+  notificationAcknowledgeBusy = false;
+  notificationError = '';
   editBookingDate = '';
   editStartTime = BOOKING_DAY_START;
   editEndTime = BOOKING_DAY_END;
@@ -76,6 +79,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadBookings();
     this.loadPendingGuests();
+    this.loadCancellationNotifications();
   }
 
   ngOnDestroy(): void {
@@ -213,6 +217,35 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   bookingReadOnlyLabel(booking: DashboardPrenotazione): string {
     return this.isBookingInProgress(booking) ? 'Azioni disabilitate' : 'Solo consultazione';
+  }
+
+  hasCancellationNotifications(): boolean {
+    return this.cancellationNotifications.length > 0;
+  }
+
+  acknowledgeCancellationNotifications(): void {
+    if (!this.cancellationNotifications.length || this.notificationAcknowledgeBusy) {
+      return;
+    }
+
+    this.notificationAcknowledgeBusy = true;
+    this.notificationError = '';
+    this.api.acknowledgeMyBookingCancellationNotifications().subscribe({
+      next: () => {
+        this.cancellationNotifications = [];
+        this.notificationAcknowledgeBusy = false;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.notificationAcknowledgeBusy = false;
+        this.notificationError = apiErrorMessage(err, 'Impossibile confermare la lettura delle notifiche.');
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  notificationStatusLabel(notification: PrenotazioneNotifica): string {
+    return notification.statoPostazione.replaceAll('_', ' ');
   }
 
   availableEditStartTimes(): readonly string[] {
@@ -368,6 +401,28 @@ export class DashboardComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.pendingGuestsCount = 0;
+        this.cdr.detectChanges();
+      },
+    });
+  }
+
+  private loadCancellationNotifications(): void {
+    if (this.isGuest()) {
+      this.cancellationNotifications = [];
+      this.notificationError = '';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.api.listMyBookingCancellationNotifications().subscribe({
+      next: (notifications) => {
+        this.cancellationNotifications = notifications;
+        this.notificationError = '';
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.cancellationNotifications = [];
+        this.notificationError = apiErrorMessage(err, 'Impossibile caricare le notifiche di annullamento.');
         this.cdr.detectChanges();
       },
     });

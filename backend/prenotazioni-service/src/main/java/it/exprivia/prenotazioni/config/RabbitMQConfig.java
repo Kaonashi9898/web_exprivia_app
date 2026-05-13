@@ -25,8 +25,10 @@ public class RabbitMQConfig {
     public static final String ROUTING_KEY_PRENOTAZIONE_MODIFICATA = "prenotazione.modificata";
     public static final String ROUTING_KEY_UTENTE_ELIMINATO = "utente.eliminato";
     public static final String ROUTING_KEY_PLANIMETRIA_ELIMINATA = "planimetria.eliminata";
+    public static final String ROUTING_KEY_POSTAZIONE_NON_PRENOTABILE = "postazione.non.prenotabile";
     public static final String QUEUE_UTENTE_ELIMINATO = "prenotazioni.utente.eliminato";
     public static final String QUEUE_PLANIMETRIA_ELIMINATA = "prenotazioni.planimetria.eliminata";
+    public static final String QUEUE_POSTAZIONE_NON_PRENOTABILE = "prenotazioni.postazione.non.prenotabile";
 
     @Bean
     public TopicExchange prenotazioniExchange() {
@@ -54,6 +56,11 @@ public class RabbitMQConfig {
     }
 
     @Bean
+    public Queue queuePostazioneNonPrenotabile() {
+        return QueueBuilder.durable(QUEUE_POSTAZIONE_NON_PRENOTABILE).build();
+    }
+
+    @Bean
     public Binding bindingUtenteEliminato(@Qualifier("queueUtenteEliminato") Queue queueUtenteEliminato,
                                           @Qualifier("utentiExchange") TopicExchange utentiExchange) {
         return BindingBuilder.bind(queueUtenteEliminato).to(utentiExchange).with(ROUTING_KEY_UTENTE_ELIMINATO);
@@ -63,6 +70,15 @@ public class RabbitMQConfig {
     public Binding bindingPlanimetriaEliminata(@Qualifier("queuePlanimetriaEliminata") Queue queuePlanimetriaEliminata,
                                                @Qualifier("locationExchange") TopicExchange locationExchange) {
         return BindingBuilder.bind(queuePlanimetriaEliminata).to(locationExchange).with(ROUTING_KEY_PLANIMETRIA_ELIMINATA);
+    }
+
+    @Bean
+    public Binding bindingPostazioneNonPrenotabile(
+            @Qualifier("queuePostazioneNonPrenotabile") Queue queuePostazioneNonPrenotabile,
+            @Qualifier("locationExchange") TopicExchange locationExchange) {
+        return BindingBuilder.bind(queuePostazioneNonPrenotabile)
+                .to(locationExchange)
+                .with(ROUTING_KEY_POSTAZIONE_NON_PRENOTABILE);
     }
 
     @Bean

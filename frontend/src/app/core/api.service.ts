@@ -13,6 +13,7 @@ import {
   PlanimetriaResponse,
   Postazione,
   PostazioneRequest,
+  PrenotazioneNotifica,
   Prenotazione,
   RegisterRequest,
   RuoloUtente,
@@ -193,6 +194,16 @@ export class ApiService {
     );
   }
 
+  listMyBookingCancellationNotifications() {
+    return this.http.get<PrenotazioneNotifica[]>(`${PRENOTAZIONI_API}/api/prenotazioni/mie/notifiche-annullamento`).pipe(
+      map((notifications) => notifications.map((notification) => this.normalizeNotificationTimes(notification))),
+    );
+  }
+
+  acknowledgeMyBookingCancellationNotifications() {
+    return this.http.post<void>(`${PRENOTAZIONI_API}/api/prenotazioni/mie/notifiche-annullamento/ack`, null);
+  }
+
   listBookings(data?: string, postazioneId?: number) {
     let params = new HttpParams();
     if (data) {
@@ -305,5 +316,13 @@ export class ApiService {
     }
 
     return value.slice(0, 5);
+  }
+
+  private normalizeNotificationTimes(notification: PrenotazioneNotifica): PrenotazioneNotifica {
+    return {
+      ...notification,
+      oraInizio: this.withoutSeconds(notification.oraInizio),
+      oraFine: this.withoutSeconds(notification.oraFine),
+    };
   }
 }

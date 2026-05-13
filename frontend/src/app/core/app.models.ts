@@ -104,6 +104,7 @@ export interface PostazioneRequest {
 
 export type StatoPrenotazione = 'CONFERMATA' | 'ANNULLATA';
 export type TipoRisorsaPrenotata = 'POSTAZIONE' | 'MEETING_ROOM';
+export type MotivoNotificaPrenotazione = 'POSTAZIONE_NON_PRENOTABILE';
 
 export interface Prenotazione {
   id: number;
@@ -130,6 +131,18 @@ export interface DashboardPrenotazione extends Prenotazione {
   sedeLabel: string;
   pianoLabel: string;
   pianoId?: number | null;
+}
+
+export interface PrenotazioneNotifica {
+  id: number;
+  motivo: MotivoNotificaPrenotazione;
+  risorsaLabel: string;
+  stanzaNome: string;
+  dataPrenotazione: string;
+  oraInizio: string;
+  oraFine: string;
+  statoPostazione: string;
+  createdAt: string;
 }
 
 export interface CreatePrenotazioneRequest {
