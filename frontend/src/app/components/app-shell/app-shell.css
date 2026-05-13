@@ -1,11 +1,16 @@
 :host {
   display: block;
   min-height: 100vh;
-  background: var(--color-bg-main);
+  background:
+    var(--color-bg-gradient),
+    var(--color-bg-main);
 }
 
 .app-shell {
   min-height: 100vh;
+  background:
+    var(--color-bg-gradient),
+    var(--color-bg-main);
 }
 
 .topbar {
@@ -135,6 +140,7 @@
 
 .app-content {
   width: min(1440px, 100%);
+  min-height: calc(100vh - 76px);
   margin: 0 auto;
   padding: clamp(1rem, 3vw, 2rem);
 }

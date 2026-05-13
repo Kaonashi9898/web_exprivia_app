@@ -12,6 +12,7 @@
   --color-secondary-dark: #cf552b;
 
   --color-bg-main: #f4f7f9;
+  --color-bg-gradient: linear-gradient(120deg, rgba(237, 107, 59, 0.24), rgba(255, 255, 255, 0.8) 52%, rgba(0, 65, 102, 0.22));
   --color-bg-card: #ffffff;
   
   --color-text-main: #2d3748;
@@ -40,7 +41,9 @@
 
 body {
   font-family: 'Inter', sans-serif;
-  background-color: var(--color-bg-main);
+  background:
+    var(--color-bg-gradient),
+    var(--color-bg-main);
   color: var(--color-text-main);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
