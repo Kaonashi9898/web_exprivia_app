@@ -126,7 +126,7 @@
 }
 
 .account-notice.notice-fade-out {
-  animation: notice-fade-out 3s ease forwards;
+  animation: notice-fade-out 5s ease forwards;
 }
 
 @keyframes notice-fade-out {
@@ -148,6 +148,27 @@
 
 .users-toolbar {
   align-items: end;
+}
+
+.section-title-with-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.section-notification-badge {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 0.36rem;
+  color: #ffffff;
+  background: #d92d20;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  box-shadow: 0 4px 10px rgba(151, 31, 18, 0.24);
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
 }
 
 .toolbar-actions {
@@ -295,6 +316,16 @@
 
 .password-reset-modal-card {
   width: min(560px, 100%);
+}
+
+.confirm-card {
+  width: min(520px, 100%);
+}
+
+.modal-copy {
+  margin: 0 0 1rem;
+  color: var(--color-text-muted);
+  line-height: 1.55;
 }
 
 .users-modal-form {

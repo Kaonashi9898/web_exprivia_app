@@ -101,7 +101,17 @@
     <div class="panel">
       <div class="panel-header users-toolbar">
         <div>
-          <h2>Richieste reset password</h2>
+          <h2 class="section-title-with-badge">
+            Richieste reset password
+            @if (passwordResetNotificationCount() > 0) {
+              <span
+                class="section-notification-badge"
+                [attr.aria-label]="passwordResetNotificationCount() + ' richieste reset password aperte'"
+              >
+                {{ notificationBadgeLabel(passwordResetNotificationCount()) }}
+              </span>
+            }
+          </h2>
           <p class="section-hint">
             Il form pubblico non conferma mai se una mail esiste. Le richieste aperte vengono prese in carico qui da
             {{ isAdmin() ? 'ADMIN' : 'RECEPTION' }} e la gestione viene tracciata lato backend.
@@ -143,7 +153,7 @@
                     <button
                       class="danger-button"
                       type="button"
-                      (click)="rejectPasswordResetRequest(request)"
+                      (click)="openRejectPasswordResetModal(request)"
                       [disabled]="!canRejectPasswordResetRequest(request) || passwordResetActionBusy(request.id)"
                     >
                       {{ passwordResetActionBusy(request.id) ? 'Attendere...' : 'Rifiuta' }}
@@ -166,7 +176,17 @@
     <div class="panel">
       <div class="panel-header users-toolbar">
         <div>
-          <h2>Account e gruppi</h2>
+          <h2 class="section-title-with-badge">
+            Account e gruppi
+            @if (accountNotificationCount() > 0) {
+              <span
+                class="section-notification-badge"
+                [attr.aria-label]="accountNotificationCount() + ' nuovi utenti in attesa'"
+              >
+                {{ notificationBadgeLabel(accountNotificationCount()) }}
+              </span>
+            }
+          </h2>
           <p class="section-hint">Filtra per ruolo o gruppo dalla sidebar e gestisci gli account abilitati.</p>
         </div>
         <div class="toolbar-actions">
@@ -269,7 +289,7 @@
         <div class="panel-header">
           <div>
             <h2>Gruppi di {{ selectedUserForGroups.fullName }}</h2>
-            <p class="section-hint">{{ selectedUserForGroups.email }} • {{ selectedUserForGroups.ruolo }}</p>
+            <p class="section-hint">{{ selectedUserForGroups.email }} - {{ selectedUserForGroups.ruolo }}</p>
           </div>
           <button class="ghost-button" type="button" (click)="closeGroupsManager()">Chiudi</button>
         </div>
@@ -331,7 +351,7 @@
         <div>
           <h2 id="passwordResetTitle">Imposta password temporanea</h2>
           <p class="section-hint">
-            {{ passwordResetTargetLabel(selectedPasswordResetRequest) }} • {{ selectedPasswordResetRequest.email }}
+            {{ passwordResetTargetLabel(selectedPasswordResetRequest) }} - {{ selectedPasswordResetRequest.email }}
           </p>
         </div>
       </header>
@@ -378,6 +398,29 @@
           </button>
         </footer>
       </form>
+    </section>
+  </div>
+}
+
+@if (pendingConfirmAction) {
+  <div class="modal-backdrop" (click)="closeConfirmActionModal()">
+    <section class="modal-card confirm-card" role="dialog" aria-modal="true" aria-labelledby="confirmActionTitle" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <h2 id="confirmActionTitle">{{ confirmActionTitle() }}</h2>
+      </header>
+
+      @if (confirmActionError) {
+        <div class="notice error modal-notice">{{ confirmActionError }}</div>
+      }
+
+      <p class="modal-copy">{{ confirmActionMessage() }}</p>
+
+      <footer class="modal-actions">
+        <button class="ghost-button" type="button" (click)="closeConfirmActionModal()" [disabled]="confirmActionBusy">Annulla</button>
+        <button class="danger-button" type="button" (click)="confirmPendingAction()" [disabled]="confirmActionBusy">
+          {{ confirmActionBusy ? confirmActionBusyLabel() : confirmActionButtonLabel() }}
+        </button>
+      </footer>
     </section>
   </div>
 }

@@ -10,7 +10,18 @@
         <a routerLink="/prenotazioni" routerLinkActive="active">Prenotazioni</a>
       }
       @if (showUsers()) {
-        <a routerLink="/utenti" routerLinkActive="active">Utenti</a>
+        <a
+          routerLink="/utenti"
+          routerLinkActive="active"
+          [class.has-badge]="passwordResetCount() > 0"
+        >
+          Utenti
+          @if (passwordResetCount() > 0) {
+            <span class="nav-notification-badge" aria-label="{{ passwordResetCount() }} richieste reset password aperte">
+              {{ passwordResetBadgeLabel() }}
+            </span>
+          }
+        </a>
       }
       @if (showLocations()) {
         <a routerLink="/sedi-postazioni" routerLinkActive="active">Sedi e postazioni</a>

@@ -97,20 +97,28 @@
       <div class="panel-header rooms-panel-header">
         <div class="segmented-switch room-switch" role="tablist" aria-label="Filtro stanze e meeting room">
           <button
+            id="roomsTab"
             type="button"
             class="segmented-switch-button"
+            role="tab"
             [class.active]="showingRooms()"
             [attr.aria-selected]="showingRooms()"
+            aria-controls="roomsListPanel"
+            [attr.tabindex]="showingRooms() ? 0 : -1"
             (click)="selectRoomsView()"
           >
             Stanze
             <span class="segmented-switch-count">{{ roomCount() }}</span>
           </button>
           <button
+            id="meetingRoomsTab"
             type="button"
             class="segmented-switch-button"
+            role="tab"
             [class.active]="showingMeetingRooms()"
             [attr.aria-selected]="showingMeetingRooms()"
+            aria-controls="roomsListPanel"
+            [attr.tabindex]="showingMeetingRooms() ? 0 : -1"
             (click)="selectMeetingRoomsView()"
           >
             Meeting Room
@@ -119,7 +127,12 @@
         </div>
       </div>
 
-      <div class="room-list">
+      <div
+        id="roomsListPanel"
+        class="room-list"
+        role="tabpanel"
+        [attr.aria-labelledby]="showingRooms() ? 'roomsTab' : 'meetingRoomsTab'"
+      >
         @for (room of visibleRoomStats(); track room.stanza.id) {
           <article class="room-card">
             <div>
@@ -420,7 +433,8 @@
                           type="button"
                           [disabled]="seatGroupBusy('remove', seat.id, group.id)"
                           (click)="removeGroupFromSeat(seat, group)"
-                          aria-label="Rimuovi gruppo {{ group.nome }}"
+                          aria-label="Rimuovi gruppo"
+                          title="Rimuovi gruppo"
                         >
                           {{ seatGroupBusy('remove', seat.id, group.id) ? '...' : 'x' }}
                         </button>

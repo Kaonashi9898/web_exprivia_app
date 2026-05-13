@@ -5,6 +5,7 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { Gruppo, PasswordResetRequest, RegisterRequest, RuoloUtente, Utente } from '../../core/app.models';
 import { apiErrorMessage } from '../../core/api-error.utils';
+import { PasswordResetNotificationsService } from '../../core/password-reset-notifications.service';
 
 const DOMAIN_ERROR = 'Dominio non autorizzato. Utilizzare esclusivamente un indirizzo @exprivia.com';
 const EXPRIVIA_EMAIL_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*@exprivia\.com$/i;
@@ -19,6 +20,11 @@ interface GroupWithUsers extends Gruppo {
   users: Utente[];
 }
 
+type UserConfirmAction =
+  | { kind: 'rejectPasswordReset'; request: PasswordResetRequest }
+  | { kind: 'deleteUser'; user: Utente }
+  | { kind: 'deleteGroup'; group: Gruppo };
+
 @Component({
   selector: 'app-users',
   imports: [FormsModule],
@@ -29,6 +35,7 @@ export class UsersComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly passwordResetNotifications = inject(PasswordResetNotificationsService);
   private readonly requestDateFormatter = new Intl.DateTimeFormat('it-IT', {
     dateStyle: 'short',
     timeStyle: 'short',
@@ -64,6 +71,9 @@ export class UsersComponent implements OnInit, OnDestroy {
   showTemporaryPassword = false;
   passwordResetActionId: number | null = null;
   passwordResetModalError = '';
+  pendingConfirmAction: UserConfirmAction | null = null;
+  confirmActionBusy = false;
+  confirmActionError = '';
   messageAutoDismiss = false;
   private messageDismissTimer: number | null = null;
 
@@ -136,6 +146,7 @@ export class UsersComponent implements OnInit, OnDestroy {
               .filter((group) => group.users.some((item) => item.id === user.id))
               .map((group) => ({ id: group.id, nome: group.nome })),
           }));
+          this.syncUserNotificationBadge();
           if (this.selectedUserForGroups) {
             this.selectedUserForGroups =
               this.users.find((item) => item.id === this.selectedUserForGroups?.id) ?? null;
@@ -207,6 +218,7 @@ export class UsersComponent implements OnInit, OnDestroy {
         this.showTemporaryPassword = false;
         this.passwordResetModalError = '';
         this.showSuccessMessage('Password temporanea impostata. Comunicala all\'utente tramite un canale sicuro.', true);
+        this.removePasswordResetRequestFromBadge(request.id);
         this.loadUsers(false);
       },
       error: (err) => {
@@ -216,23 +228,98 @@ export class UsersComponent implements OnInit, OnDestroy {
     });
   }
 
-  rejectPasswordResetRequest(request: PasswordResetRequest): void {
+  openRejectPasswordResetModal(request: PasswordResetRequest): void {
     if (!this.canRejectPasswordResetRequest(request)) {
       this.error = 'Non sei autorizzato a rifiutare questa richiesta.';
       this.refreshView();
       return;
     }
-    if (!confirm(`Rifiutare la richiesta reset password per ${request.email}?`)) {
+
+    this.openConfirmAction({ kind: 'rejectPasswordReset', request });
+  }
+
+  confirmPendingAction(): void {
+    const action = this.pendingConfirmAction;
+    if (!action || this.confirmActionBusy) {
       return;
     }
 
+    if (action.kind === 'rejectPasswordReset') {
+      this.confirmRejectPasswordResetRequest(action.request);
+      return;
+    }
+    if (action.kind === 'deleteUser') {
+      this.confirmDeleteUser(action.user);
+      return;
+    }
+    this.confirmDeleteGroup(action.group);
+  }
+
+  closeConfirmActionModal(): void {
+    if (this.confirmActionBusy) {
+      return;
+    }
+
+    this.pendingConfirmAction = null;
+    this.confirmActionError = '';
+    this.refreshView();
+  }
+
+  confirmActionTitle(): string {
+    const action = this.pendingConfirmAction;
+    if (!action) {
+      return '';
+    }
+    if (action.kind === 'rejectPasswordReset') {
+      return 'Rifiutare richiesta reset password?';
+    }
+    if (action.kind === 'deleteUser') {
+      return 'Eliminare account?';
+    }
+    return 'Eliminare gruppo?';
+  }
+
+  confirmActionMessage(): string {
+    const action = this.pendingConfirmAction;
+    if (!action) {
+      return '';
+    }
+    if (action.kind === 'rejectPasswordReset') {
+      return `Rifiutare la richiesta reset password per ${action.request.email}?`;
+    }
+    if (action.kind === 'deleteUser') {
+      return `Eliminare ${action.user.fullName}?`;
+    }
+    return `Eliminare il gruppo ${action.group.nome}?`;
+  }
+
+  confirmActionButtonLabel(): string {
+    const action = this.pendingConfirmAction;
+    if (!action) {
+      return 'Conferma';
+    }
+    return action.kind === 'rejectPasswordReset' ? 'Rifiuta' : 'Elimina';
+  }
+
+  confirmActionBusyLabel(): string {
+    const action = this.pendingConfirmAction;
+    if (!action) {
+      return 'Operazione...';
+    }
+    return action.kind === 'rejectPasswordReset' ? 'Rifiuto...' : 'Eliminazione...';
+  }
+
+  private confirmRejectPasswordResetRequest(request: PasswordResetRequest): void {
     this.passwordResetActionId = request.id;
     this.error = '';
+    this.confirmActionError = '';
+    this.confirmActionBusy = true;
     this.clearMessage();
     this.api.rejectPasswordResetRequest(request.id).pipe(
       timeout(7000),
       finalize(() => {
         this.passwordResetActionId = null;
+        this.confirmActionBusy = false;
         this.refreshView();
       }),
     ).subscribe({
@@ -243,11 +330,13 @@ export class UsersComponent implements OnInit, OnDestroy {
           this.temporaryPassword = '';
           this.showTemporaryPassword = false;
         }
+        this.pendingConfirmAction = null;
         this.showSuccessMessage('Richiesta reset password rifiutata.', true);
+        this.removePasswordResetRequestFromBadge(request.id);
         this.loadUsers(false);
       },
       error: (err) => {
-        this.error = apiErrorMessage(err, 'Rifiuto richiesta non riuscito.');
+        this.confirmActionError = apiErrorMessage(err, 'Rifiuto richiesta non riuscito.');
         this.refreshView();
       },
     });
@@ -318,6 +407,7 @@ export class UsersComponent implements OnInit, OnDestroy {
         if (this.selectedUserForGroups?.id === updated.id) {
           this.selectedUserForGroups = this.users.find((item) => item.id === updated.id) ?? null;
         }
+        this.syncUserNotificationBadge();
         this.showSuccessMessage('Ruolo aggiornato.', true);
         this.refreshView();
       },
@@ -338,6 +428,7 @@ export class UsersComponent implements OnInit, OnDestroy {
     this.api.updateUserRole(user.id, 'USER').subscribe({
       next: (updated) => {
         this.users = this.users.map((item) => (item.id === updated.id ? { ...item, ...updated } : item));
+        this.syncUserNotificationBadge();
         this.showSuccessMessage("Richiesta approvata. L'utente ora ha ruolo USER.", true);
         this.refreshView();
       },
@@ -354,10 +445,13 @@ export class UsersComponent implements OnInit, OnDestroy {
       this.refreshView();
       return;
     }
-    if (!confirm(`Eliminare ${user.fullName}?`)) {
-      return;
-    }
 
+    this.openConfirmAction({ kind: 'deleteUser', user });
+  }
+
+  private confirmDeleteUser(user: Utente): void {
+    this.confirmActionBusy = true;
+    this.confirmActionError = '';
     this.api.deleteUser(user.id).subscribe({
       next: () => {
         this.users = this.users.filter((item) => item.id !== user.id);
@@ -368,12 +462,16 @@ export class UsersComponent implements OnInit, OnDestroy {
         if (this.selectedUserForGroups?.id === user.id) {
           this.selectedUserForGroups = null;
         }
+        this.pendingConfirmAction = null;
+        this.confirmActionBusy = false;
+        this.syncUserNotificationBadge();
         this.showSuccessMessage('Utente eliminato.');
         this.refreshView();
         this.loadUsers(false);
       },
       error: (err) => {
-        this.error = apiErrorMessage(err, 'Eliminazione utente non riuscita.');
+        this.confirmActionBusy = false;
+        this.confirmActionError = apiErrorMessage(err, 'Eliminazione utente non riuscita.');
         this.refreshView();
       },
     });
@@ -428,6 +526,18 @@ export class UsersComponent implements OnInit, OnDestroy {
 
   countByRole(ruolo: RuoloUtente): number {
     return this.users.filter((user) => user.ruolo === ruolo).length;
+  }
+
+  passwordResetNotificationCount(): number {
+    return this.passwordResetRequests.length;
+  }
+
+  accountNotificationCount(): number {
+    return this.users.filter((user) => user.ruolo === 'GUEST').length;
+  }
+
+  notificationBadgeLabel(count: number): string {
+    return count > 99 ? '99+' : String(count);
   }
 
   countForFilter(filter: UserFilter): number {
@@ -568,14 +678,17 @@ export class UsersComponent implements OnInit, OnDestroy {
   }
 
   deleteGroup(group: Gruppo): void {
-    if (!confirm(`Eliminare il gruppo ${group.nome}?`)) {
-      return;
-    }
+    this.openConfirmAction({ kind: 'deleteGroup', group });
+  }
 
+  private confirmDeleteGroup(group: Gruppo): void {
+    this.confirmActionBusy = true;
+    this.confirmActionError = '';
     this.groupActionInFlightId = group.id;
     this.api.deleteGroup(group.id).pipe(
       finalize(() => {
         this.groupActionInFlightId = null;
+        this.confirmActionBusy = false;
         this.refreshView();
       }),
     ).subscribe({
@@ -583,11 +696,12 @@ export class UsersComponent implements OnInit, OnDestroy {
         if (this.activeFilter === `group:${group.id}`) {
           this.activeFilter = 'all';
         }
+        this.pendingConfirmAction = null;
         this.showSuccessMessage('Gruppo eliminato.');
         this.loadUsers(false);
       },
       error: (err) => {
-        this.error = apiErrorMessage(err, 'Eliminazione gruppo non riuscita.');
+        this.confirmActionError = apiErrorMessage(err, 'Eliminazione gruppo non riuscita.');
         this.refreshView();
       },
     });
@@ -728,8 +842,25 @@ export class UsersComponent implements OnInit, OnDestroy {
           this.messageAutoDismiss = false;
           this.refreshView();
         }
-      }, 3000);
+      }, 5000);
     }
+  }
+
+  private removePasswordResetRequestFromBadge(requestId: number): void {
+    this.passwordResetRequests = this.passwordResetRequests.filter((request) => request.id !== requestId);
+    this.syncUserNotificationBadge();
+  }
+
+  private openConfirmAction(action: UserConfirmAction): void {
+    this.pendingConfirmAction = action;
+    this.confirmActionError = '';
+    this.error = '';
+    this.clearMessage();
+    this.refreshView();
+  }
+
+  private syncUserNotificationBadge(): void {
+    this.passwordResetNotifications.setFromData(this.passwordResetRequests, this.users);
   }
 
   private clearMessage(): void {
