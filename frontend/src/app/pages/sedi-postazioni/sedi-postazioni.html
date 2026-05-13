@@ -75,20 +75,56 @@
 } @else {
   <section class="summary-grid">
     <article class="stat-card">
-      <span>Postazioni totali</span>
-      <strong>{{ totalSeats }}</strong>
+      <span class="stat-card-title">Totali</span>
+      <div class="stat-split">
+        <div class="stat-line">
+          <small>Postazioni</small>
+          <strong>{{ totalSeats }}</strong>
+        </div>
+        <div class="stat-line">
+          <small>Meeting room</small>
+          <strong>{{ totalMeetingRooms }}</strong>
+        </div>
+      </div>
     </article>
     <article class="stat-card free">
-      <span>Libere nel giorno selezionato</span>
-      <strong>{{ freeSeats }}</strong>
+      <span class="stat-card-title">Libere</span>
+      <div class="stat-split">
+        <div class="stat-line">
+          <small>Postazioni</small>
+          <strong>{{ freeSeats }}</strong>
+        </div>
+        <div class="stat-line">
+          <small>Meeting room</small>
+          <strong>{{ freeMeetingRooms }}</strong>
+        </div>
+      </div>
     </article>
     <article class="stat-card occupied">
-      <span>Occupate nel giorno selezionato</span>
-      <strong>{{ occupiedSeats }}</strong>
+      <span class="stat-card-title">Occupate</span>
+      <div class="stat-split">
+        <div class="stat-line">
+          <small>Postazioni</small>
+          <strong>{{ occupiedSeats }}</strong>
+        </div>
+        <div class="stat-line">
+          <small>Meeting room</small>
+          <strong>{{ occupiedMeetingRooms }}</strong>
+        </div>
+      </div>
     </article>
     <article class="stat-card blocked">
-      <span>Non prenotabili</span>
-      <strong>{{ blockedSeats }}</strong>
+      <span class="stat-card-title">Non prenotabili</span>
+      <div class="stat-split">
+        <div class="stat-line">
+          <small>Postazioni</small>
+          <strong>{{ blockedSeats }}</strong>
+        </div>
+        <div class="stat-line">
+          <small>Meeting room</small>
+          <strong>{{ blockedMeetingRooms }}</strong>
+        </div>
+      </div>
     </article>
   </section>
 
@@ -133,7 +169,7 @@
         role="tabpanel"
         [attr.aria-labelledby]="showingRooms() ? 'roomsTab' : 'meetingRoomsTab'"
       >
-        @for (room of visibleRoomStats(); track room.stanza.id) {
+        @for (room of displayedRoomStats(); track room.stanza.id) {
           <article class="room-card">
             <div>
               <strong>{{ room.stanza.nome }}</strong>
@@ -169,6 +205,13 @@
           <p class="muted">{{ roomListEmptyMessage() }}</p>
         }
       </div>
+      @if (canExpandCurrentRoomList()) {
+        <div class="room-list-toggle">
+          <button class="ghost-button" type="button" (click)="toggleCurrentRoomList()">
+            {{ currentRoomToggleLabel() }}
+          </button>
+        </div>
+      }
     </div>
 
     <div class="panel bookings-panel">

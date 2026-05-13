@@ -44,24 +44,16 @@
         <h2>Gruppi</h2>
       </div>
 
+      <button class="btn btn-primary sidebar-create" type="button" (click)="openCreateGroupModal()">
+        + Nuovo gruppo
+      </button>
+
       <input
         type="search"
         name="group-search"
         placeholder="Cerca gruppi..."
         [(ngModel)]="groupSearch"
       />
-
-      <div class="inline-form">
-        <input
-          name="new-group-name"
-          placeholder="Nuovo gruppo"
-          [(ngModel)]="newGroupName"
-          maxlength="50"
-        />
-        <button class="ghost-button" type="button" (click)="createGroup()" [disabled]="creatingGroup || !newGroupName.trim()">
-          {{ creatingGroup ? 'Creazione...' : 'Crea' }}
-        </button>
-      </div>
 
       <div class="group-list">
         @for (group of filteredGroups(); track trackByGroupId($index, group)) {
@@ -501,6 +493,45 @@
           <button class="ghost-button" type="button" (click)="closeCreateUserModal()" [disabled]="saving">Annulla</button>
           <button class="btn btn-primary" type="submit" [disabled]="saving">
             {{ saving ? 'Creazione...' : 'Crea utenza' }}
+          </button>
+        </footer>
+      </form>
+    </section>
+  </div>
+}
+
+@if (showCreateGroupModal) {
+  <div class="modal-backdrop" (click)="closeCreateGroupModal()">
+    <section class="modal-card create-group-modal-card" role="dialog" aria-modal="true" aria-labelledby="createGroupTitle" (click)="$event.stopPropagation()">
+      <header class="modal-header">
+        <div>
+          <h2 id="createGroupTitle">Nuovo gruppo</h2>
+          <p class="section-hint">Inserisci il nome del gruppo da aggiungere alla rubrica interna.</p>
+        </div>
+      </header>
+
+      <form class="form-panel users-modal-form" autocomplete="off" (ngSubmit)="createGroup()">
+        @if (createGroupModalError) {
+          <div class="notice error modal-notice">{{ createGroupModalError }}</div>
+        }
+
+        <div class="form-grid single-column-grid">
+          <label>
+            Nome gruppo
+            <input
+              name="new-group-name"
+              placeholder="Es. Team Milano"
+              [(ngModel)]="newGroupName"
+              maxlength="50"
+              required
+            />
+          </label>
+        </div>
+
+        <footer class="modal-actions">
+          <button class="ghost-button" type="button" (click)="closeCreateGroupModal()" [disabled]="creatingGroup">Annulla</button>
+          <button class="btn btn-primary" type="submit" [disabled]="creatingGroup || !newGroupName.trim()">
+            {{ creatingGroup ? 'Creazione...' : 'Crea gruppo' }}
           </button>
         </footer>
       </form>
