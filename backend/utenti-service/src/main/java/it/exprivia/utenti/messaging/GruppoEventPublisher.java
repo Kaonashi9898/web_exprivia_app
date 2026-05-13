@@ -25,6 +25,7 @@ public class GruppoEventPublisher {
 
     private final RabbitTemplate rabbitTemplate;
 
+    @Async("rabbitEventExecutor")
     public void pubblicaCreazioneUtente(UtenteDTO utente, String actorEmail) {
         pubblicaUtenteCrud(RabbitMQConfig.ROUTING_KEY_UTENTE_CREATO, "CREATE", utente, actorEmail);
     }

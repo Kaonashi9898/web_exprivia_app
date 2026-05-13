@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'exprivia-booking-v1';
+const CACHE_VERSION = 'exprivia-booking-v2';
 const APP_SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 
@@ -63,7 +63,11 @@ async function networkFirstNavigation(request) {
     cache.put('/index.html', networkResponse.clone());
     return networkResponse;
   } catch {
-    return caches.match('/index.html');
+    const cachedResponse = await caches.match('/index.html');
+    return cachedResponse ?? new Response('Applicazione non disponibile offline.', {
+      status: 503,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
   }
 }
 
@@ -77,7 +81,8 @@ async function staleWhileRevalidate(request) {
       }
 
       return networkResponse;
-    });
+    })
+    .catch(() => cachedResponse ?? new Response('', { status: 504 }));
 
   if (cachedResponse) {
     networkResponsePromise.catch(() => undefined);

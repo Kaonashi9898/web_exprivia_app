@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { finalize, timeout } from 'rxjs';
@@ -7,6 +7,7 @@ import { AuthService } from '../../core/auth.service';
 
 const DOMAIN_ERROR = 'Dominio non autorizzato. Utilizzare esclusivamente un indirizzo @exprivia.com';
 const EXPRIVIA_EMAIL_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*@exprivia\.com$/i;
+const REQUEST_TIMEOUT_MS = 5000;
 
 @Component({
   selector: 'app-home',
@@ -17,6 +18,7 @@ const EXPRIVIA_EMAIL_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*@exprivia\.com$/i;
 export class HomeComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly changeDetector = inject(ChangeDetectorRef);
 
   mode: 'login' | 'register' = 'login';
   email = '';
@@ -61,8 +63,11 @@ export class HomeComponent {
     this.auth
       .login(email, this.password)
       .pipe(
-        timeout(10000),
-        finalize(() => (this.loading = false)),
+        timeout(REQUEST_TIMEOUT_MS),
+        finalize(() => {
+          this.loading = false;
+          this.renderNow();
+        }),
       )
       .subscribe({
         next: () => this.router.navigateByUrl('/dashboard'),
@@ -108,26 +113,32 @@ export class HomeComponent {
         ruolo: 'GUEST',
       })
       .pipe(
-        timeout(10000),
-        finalize(() => (this.registering = false)),
+        timeout(REQUEST_TIMEOUT_MS),
+        finalize(() => {
+          this.registering = false;
+          this.renderNow();
+        }),
       )
       .subscribe({
         next: () => {
-          this.registering = false;
           this.registrationSuccessEmail = email;
           this.registrationSuccessOpen = true;
           this.registerFullName = '';
           this.registerEmail = '';
           this.registerPassword = '';
+          this.renderNow();
         },
         error: (err) => {
           if (err?.name === 'TimeoutError') {
+            this.error = 'Registrazione non completata entro il tempo previsto. Controlla la connessione e riprova.';
+            this.renderNow();
             return;
           }
           this.registrationSuccessOpen = false;
           this.error = this.normalizeRegistrationError(
             apiErrorMessage(err, 'Registrazione non riuscita. Riprova.'),
           );
+          this.renderNow();
         },
       });
   }
@@ -182,8 +193,11 @@ export class HomeComponent {
     this.auth
       .requestPasswordReset(email)
       .pipe(
-        timeout(10000),
-        finalize(() => (this.forgotPasswordSubmitting = false)),
+        timeout(REQUEST_TIMEOUT_MS),
+        finalize(() => {
+          this.forgotPasswordSubmitting = false;
+          this.renderNow();
+        }),
       )
       .subscribe({
         next: () => {
@@ -191,13 +205,16 @@ export class HomeComponent {
             "Se l'indirizzo e' valido, la richiesta e' stata registrata e verra presa in carico da un operatore.";
           this.forgotPasswordOpen = false;
           this.forgotPasswordEmail = '';
+          this.renderNow();
         },
         error: (err) => {
           if (err?.name === 'TimeoutError') {
             this.error = 'Richiesta non completata entro il tempo previsto. Controlla la connessione e riprova.';
+            this.renderNow();
             return;
           }
           this.error = apiErrorMessage(err, 'Invio richiesta non riuscito. Riprova.');
+          this.renderNow();
         },
       });
   }
@@ -234,5 +251,13 @@ export class HomeComponent {
       return 'Email gia registrata. Accedi con le tue credenziali oppure utilizza un altro indirizzo aziendale.';
     }
     return message;
+  }
+
+  private renderNow(): void {
+    try {
+      this.changeDetector.detectChanges();
+    } catch {
+      // Il componente puo' essere gia stato distrutto dopo una navigazione.
+    }
   }
 }
