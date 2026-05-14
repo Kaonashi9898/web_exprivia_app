@@ -124,16 +124,16 @@
     <div class="panel-header"><h2>Anteprima</h2></div>
 
     @if (imageSrc) {
-      <div class="plan-preview" #planPreview [class.zoomed]="selectedRoomId">
-        @if (selectedRoomId) {
+      <div class="plan-preview" #planPreview [class.zoomed]="selectedRoomSupportsFocus()">
+        @if (selectedRoomSupportsFocus()) {
           <button class="reset-zoom-button" type="button" (click)="resetZoom()">
             Vista completa
           </button>
         }
-        <div class="plan-stage" #planStage [class.zoomed]="selectedRoomId" [ngStyle]="selectedRoomStyle()">
+        <div class="plan-stage" #planStage [class.zoomed]="selectedRoomSupportsFocus()" [ngStyle]="selectedRoomStyle()">
           <img [src]="imageSrc" alt="Planimetria del piano" (load)="onPlanImageLoad()" />
 
-          @if (!selectedRoomId) {
+          @if (!selectedRoomSupportsFocus()) {
             @for (room of visibleRooms(); track room.id) {
               <button
                 type="button"
@@ -149,7 +149,7 @@
           }
 
           </div>
-          @if (selectedRoomId) {
+          @if (selectedRoomSupportsFocus()) {
             <div class="station-overlay">
               @for (station of visibleStations(); track station.id) {
                 <span

@@ -71,20 +71,21 @@
     </div>
 
       @if (imageSrc) {
-        <div class="plan-preview" #planPreview [class.zoomed]="selectedRoomId">
-          @if (selectedRoomId) {
+        <div class="plan-preview" #planPreview [class.zoomed]="selectedRoomSupportsFocus()">
+          @if (selectedRoomSupportsFocus()) {
             <button class="reset-zoom-button" type="button" (click)="resetZoom()">
               Vista completa
             </button>
           }
-          <div class="plan-stage" #planStage [class.zoomed]="selectedRoomId" [ngStyle]="selectedRoomStyle()">
+          <div class="plan-stage" #planStage [class.zoomed]="selectedRoomSupportsFocus()" [ngStyle]="selectedRoomStyle()">
             <img [src]="imageSrc" alt="Planimetria sede" (load)="onPlanImageLoad()" />
 
-            @if (!selectedRoomId) {
+            @if (!selectedRoomSupportsFocus()) {
               @for (room of visibleRooms(); track room.id) {
                 <button
                   type="button"
                   class="room-pin"
+                  [class.active]="selectedRoomId === room.id"
                   [class.meeting-room]="roomIsMeeting(room)"
                   [class.booked]="meetingRoomIsBooked(room)"
                   [class.partial]="meetingRoomIsPartiallyBooked(room)"
@@ -102,7 +103,7 @@
             }
 
           </div>
-          @if (selectedRoomId) {
+          @if (selectedRoomSupportsFocus()) {
             <div class="station-overlay">
               @for (station of visibleStations(); track station.id) {
                 <button
@@ -132,7 +133,7 @@
       }
     </div>
 
-    <aside class="panel side-panel">
+    <aside class="panel side-panel" #bookingPanel>
       <div class="panel-header">
         <h2>Prenotazione</h2>
       </div>

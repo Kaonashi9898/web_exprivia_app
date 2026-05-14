@@ -398,6 +398,10 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
   }
 
   selectRoom(room: DisplayRoom): void {
+    if (!this.roomSupportsFocus(room)) {
+      return;
+    }
+
     this.selectedRoomId = room.id;
     this.resetPlanPreviewScroll();
     this.refreshView();
@@ -437,6 +441,15 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
 
   visibleStations(): PositionedStation[] {
     return this.stationsForSelectedRoom().filter((station): station is PositionedStation => !!station.position);
+  }
+
+  roomIsMeeting(room: DisplayRoom): boolean {
+    return (this.layout?.meetings ?? []).some((meeting) => meeting.id === room.id);
+  }
+
+  selectedRoomSupportsFocus(): boolean {
+    const room = this.roomsForDisplay().find((item) => item.id === this.selectedRoomId);
+    return !!room && this.roomSupportsFocus(room);
   }
 
   selectedRoomStyle(): Record<string, string> {
@@ -479,20 +492,30 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
 
   private selectedRoomZoomInput(): RoomZoomInput | null {
     const room = this.roomsForDisplay().find((item) => item.id === this.selectedRoomId);
-    if (!room?.position) {
+    if (!room?.position || !this.roomSupportsFocus(room)) {
       return null;
     }
 
+    const stationPositions = this.stationsForRoom(room.id)
+      .filter((station): station is PositionedStation => !!station.position)
+      .map((station) => station.position);
+
     return {
       roomPosition: room.position,
-      stationPositions: this.stationsForRoom(room.id)
-        .filter((station): station is PositionedStation => !!station.position)
-        .map((station) => station.position),
+      stationPositions,
       viewportWidth: this.planPreview?.nativeElement.clientWidth ?? 0,
       viewportHeight: this.planPreview?.nativeElement.clientHeight ?? 0,
       stageWidth: this.planStage?.nativeElement.offsetWidth ?? 0,
       stageHeight: this.planStage?.nativeElement.offsetHeight ?? 0,
     };
+  }
+
+  private roomSupportsFocus(room: DisplayRoom): boolean {
+    if (this.roomIsMeeting(room)) {
+      return false;
+    }
+
+    return this.stationsForRoom(room.id).some((station) => !!station.position);
   }
 
   currentStep(): 1 | 2 | 3 {
