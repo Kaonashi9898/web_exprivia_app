@@ -51,7 +51,6 @@
   max-width: 100%;
   overflow-x: auto;
   overscroll-behavior-inline: contain;
-  scrollbar-width: none;
 }
 
 .main-nav::-webkit-scrollbar {
