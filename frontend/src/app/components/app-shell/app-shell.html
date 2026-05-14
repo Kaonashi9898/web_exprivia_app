@@ -70,7 +70,7 @@
       </header>
 
       @if (profileMessage) {
-        <div class="notice success">{{ profileMessage }}</div>
+        <div class="notice success" [class.notice-fade-out]="profileMessageAutoDismiss">{{ profileMessage }}</div>
       }
       @if (profileError) {
         <div class="notice error">{{ profileError }}</div>
@@ -138,35 +138,68 @@
         <div class="profile-grid profile-security-grid">
           <label>
             Password attuale
-            <input
-              type="password"
-              name="profile-current-password"
-              autocomplete="current-password"
-              [(ngModel)]="profileCurrentPassword"
-              [disabled]="profilePasswordSaving"
-            />
+            <span class="password-field">
+              <input
+                [type]="showProfileCurrentPassword ? 'text' : 'password'"
+                name="profile-current-password"
+                autocomplete="current-password"
+                [(ngModel)]="profileCurrentPassword"
+                [disabled]="profilePasswordSaving"
+              />
+              <button
+                class="password-toggle"
+                type="button"
+                (click)="toggleProfileCurrentPassword()"
+                [attr.aria-label]="showProfileCurrentPassword ? 'Nascondi password attuale' : 'Mostra password attuale'"
+                [title]="showProfileCurrentPassword ? 'Nascondi password attuale' : 'Mostra password attuale'"
+              >
+                &#128065;
+              </button>
+            </span>
           </label>
 
           <label>
             Nuova password
-            <input
-              type="password"
-              name="profile-new-password"
-              autocomplete="new-password"
-              [(ngModel)]="profileNewPassword"
-              [disabled]="profilePasswordSaving"
-            />
+            <span class="password-field">
+              <input
+                [type]="showProfileNewPassword ? 'text' : 'password'"
+                name="profile-new-password"
+                autocomplete="new-password"
+                [(ngModel)]="profileNewPassword"
+                [disabled]="profilePasswordSaving"
+              />
+              <button
+                class="password-toggle"
+                type="button"
+                (click)="toggleProfileNewPassword()"
+                [attr.aria-label]="showProfileNewPassword ? 'Nascondi nuova password' : 'Mostra nuova password'"
+                [title]="showProfileNewPassword ? 'Nascondi nuova password' : 'Mostra nuova password'"
+              >
+                &#128065;
+              </button>
+            </span>
           </label>
 
           <label>
             Conferma nuova password
-            <input
-              type="password"
-              name="profile-confirm-password"
-              autocomplete="new-password"
-              [(ngModel)]="profileConfirmPassword"
-              [disabled]="profilePasswordSaving"
-            />
+            <span class="password-field">
+              <input
+                [type]="showProfileConfirmPassword ? 'text' : 'password'"
+                name="profile-confirm-password"
+                autocomplete="new-password"
+                [(ngModel)]="profileConfirmPassword"
+                [disabled]="profilePasswordSaving"
+              />
+              <button
+                class="password-toggle"
+                type="button"
+                (click)="toggleProfileConfirmPassword()"
+                [attr.aria-label]="showProfileConfirmPassword ? 'Nascondi conferma password' : 'Mostra conferma password'"
+                [title]="showProfileConfirmPassword ? 'Nascondi conferma password' : 'Mostra conferma password'"
+              >
+                &#128065;
+              </button>
+            </span>
           </label>
         </div>
 

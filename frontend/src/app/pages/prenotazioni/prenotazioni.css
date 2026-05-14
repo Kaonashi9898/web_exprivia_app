@@ -38,6 +38,46 @@
   overflow: hidden;
 }
 
+.map-controls {
+  position: sticky;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  color: var(--color-primary-dark);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+}
+
+.map-controls button {
+  width: 32px;
+  height: 32px;
+  color: #ffffff;
+  background: var(--color-primary);
+  border: 0;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.map-controls button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.map-controls span {
+  min-width: 44px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-align: center;
+}
+
 .status-legend {
   display: flex;
   flex-wrap: wrap;
@@ -77,6 +117,12 @@
   min-width: 100%;
   transition: transform 220ms ease, transform-origin 220ms ease;
   will-change: transform;
+  backface-visibility: hidden;
+}
+
+.plan-preview.zoomed .plan-stage {
+  width: max-content;
+  min-width: 100%;
 }
 
 .station-overlay {
@@ -90,11 +136,19 @@
   width: 100%;
   height: auto;
   display: block;
+  image-rendering: auto;
+  transform: translateZ(0);
+}
+
+.plan-preview.zoomed .plan-stage img {
+  width: auto;
+  max-width: none;
+  max-height: none;
 }
 
 .reset-zoom-button {
   position: sticky;
-  top: 0.75rem;
+  top: 3.75rem;
   left: 0.75rem;
   z-index: 3;
   min-height: 38px;
@@ -123,8 +177,8 @@
   color: #ffffff;
   text-overflow: ellipsis;
   white-space: nowrap;
-  background: var(--color-primary);
-  border: 1px solid var(--color-primary-dark);
+  background: #08715f;
+  border: 1px solid #0d5d50;
   border-radius: 4px;
   font-size: 0.52rem;
   font-weight: 800;
@@ -134,24 +188,26 @@
 }
 
 .room-pin:hover {
-  background: var(--color-secondary);
-  border-color: var(--color-secondary-dark);
+  filter: brightness(1.08);
 }
 
 .room-pin:disabled {
   cursor: not-allowed;
 }
 
+.room-pin.free,
 .room-pin.meeting-room {
   background: #3b6c44;
   border-color: #2c5734;
 }
 
+.room-pin.partial,
 .room-pin.meeting-room.partial {
   background: #cc8b14;
   border-color: #9a6710;
 }
 
+.room-pin.booked,
 .room-pin.meeting-room.booked {
   background: #8a2d18;
   border-color: #6f2413;
@@ -164,8 +220,9 @@
 }
 
 .room-pin.restricted:hover {
-  background: var(--color-primary);
-  border-color: var(--color-primary-dark);
+  background: #5f6b7a;
+  border-color: #4a5565;
+  filter: none;
 }
 
 .station-pin {

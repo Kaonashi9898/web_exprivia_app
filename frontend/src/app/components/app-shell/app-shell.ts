@@ -46,8 +46,13 @@ export class AppShellComponent implements OnInit, OnDestroy {
   profileInfoSaving = false;
   profilePasswordSaving = false;
   profileMessage = '';
+  profileMessageAutoDismiss = false;
   profileError = '';
+  showProfileCurrentPassword = false;
+  showProfileNewPassword = false;
+  showProfileConfirmPassword = false;
   private passwordResetRefreshTimer: number | null = null;
+  private profileMessageDismissTimer: number | null = null;
   private previousBodyOverflow = '';
   private readonly handleWindowFocus = () => this.refreshPasswordResetNotifications();
   private readonly handleVisibilityChange = () => {
@@ -73,6 +78,7 @@ export class AppShellComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopPasswordResetRefresh();
+    this.clearProfileMessageDismissTimer();
     this.unlockBodyScroll();
     window.removeEventListener('focus', this.handleWindowFocus);
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
@@ -98,8 +104,13 @@ export class AppShellComponent implements OnInit, OnDestroy {
     this.profileGroups = [];
     this.profileGroupsLoading = true;
     this.profileGroupsError = '';
+    this.clearProfileMessageDismissTimer();
     this.profileMessage = '';
+    this.profileMessageAutoDismiss = false;
     this.profileError = '';
+    this.showProfileCurrentPassword = false;
+    this.showProfileNewPassword = false;
+    this.showProfileConfirmPassword = false;
     this.refreshView();
 
     this.api.listMyGroups().pipe(
@@ -132,7 +143,12 @@ export class AppShellComponent implements OnInit, OnDestroy {
     this.profileNewPassword = '';
     this.profileConfirmPassword = '';
     this.profileMessage = '';
+    this.profileMessageAutoDismiss = false;
     this.profileError = '';
+    this.showProfileCurrentPassword = false;
+    this.showProfileNewPassword = false;
+    this.showProfileConfirmPassword = false;
+    this.clearProfileMessageDismissTimer();
     this.refreshView();
   }
 
@@ -156,7 +172,7 @@ export class AppShellComponent implements OnInit, OnDestroy {
       return;
     }
     if (fullName === currentUser.fullName) {
-      this.profileMessage = 'Nessuna modifica da salvare nel profilo.';
+      this.showProfileSuccess('Nessuna modifica da salvare nel profilo.');
       this.profileError = '';
       this.refreshView();
       return;
@@ -173,7 +189,7 @@ export class AppShellComponent implements OnInit, OnDestroy {
     ).subscribe({
       next: (updatedUser) => {
         this.profileFullName = updatedUser.fullName;
-        this.profileMessage = 'Profilo aggiornato correttamente.';
+        this.showProfileSuccess('Profilo aggiornato correttamente.');
         this.refreshView();
       },
       error: (err) => {
@@ -223,7 +239,7 @@ export class AppShellComponent implements OnInit, OnDestroy {
         this.profileCurrentPassword = '';
         this.profileNewPassword = '';
         this.profileConfirmPassword = '';
-        this.profileMessage = 'Password aggiornata correttamente.';
+        this.showProfileSuccess('Password aggiornata correttamente.');
         this.refreshView();
       },
       error: (err) => {
@@ -240,6 +256,18 @@ export class AppShellComponent implements OnInit, OnDestroy {
 
   protected profileRoleLabel(): string {
     return this.roleLabel(this.user()?.ruolo ?? null);
+  }
+
+  toggleProfileCurrentPassword(): void {
+    this.showProfileCurrentPassword = !this.showProfileCurrentPassword;
+  }
+
+  toggleProfileNewPassword(): void {
+    this.showProfileNewPassword = !this.showProfileNewPassword;
+  }
+
+  toggleProfileConfirmPassword(): void {
+    this.showProfileConfirmPassword = !this.showProfileConfirmPassword;
   }
 
   private roleLabel(role: RuoloUtente | null | undefined): string {
@@ -282,6 +310,28 @@ export class AppShellComponent implements OnInit, OnDestroy {
 
   private refreshView(): void {
     this.cdr.detectChanges();
+  }
+
+  private showProfileSuccess(message: string): void {
+    this.clearProfileMessageDismissTimer();
+    this.profileMessage = message;
+    this.profileMessageAutoDismiss = true;
+    this.profileError = '';
+    this.profileMessageDismissTimer = window.setTimeout(() => {
+      this.profileMessage = '';
+      this.profileMessageAutoDismiss = false;
+      this.profileMessageDismissTimer = null;
+      this.refreshView();
+    }, 5000);
+  }
+
+  private clearProfileMessageDismissTimer(): void {
+    if (this.profileMessageDismissTimer === null) {
+      return;
+    }
+
+    window.clearTimeout(this.profileMessageDismissTimer);
+    this.profileMessageDismissTimer = null;
   }
 
   private lockBodyScroll(): void {

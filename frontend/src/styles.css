@@ -12,7 +12,7 @@
   --color-secondary-dark: #cf552b;
 
   --color-bg-main: #f4f7f9;
-  --color-bg-gradient: linear-gradient(120deg, rgba(237, 107, 59, 0.24), rgba(255, 255, 255, 0.8) 52%, rgba(0, 65, 102, 0.22));
+  --color-bg-gradient: linear-gradient(120deg, rgba(237, 107, 59, 0.34), rgba(255, 255, 255, 0.72) 52%, rgba(0, 65, 102, 0.32));
   --color-bg-card: #ffffff;
   
   --color-text-main: #2d3748;

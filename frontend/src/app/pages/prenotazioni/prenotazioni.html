@@ -72,6 +72,12 @@
 
       @if (imageSrc) {
         <div class="plan-preview" #planPreview [class.zoomed]="selectedRoomId">
+          <div class="map-controls" aria-label="Controlli zoom planimetria">
+            <button type="button" (click)="decreaseMapZoom()" [disabled]="!canDecreaseMapZoom()" aria-label="Riduci zoom planimetria">-</button>
+            <span>{{ mapZoomLabel() }}</span>
+            <button type="button" (click)="increaseMapZoom()" [disabled]="!canIncreaseMapZoom()" aria-label="Aumenta zoom planimetria">+</button>
+          </div>
+
           @if (selectedRoomId) {
             <button class="reset-zoom-button" type="button" (click)="resetZoom()">
               Vista completa
@@ -85,9 +91,10 @@
                 <button
                   type="button"
                   class="room-pin"
+                  [class.free]="roomAvailabilityState(room) === 'free'"
+                  [class.partial]="roomAvailabilityState(room) === 'partial'"
+                  [class.booked]="roomAvailabilityState(room) === 'booked'"
                   [class.meeting-room]="roomIsMeeting(room)"
-                  [class.booked]="meetingRoomIsBooked(room)"
-                  [class.partial]="meetingRoomIsPartiallyBooked(room)"
                   [class.restricted]="roomIsRestricted(room)"
                   [disabled]="roomIsRestricted(room)"
                   [attr.aria-disabled]="roomIsRestricted(room)"
