@@ -120,7 +120,7 @@
               >
                 {{ forgotPasswordSubmitting ? 'Invio in corso...' : 'Invia richiesta' }}
               </button>
-              <button class="ghost-action" type="button" (click)="toggleForgotPassword()" [disabled]="forgotPasswordSubmitting">
+              <button class="ghost-action danger-action" type="button" (click)="toggleForgotPassword()" [disabled]="forgotPasswordSubmitting">
                 Annulla
               </button>
             </div>

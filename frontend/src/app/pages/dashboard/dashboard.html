@@ -225,7 +225,7 @@
                   >
                     {{ savingBookingId === booking.id ? 'Salvataggio...' : 'Salva modifica' }}
                   </button>
-                  <button class="ghost-button" type="button" [disabled]="savingBookingId === booking.id" (click)="cancelEdit()">
+                  <button class="danger-button" type="button" [disabled]="savingBookingId === booking.id" (click)="cancelEdit()">
                     Annulla
                   </button>
                 } @else if (canEditBooking(booking)) {
@@ -284,7 +284,7 @@
       </p>
 
       <footer class="modal-actions">
-        <button class="ghost-button" type="button" [disabled]="deletingBookingId !== null" (click)="closeCancelBookingModal()">
+        <button class="danger-button" type="button" [disabled]="deletingBookingId !== null" (click)="closeCancelBookingModal()">
           Annulla
         </button>
         <button class="danger-button" type="button" [disabled]="deletingBookingId !== null" (click)="cancelBooking()">
