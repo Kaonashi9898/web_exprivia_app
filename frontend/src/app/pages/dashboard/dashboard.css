@@ -102,27 +102,61 @@
 }
 
 .weather-card {
+  gap: 0.9rem;
   align-self: start;
-  height: fit-content;
   min-height: 190px;
-  justify-content: space-between;
+}
+
+.weather-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.weather-title-block {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+}
+
+.weather-title-block strong {
+  margin: 0;
+  line-height: 1.15;
 }
 
 .weather-copy {
   display: grid;
-  gap: 0.2rem;
+  align-content: start;
+  gap: 0.22rem;
+  min-height: 4rem;
+}
+
+.weather-copy-loading {
+  min-height: 4.4rem;
 }
 
 .weather-location {
   color: var(--color-text-main);
   font-weight: 700;
+  line-height: 1.25;
+  min-height: 1.5rem;
+  font-size: 1.06rem;
 }
 
 .weather-temperature {
   color: var(--color-primary-dark);
-  font-size: 1.75rem;
+  align-self: start;
+  font-size: 2rem;
   font-weight: 800;
-  line-height: 1.1;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.weather-summary,
+.weather-range {
+  color: var(--color-text-muted);
+  line-height: 1.25;
 }
 
 .weather-error {
@@ -130,6 +164,7 @@
 }
 
 .weather-action {
+  margin-top: auto;
   align-self: flex-start;
 }
 
@@ -342,7 +377,14 @@
 .booking-actions {
   display: grid;
   gap: 0.5rem;
-  justify-items: end;
+  justify-items: start;
+  align-content: start;
+}
+
+.booking-actions > .btn,
+.booking-actions > .ghost-button,
+.booking-actions > .danger-button {
+  min-width: 110px;
 }
 
 .booking-readonly-label {
@@ -464,7 +506,7 @@
   }
 
   .booking-actions {
-    justify-items: stretch;
+    justify-items: start;
   }
 
   .modal-actions {
@@ -482,6 +524,20 @@
   .weather-card {
     min-height: 0;
     height: auto;
+  }
+
+  .weather-head {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+  }
+
+  .weather-title-block {
+    align-content: center;
+  }
+
+  .weather-temperature {
+    grid-column: 2;
+    justify-self: end;
   }
 
   .booking-group-header {
