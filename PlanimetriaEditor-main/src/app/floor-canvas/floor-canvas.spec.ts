@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FloorCanvasComponent } from './floor-canvas';
 import { FloorPlanService } from '../services/floor-plan';
+import { vi } from 'vitest';
 
 describe('FloorCanvasComponent', () => {
   let component: FloorCanvasComponent;
@@ -16,6 +17,10 @@ describe('FloorCanvasComponent', () => {
     component = fixture.componentInstance;
     service = TestBed.inject(FloorPlanService);
     await fixture.whenStable();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('should create', () => {
@@ -137,6 +142,30 @@ describe('FloorCanvasComponent', () => {
     expect(service.rooms()[0].xPct).toBe(100);
     expect(service.rooms()[0].yPct).toBe(0);
   });
+
+  it('should commit wheel zoom after scrolling settles', () => {
+    vi.useFakeTimers();
+    setHostSize(fixture, 1000, 1000);
+    service.image.set({
+      filename: 'plan.png',
+      dataUrl: 'data:image/png;base64,abc',
+      naturalWidth: 100,
+      naturalHeight: 100,
+    });
+
+    fixture.detectChanges();
+    component.onWindowResize();
+
+    (component as unknown as { onWheel: (event: WheelEvent) => void }).onWheel(
+      createWheelEvent(-120, 500, 500),
+    );
+
+    expect(service.zoom()).toBe(1);
+
+    vi.advanceTimersByTime(81);
+
+    expect(service.zoom()).toBeGreaterThan(1);
+  });
 });
 
 function setHostSize(
@@ -170,4 +199,14 @@ function createMouseEvent(clientX: number, clientY: number): MouseEvent {
     clientY,
     target: { closest: () => null },
   } as unknown as MouseEvent;
+}
+
+function createWheelEvent(deltaY: number, clientX: number, clientY: number): WheelEvent {
+  return {
+    clientX,
+    clientY,
+    deltaY,
+    deltaMode: WheelEvent.DOM_DELTA_PIXEL,
+    preventDefault: () => undefined,
+  } as unknown as WheelEvent;
 }

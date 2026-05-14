@@ -177,6 +177,11 @@ export class FloorPlanService {
     });
   }
 
+  setView(zoom: number, x: number, y: number): void {
+    this.zoom.set(zoom);
+    this.pan.set({ x, y });
+  }
+
   setPan(x: number, y: number): void {
     this.pan.set({ x, y });
   }
