@@ -17,7 +17,7 @@ import {
 } from '../../core/booking-time.utils';
 import { isWeekendIsoDate, nextBookableIsoDate } from '../../core/date.utils';
 import { OPERATIONAL_BOOKING_ROLES } from '../../core/role-access';
-import { roomZoom, roomZoomStyle, RoomZoomInput } from '../../core/plan-zoom.utils';
+import { roomZoom, RoomZoomInput } from '../../core/plan-zoom.utils';
 
 type LayoutRoom = NonNullable<PlanimetriaLayout['rooms']>[number];
 type LayoutMeeting = NonNullable<PlanimetriaLayout['meetings']>[number];
@@ -70,6 +70,7 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
   selectedPostazione: Postazione | null = null;
   selectedMeetingRoom: Stanza | null = null;
   suggestedStartTime: string | null = null;
+  mapZoom = 1;
 
   planimetria: PlanimetriaResponse | null = null;
   layout: PlanimetriaLayout | null = null;
@@ -83,6 +84,9 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
   bookingsLoaded = false;
 
   readonly minBookingDate = nextBookableIsoDate();
+  readonly minMapZoom = 1;
+  readonly maxMapZoom = 3;
+  readonly mapZoomStep = 0.25;
   readonly bookingStartOptions = BOOKING_START_OPTIONS;
   readonly bookingEndOptions = BOOKING_END_OPTIONS;
   bookingDate = this.minBookingDate;
@@ -188,6 +192,7 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
 
     const isMeetingRoom = this.roomIsMeeting(room);
     this.selectedRoomId = room.id;
+    this.mapZoom = 1;
     this.selectedStation = null;
     this.selectedPostazione = null;
     this.selectedMeetingRoom = isMeetingRoom ? this.findStanzaForRoom(room) : null;
@@ -205,6 +210,7 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
 
   resetZoom(): void {
     this.selectedRoomId = null;
+    this.mapZoom = 1;
     this.selectedStation = null;
     this.selectedPostazione = null;
     this.selectedMeetingRoom = null;
@@ -433,6 +439,32 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
 
   roomIsMeeting(room: DisplayRoom): boolean {
     return (this.layout?.meetings ?? []).some((meeting) => meeting.id === room.id);
+  }
+
+  roomAvailabilityState(room: DisplayRoom): 'free' | 'partial' | 'booked' | 'restricted' {
+    if (this.roomIsRestricted(room)) {
+      return 'restricted';
+    }
+
+    if (this.roomIsMeeting(room)) {
+      if (this.meetingRoomIsBooked(room)) {
+        return 'booked';
+      }
+
+      return this.meetingRoomIsPartiallyBooked(room) ? 'partial' : 'free';
+    }
+
+    const stations = this.bookableStationsForRoom(room.id);
+    if (!stations.length || !this.bookingsAreReady()) {
+      return 'free';
+    }
+
+    const occupiedCount = stations.filter((station) => this.stationHasOverlap(station)).length;
+    if (occupiedCount === 0) {
+      return 'free';
+    }
+
+    return occupiedCount >= stations.length ? 'booked' : 'partial';
   }
 
   roomIsRestricted(room: DisplayRoom): boolean {
@@ -690,25 +722,28 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
   }
 
   public selectedRoomStyle(): Record<string, string> {
-    const zoomInput = this.selectedRoomZoomInput();
-    if (!zoomInput) {
-      return {};
-    }
+    const zoomState = this.selectedRoomZoomState();
+    if (!zoomState) {
+      if (this.mapZoom === 1) {
+        return {};
+      }
 
-    return roomZoomStyle(zoomInput);
-  }
-
-  public stationOverlayStyle(station: PositionedStation): Record<string, string> {
-    const zoomInput = this.selectedRoomZoomInput();
-    if (!zoomInput) {
       return {
-        left: `${station.position.xPct}%`,
-        top: `${station.position.yPct}%`,
+        transform: `scale(${this.mapZoom})`,
+        transformOrigin: '50% 50%',
       };
     }
 
-    const zoom = roomZoom(zoomInput);
-    if (!zoom || zoomInput.stageWidth <= 0 || zoomInput.stageHeight <= 0) {
+    return {
+      transform: `translate(${zoomState.translateX}px, ${zoomState.translateY}px) scale(${zoomState.scale})`,
+      transformOrigin: '0 0',
+      '--station-pin-counter-scale': String(zoomState.counterScale),
+    };
+  }
+
+  public stationOverlayStyle(station: PositionedStation): Record<string, string> {
+    const zoomState = this.selectedRoomZoomState();
+    if (!zoomState) {
       return {
         left: `${station.position.xPct}%`,
         top: `${station.position.yPct}%`,
@@ -718,13 +753,70 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
     const stage = this.planStage?.nativeElement;
     const stageLeft = stage?.offsetLeft ?? 0;
     const stageTop = stage?.offsetTop ?? 0;
-    const left = stageLeft + station.position.xPct / 100 * zoomInput.stageWidth * zoom.scale + zoom.translateX;
-    const top = stageTop + station.position.yPct / 100 * zoomInput.stageHeight * zoom.scale + zoom.translateY;
+    const left = stageLeft + station.position.xPct / 100 * zoomState.input.stageWidth * zoomState.scale + zoomState.translateX;
+    const top = stageTop + station.position.yPct / 100 * zoomState.input.stageHeight * zoomState.scale + zoomState.translateY;
 
     return {
       left: `${left}px`,
       top: `${top}px`,
     };
+  }
+
+  increaseMapZoom(): void {
+    if (!this.canIncreaseMapZoom()) {
+      return;
+    }
+
+    this.mapZoom = Math.min(this.maxMapZoom, Number((this.mapZoom + this.mapZoomStep).toFixed(2)));
+    this.refreshView();
+  }
+
+  decreaseMapZoom(): void {
+    if (!this.canDecreaseMapZoom()) {
+      return;
+    }
+
+    this.mapZoom = Math.max(this.minMapZoom, Number((this.mapZoom - this.mapZoomStep).toFixed(2)));
+    this.refreshView();
+  }
+
+  canIncreaseMapZoom(): boolean {
+    return this.mapZoom < this.maxMapZoom;
+  }
+
+  canDecreaseMapZoom(): boolean {
+    return this.mapZoom > this.minMapZoom;
+  }
+
+  mapZoomLabel(): string {
+    return `${Math.round(this.mapZoom * 100)}%`;
+  }
+
+  private selectedRoomZoomState(): {
+    input: RoomZoomInput;
+    scale: number;
+    translateX: number;
+    translateY: number;
+    counterScale: number;
+  } | null {
+    const input = this.selectedRoomZoomInput();
+    if (!input) {
+      return null;
+    }
+
+    const zoom = roomZoom(input);
+    if (!zoom || input.stageWidth <= 0 || input.stageHeight <= 0) {
+      return null;
+    }
+
+    const scale = zoom.scale * this.mapZoom;
+    const centerX = input.roomPosition.xPct / 100 * input.stageWidth;
+    const centerY = input.roomPosition.yPct / 100 * input.stageHeight;
+    const translateX = input.viewportWidth / 2 - centerX * scale;
+    const translateY = input.viewportHeight / 2 - centerY * scale;
+    const counterScale = Math.min(0.82, Math.max(0.34, 1 / scale));
+
+    return { input, scale, translateX, translateY, counterScale };
   }
 
   private selectedRoomZoomInput(): RoomZoomInput | null {
@@ -973,6 +1065,7 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
     this.bookings = [];
     this.seatGroupIdsBySeatId = {};
     this.selectedRoomId = null;
+    this.mapZoom = 1;
     this.selectedStation = null;
     this.selectedPostazione = null;
     this.selectedMeetingRoom = null;
@@ -984,6 +1077,17 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
   private clearMessages(): void {
     this.message = '';
     this.error = '';
+  }
+
+  private bookableStationsForRoom(roomId: string): PositionedStation[] {
+    return this.stationsForRoom(roomId)
+      .filter((station): station is PositionedStation => !!station.position)
+      .filter((station) => {
+        const postazione = this.findPostazione(station);
+        return !!postazione
+          && postazione.stato === 'DISPONIBILE'
+          && this.postazioneIsAccessible(postazione);
+      });
   }
 
   private clearAvailabilityState(): void {

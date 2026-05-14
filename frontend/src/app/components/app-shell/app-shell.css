@@ -256,8 +256,15 @@
   border-radius: var(--radius-sm);
 }
 
+.profile-readonly-field:not(.profile-edit-card) {
+  color: #5f6b7a;
+  background: #eef2f6;
+  border-color: #d5dde8;
+}
+
 .profile-edit-card {
   min-height: 0;
+  background: #ffffff;
 }
 
 .profile-field-label {
@@ -269,8 +276,13 @@
 }
 
 .profile-readonly-field strong {
-  color: var(--color-primary-dark);
+  color: #243244;
   font-size: 0.96rem;
+}
+
+.profile-readonly-field:not(.profile-edit-card) strong,
+.profile-readonly-field:not(.profile-edit-card) .profile-muted {
+  color: #5f6b7a;
 }
 
 .profile-muted {
@@ -304,6 +316,33 @@
 
 .profile-security-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.password-field {
+  position: relative;
+  display: block;
+}
+
+.password-field input {
+  padding-right: 3rem;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.45rem;
+  width: 2.2rem;
+  height: 2.2rem;
+  color: var(--color-primary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.password-toggle:hover {
+  background: rgba(0, 65, 102, 0.08);
 }
 
 @media (max-width: 880px) {
