@@ -27,6 +27,7 @@
 
 .sidebar-filter,
 .group-filter {
+  font-weight: bold;
   display: flex;
   align-items: center;
   justify-content: space-between;
