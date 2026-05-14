@@ -25,10 +25,10 @@
   <div #sceneEl class="scene">
     <div
       class="image-frame"
-      [style.left.px]="fps.zoom() * imageFrame.left"
-      [style.top.px]="fps.zoom() * imageFrame.top"
-      [style.width.px]="fps.zoom() * imageFrame.width"
-      [style.height.px]="fps.zoom() * imageFrame.height"
+      [style.left.px]="imageFrame.left"
+      [style.top.px]="imageFrame.top"
+      [style.width.px]="imageFrame.width"
+      [style.height.px]="imageFrame.height"
     >
       <img class="floor-img" [src]="img.dataUrl" draggable="false" alt="Floor plan">
     </div>

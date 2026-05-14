@@ -1,12 +1,13 @@
 import {
+  AfterViewInit,
   Component,
   ElementRef,
   HostListener,
-  inject,
   ViewChild,
-  AfterViewInit,
   effect,
+  inject,
   NgZone,
+  OnDestroy,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FloorPlanService } from '../services/floor-plan';
@@ -29,6 +30,11 @@ interface ImageFrame {
   height: number;
 }
 
+interface ViewState {
+  zoom: number;
+  pan: { x: number; y: number };
+}
+
 @Component({
   selector: 'app-floor-canvas',
   standalone: true,
@@ -36,7 +42,7 @@ interface ImageFrame {
   templateUrl: './floor-canvas.html',
   styleUrls: ['./floor-canvas.scss'],
 })
-export class FloorCanvasComponent implements AfterViewInit {
+export class FloorCanvasComponent implements AfterViewInit, OnDestroy {
   protected readonly fps = inject(FloorPlanService);
   private readonly elRef = inject(ElementRef<HTMLElement>);
   private readonly ngZone = inject(NgZone);
@@ -48,27 +54,28 @@ export class FloorCanvasComponent implements AfterViewInit {
 
   private dragState: DragState | null = null;
 
-  // Panning state (kept outside Angular zone for zero-overhead mousemove)
   private isPanning = false;
   private panMoved = false;
   private panStartX = 0;
   private panStartY = 0;
   private panOriginX = 0;
   private panOriginY = 0;
-  /** Pending pan values to commit to the signal on mouseup. */
   private pendingPan: { x: number; y: number } | null = null;
 
-  // Zoom state — RAF-throttled to coalesce rapid wheel events into one signal update
-  private pendingZoomFactor = 1;
-  private pendingZoomFocalX = 0;
-  private pendingZoomFocalY = 0;
-  private zoomRafId: number | null = null;
+  private previewState: ViewState | null = null;
+  private previewRenderRafId: number | null = null;
+  private previewClearRafId: number | null = null;
+  private wheelCommitTimerId: number | null = null;
+
+  private readonly wheelHandler = (event: WheelEvent) => this.onWheel(event);
+  private readonly mouseMoveHandler = (event: MouseEvent) => this.onMouseMoveOutside(event);
+  private readonly mouseUpHandler = () => this.onMouseUpOutside();
 
   constructor() {
     effect(() => {
       const { x, y } = this.fps.pan();
-      this.fps.zoom(); // traccia dipendenza: re-run quando lo zoom cambia (le dimensioni fisiche sono nel template)
-      this.writeTransform(x, y);
+      const zoom = this.fps.zoom();
+      this.writeSceneTransform(x, y, zoom);
     });
 
     effect(() => {
@@ -78,58 +85,63 @@ export class FloorCanvasComponent implements AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    this.elRef.nativeElement.addEventListener('wheel', this.onWheel.bind(this), {
-      passive: false,
-    });
+    this.elRef.nativeElement.addEventListener('wheel', this.wheelHandler, { passive: false });
 
     this.ngZone.runOutsideAngular(() => {
-      document.addEventListener('mousemove', this.onMouseMoveOutside.bind(this));
-      document.addEventListener('mouseup', this.onMouseUpOutside.bind(this));
+      document.addEventListener('mousemove', this.mouseMoveHandler);
+      document.addEventListener('mouseup', this.mouseUpHandler);
     });
 
     this.updateImageFrame();
+  }
+
+  ngOnDestroy(): void {
+    this.elRef.nativeElement.removeEventListener('wheel', this.wheelHandler);
+    document.removeEventListener('mousemove', this.mouseMoveHandler);
+    document.removeEventListener('mouseup', this.mouseUpHandler);
+    this.clearWheelCommitTimer();
+    this.cancelFrame(this.previewRenderRafId);
+    this.cancelFrame(this.previewClearRafId);
   }
 
   @HostListener('window:resize')
   onWindowResize(): void {
     this.updateImageFrame();
-  }
-
-  // Canvas interaction
-  private onWheel(e: WheelEvent): void {
-    e.preventDefault();
-    const rect = this.hostRect();
-    const factor = e.deltaY < 0 ? 1.1 : 0.9;
-    const focalX = e.clientX - rect.left;
-    const focalY = e.clientY - rect.top;
-
-    // Accumulate factors so that bursts of wheel events are collapsed into a
-    // single applyZoom() call per animation frame — no change-detection churn
-    // during fast scrolling.
-    this.pendingZoomFactor *= factor;
-    this.pendingZoomFocalX = focalX;
-    this.pendingZoomFocalY = focalY;
-
-    if (this.zoomRafId === null) {
-      this.zoomRafId = requestAnimationFrame(() => {
-        this.zoomRafId = null;
-        const f = this.pendingZoomFactor;
-        const fx = this.pendingZoomFocalX;
-        const fy = this.pendingZoomFocalY;
-        this.pendingZoomFactor = 1; // reset accumulator
-        this.ngZone.run(() => this.fps.applyZoom(f, fx, fy));
-      });
+    if (this.previewState) {
+      this.schedulePreviewRender();
     }
   }
 
-  /** Called by toolbar zoom-in button */
+  private onWheel(event: WheelEvent): void {
+    event.preventDefault();
+    const rect = this.hostRect();
+    const focalX = event.clientX - rect.left;
+    const focalY = event.clientY - rect.top;
+    const currentState = this.previewState ?? {
+      zoom: this.fps.zoom(),
+      pan: this.fps.pan(),
+    };
+
+    this.previewState = applyZoomToState(
+      currentState.zoom,
+      currentState.pan,
+      wheelZoomFactor(event),
+      focalX,
+      focalY,
+    );
+
+    this.schedulePreviewRender();
+    this.scheduleWheelCommit();
+  }
+
   zoomIn(): void {
+    this.flushWheelZoom();
     const { width, height } = this.hostRect();
     this.fps.applyZoom(1.25, width / 2, height / 2);
   }
 
-  /** Called by toolbar zoom-out button */
   zoomOut(): void {
+    this.flushWheelZoom();
     const { width, height } = this.hostRect();
     this.fps.applyZoom(0.8, width / 2, height / 2);
   }
@@ -149,37 +161,37 @@ export class FloorCanvasComponent implements AfterViewInit {
   }
 
   @HostListener('mousedown', ['$event'])
-  onMouseDown(e: MouseEvent): void {
-    if (e.button !== 0) return;
-    const target = e.target as HTMLElement;
+  onMouseDown(event: MouseEvent): void {
+    this.flushWheelZoom();
+
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement;
     if (target.closest('app-room-marker, app-station-marker')) return;
+
     this.isPanning = true;
     this.panMoved = false;
-    this.panStartX = e.clientX;
-    this.panStartY = e.clientY;
+    this.panStartX = event.clientX;
+    this.panStartY = event.clientY;
     const { x, y } = this.fps.pan();
     this.panOriginX = x;
     this.panOriginY = y;
     this.pendingPan = null;
     this.elRef.nativeElement.style.cursor = 'grabbing';
-    e.preventDefault();
+    event.preventDefault();
   }
 
-  /**
-   * Runs outside Angular zone - no change detection cost.
-   * Only writes directly to the DOM during pan; marker drag re-enters the zone.
-   */
-  private onMouseMoveOutside(e: MouseEvent): void {
+  private onMouseMoveOutside(event: MouseEvent): void {
     if (this.isPanning) {
-      const dx = e.clientX - this.panStartX;
-      const dy = e.clientY - this.panStartY;
+      const dx = event.clientX - this.panStartX;
+      const dy = event.clientY - this.panStartY;
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) this.panMoved = true;
+
       if (this.panMoved) {
         const x = this.panOriginX + dx;
         const y = this.panOriginY + dy;
-        this.writeTransform(x, y);
+        this.writeSceneTransform(x, y, this.fps.zoom());
         this.pendingPan = { x, y };
-        // Fix 1: sposta l'overlay dei marker in sync con la scena, senza rientrare nella zone Angular
+
         const overlayEl = this.markersOverlayEl?.nativeElement;
         if (overlayEl) overlayEl.style.transform = `translate(${dx}px, ${dy}px)`;
       }
@@ -187,15 +199,18 @@ export class FloorCanvasComponent implements AfterViewInit {
     }
 
     if (!this.dragState) return;
+
     this.ngZone.run(() => {
       if (!this.dragState) return;
       const zoom = this.fps.zoom();
       const { width, height } = this.imageFrame;
       if (!width || !height) return;
-      const dx = ((e.clientX - this.dragState.startMouseX) / zoom / width) * 100;
-      const dy = ((e.clientY - this.dragState.startMouseY) / zoom / height) * 100;
+
+      const dx = ((event.clientX - this.dragState.startMouseX) / zoom / width) * 100;
+      const dy = ((event.clientY - this.dragState.startMouseY) / zoom / height) * 100;
       const xPct = clamp(this.dragState.startXPct + dx);
       const yPct = clamp(this.dragState.startYPct + dy);
+
       if (this.dragState.type === 'room') {
         this.fps.updateRoom(this.dragState.id, { xPct, yPct });
       } else if (this.dragState.type === 'meeting') {
@@ -206,7 +221,6 @@ export class FloorCanvasComponent implements AfterViewInit {
     });
   }
 
-  /** Runs outside Angular zone - commits pending pan to signal on release. */
   private onMouseUpOutside(): void {
     const wasPanning = this.isPanning;
     this.isPanning = false;
@@ -215,7 +229,6 @@ export class FloorCanvasComponent implements AfterViewInit {
     if (wasPanning && this.pendingPan) {
       const { x, y } = this.pendingPan;
       this.pendingPan = null;
-      // Fix 1: azzera il translate temporaneo PRIMA che Angular ricalcoli le posizioni assolute
       const overlayEl = this.markersOverlayEl?.nativeElement;
       if (overlayEl) overlayEl.style.transform = '';
       this.ngZone.run(() => this.fps.setPan(x, y));
@@ -226,12 +239,14 @@ export class FloorCanvasComponent implements AfterViewInit {
   }
 
   @HostListener('click', ['$event'])
-  onClick(e: MouseEvent): void {
+  onClick(event: MouseEvent): void {
+    this.flushWheelZoom();
+
     if (this.panMoved || !this.fps.image()) return;
-    const target = e.target as HTMLElement;
+    const target = event.target as HTMLElement;
     if (target.closest('app-room-marker, app-station-marker')) return;
 
-    const point = this.toImagePct(e.clientX, e.clientY);
+    const point = this.toImagePct(event.clientX, event.clientY);
     if (!point) return;
     const mode = this.fps.mode();
 
@@ -243,9 +258,6 @@ export class FloorCanvasComponent implements AfterViewInit {
       const roomId = this.fps.pendingRoomId();
       if (roomId) {
         this.fps.addStation(point.x, point.y, roomId);
-        // Resta in placing-station per lo stesso roomId: l'utente può continuare
-        // ad aggiungere postazioni senza dover ri-cliccare su "+".
-        // Si esce con Esc (onEscape) o cliccando un altro tool.
       }
     }
   }
@@ -255,7 +267,6 @@ export class FloorCanvasComponent implements AfterViewInit {
     this.fps.setMode('view');
   }
 
-  // File input / drop
   onFileSelected(event: Event): void {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (file) this.fps.loadImage(file);
@@ -266,10 +277,11 @@ export class FloorCanvasComponent implements AfterViewInit {
     if (file) this.fps.loadImage(file);
   }
 
-  // Marker events
   onRoomDragStart(event: MarkerDragStart): void {
+    this.flushWheelZoom();
     const room = this.fps.rooms().find((r) => r.id === event.id);
     if (!room) return;
+
     this.dragState = {
       type: 'room',
       id: event.id,
@@ -281,8 +293,10 @@ export class FloorCanvasComponent implements AfterViewInit {
   }
 
   onMeetingDragStart(event: MarkerDragStart): void {
+    this.flushWheelZoom();
     const meeting = this.fps.meetings().find((m) => m.id === event.id);
     if (!meeting) return;
+
     this.dragState = {
       type: 'meeting',
       id: event.id,
@@ -294,8 +308,10 @@ export class FloorCanvasComponent implements AfterViewInit {
   }
 
   onStationDragStart(event: MarkerDragStart): void {
+    this.flushWheelZoom();
     const station = this.fps.stations().find((s) => s.id === event.id);
     if (!station) return;
+
     this.dragState = {
       type: 'station',
       id: event.id,
@@ -307,14 +323,87 @@ export class FloorCanvasComponent implements AfterViewInit {
   }
 
   onAddStation(roomId: string): void {
+    this.flushWheelZoom();
     this.fps.setMode('placing-station', roomId);
     this.elRef.nativeElement.style.cursor = 'crosshair';
   }
 
-  // Helpers
-  private writeTransform(x: number, y: number): void {
+  private schedulePreviewRender(): void {
+    if (this.previewRenderRafId !== null) return;
+
+    this.previewRenderRafId = requestAnimationFrame(() => {
+      this.previewRenderRafId = null;
+
+      if (!this.previewState) return;
+      this.writeSceneTransform(
+        this.previewState.pan.x,
+        this.previewState.pan.y,
+        this.previewState.zoom,
+      );
+      this.writeOverlayPreviewTransform(this.previewState);
+    });
+  }
+
+  private scheduleWheelCommit(): void {
+    this.clearWheelCommitTimer();
+    this.wheelCommitTimerId = window.setTimeout(() => this.flushWheelZoom(), 80);
+  }
+
+  private flushWheelZoom(): void {
+    if (!this.previewState) return;
+
+    const { zoom, pan } = this.previewState;
+    this.previewState = null;
+    this.clearWheelCommitTimer();
+    this.cancelFrame(this.previewRenderRafId);
+    this.previewRenderRafId = null;
+
+    this.ngZone.run(() => this.fps.setView(zoom, pan.x, pan.y));
+
+    this.cancelFrame(this.previewClearRafId);
+    this.previewClearRafId = requestAnimationFrame(() => {
+      this.previewClearRafId = null;
+      this.clearOverlayPreviewTransform();
+    });
+  }
+
+  private clearWheelCommitTimer(): void {
+    if (this.wheelCommitTimerId !== null) {
+      window.clearTimeout(this.wheelCommitTimerId);
+      this.wheelCommitTimerId = null;
+    }
+  }
+
+  private cancelFrame(id: number | null): void {
+    if (id !== null) {
+      cancelAnimationFrame(id);
+    }
+  }
+
+  private writeSceneTransform(x: number, y: number, zoom: number): void {
     const el = this.sceneEl?.nativeElement;
-    if (el) el.style.transform = `translate(${x}px, ${y}px)`;
+    if (el) {
+      el.style.transform = `translate(${x}px, ${y}px) scale(${zoom})`;
+    }
+  }
+
+  private writeOverlayPreviewTransform(state: ViewState): void {
+    const overlayEl = this.markersOverlayEl?.nativeElement;
+    if (!overlayEl) return;
+
+    const baseZoom = this.fps.zoom();
+    const basePan = this.fps.pan();
+    const scale = state.zoom / baseZoom;
+    const x = state.pan.x - scale * basePan.x;
+    const y = state.pan.y - scale * basePan.y;
+    overlayEl.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+  }
+
+  private clearOverlayPreviewTransform(): void {
+    const overlayEl = this.markersOverlayEl?.nativeElement;
+    if (overlayEl) {
+      overlayEl.style.transform = '';
+    }
   }
 
   private hostRect() {
@@ -362,6 +451,41 @@ export class FloorCanvasComponent implements AfterViewInit {
       x: xPct,
       y: yPct,
     };
+  }
+}
+
+function applyZoomToState(
+  currentZoom: number,
+  currentPan: { x: number; y: number },
+  factor: number,
+  focalX: number,
+  focalY: number,
+): ViewState {
+  const nextZoom = clamp(currentZoom * factor, 0.2, 8);
+  const ratio = nextZoom / currentZoom;
+
+  return {
+    zoom: nextZoom,
+    pan: {
+      x: focalX - (focalX - currentPan.x) * ratio,
+      y: focalY - (focalY - currentPan.y) * ratio,
+    },
+  };
+}
+
+function wheelZoomFactor(event: WheelEvent): number {
+  const delta = normalizeWheelDelta(event);
+  return clamp(Math.exp(-delta * 0.0015), 0.85, 1.15);
+}
+
+function normalizeWheelDelta(event: WheelEvent): number {
+  switch (event.deltaMode) {
+    case WheelEvent.DOM_DELTA_LINE:
+      return event.deltaY * 16;
+    case WheelEvent.DOM_DELTA_PAGE:
+      return event.deltaY * 160;
+    default:
+      return event.deltaY;
   }
 }
 
