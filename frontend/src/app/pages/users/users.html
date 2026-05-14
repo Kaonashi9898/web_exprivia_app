@@ -114,7 +114,7 @@
         </div>
       </div>
 
-      <div class="table-wrap">
+      <div class="table-wrap responsive-table">
         <table class="password-reset-table">
           <thead>
             <tr>
@@ -128,11 +128,11 @@
           <tbody>
             @for (request of passwordResetRequests; track request.id) {
               <tr>
-                <td>{{ passwordResetTargetLabel(request) }}</td>
-                <td>{{ request.email }}</td>
-                <td>{{ passwordResetRoleLabel(request) }}</td>
-                <td>{{ formatPasswordResetRequestedAt(request.requestedAt) }}</td>
-                <td>
+                <td data-label="Richiedente">{{ passwordResetTargetLabel(request) }}</td>
+                <td data-label="Email">{{ request.email }}</td>
+                <td data-label="Ruolo">{{ passwordResetRoleLabel(request) }}</td>
+                <td data-label="Data richiesta">{{ formatPasswordResetRequestedAt(request.requestedAt) }}</td>
+                <td data-label="Azioni">
                   <div class="actions-cell">
                     <button
                       class="ghost-button"
@@ -205,7 +205,7 @@
         </div>
       }
 
-      <div class="table-wrap">
+      <div class="table-wrap responsive-table">
         <table>
           <thead>
             <tr>
@@ -219,14 +219,14 @@
           <tbody>
             @for (user of filteredUsers(); track trackByUserId($index, user)) {
               <tr>
-                <td>
+                <td data-label="Nome">
                   <div class="user-cell">
                     <strong>{{ user.fullName }}</strong>
                     <!-- <span>#{{ user.id }}</span>> -->
                   </div>
                 </td>
-                <td>{{ user.email }}</td>
-                <td>
+                <td data-label="Email">{{ user.email }}</td>
+                <td data-label="Ruolo">
                   <select title="Ruolo applicativo dell'utente"
                     class="compact-select"
                     [ngModel]="user.ruolo"
@@ -239,7 +239,7 @@
                     }
                   </select>
                 </td>
-                <td>
+                <td data-label="Gruppi">
                   <div class="group-badges">
                     @for (group of user.groups; track trackByGroupId($index, group)) {
                       <button class="group-pill" type="button" (click)="setActiveFilter(`group:${group.id}`)">{{ group.nome }}</button>
@@ -248,7 +248,7 @@
                     }
                   </div>
                 </td>
-                <td>
+                <td data-label="Azioni">
                   <div class="actions-cell">
                     <button class="ghost-button" type="button" (click)="openGroupsManager(user)" [disabled]="!canManageGroups(user)">
                       {{ groupButtonLabel(user) }}

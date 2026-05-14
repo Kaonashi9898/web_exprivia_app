@@ -277,3 +277,22 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 520px) {
+  .preview-panel {
+    min-height: 0;
+  }
+
+  .plan-preview,
+  .empty-preview {
+    min-height: 360px;
+  }
+
+  .meta-box {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+}

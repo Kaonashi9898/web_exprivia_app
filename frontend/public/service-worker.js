@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'exprivia-booking-v2';
+const CACHE_VERSION = 'exprivia-booking-v3';
 const APP_SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 
