@@ -35,6 +35,7 @@ type PositionedStation = LayoutStation & { position: { xPct: number; yPct: numbe
 export class PrenotazioniComponent implements OnInit, OnDestroy {
   @ViewChild('planPreview') private planPreview?: ElementRef<HTMLElement>;
   @ViewChild('planStage') private planStage?: ElementRef<HTMLElement>;
+  @ViewChild('bookingPanel') private bookingPanel?: ElementRef<HTMLElement>;
 
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
@@ -189,16 +190,22 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const isMeetingRoom = this.roomIsMeeting(room);
     this.selectedRoomId = room.id;
     this.mapZoom = 1;
     this.selectedStation = null;
     this.selectedPostazione = null;
-    this.selectedMeetingRoom = this.roomIsMeeting(room) ? this.findStanzaForRoom(room) : null;
+    this.selectedMeetingRoom = isMeetingRoom ? this.findStanzaForRoom(room) : null;
     this.resetPlanPreviewScroll();
     this.suggestedStartTime = this.findSuggestedStartTimeForSelectedResource();
     this.normalizeSelectableTimesForCurrentResource();
     this.updateOverlapMessage();
     this.refreshView();
+
+    if (isMeetingRoom) {
+      this.scrollSelectionIntoView();
+      return;
+    }
   }
 
   resetZoom(): void {
@@ -228,12 +235,14 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
     if (!this.bookingsAreReady()) {
       this.suggestedStartTime = null;
       this.refreshView();
+      this.scrollSelectionIntoView();
       return;
     }
     this.suggestedStartTime = this.findSuggestedStartTime(station);
     this.normalizeSelectableTimesForCurrentResource();
     this.updateOverlapMessage();
     this.refreshView();
+    this.scrollSelectionIntoView();
   }
 
   createBooking(): void {
@@ -327,6 +336,27 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
     preview.scrollTop = 0;
   }
 
+  private scrollSelectionIntoView(): void {
+    requestAnimationFrame(() => {
+      const panel = this.bookingPanel?.nativeElement;
+      if (!panel) {
+        return;
+      }
+
+      const rect = panel.getBoundingClientRect();
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+      const isFullyVisible = rect.top >= 0 && rect.bottom <= viewportHeight;
+      if (isFullyVisible) {
+        return;
+      }
+
+      panel.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    });
+  }
+
   private loadCurrentUserGroups(): void {
     this.userGroupsSubscription?.unsubscribe();
     this.userGroupsSubscription = this.api.listMyGroups().subscribe({
@@ -362,6 +392,11 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
 
   visibleStations(): PositionedStation[] {
     return this.stationsForSelectedRoom().filter((station): station is PositionedStation => !!station.position);
+  }
+
+  selectedRoomSupportsFocus(): boolean {
+    const room = this.roomsForDisplay().find((item) => item.id === this.selectedRoomId);
+    return !!room && this.roomSupportsFocus(room);
   }
 
   stationIsBooked(station: LayoutStation): boolean {
@@ -786,15 +821,17 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
 
   private selectedRoomZoomInput(): RoomZoomInput | null {
     const room = this.roomsForDisplay().find((item) => item.id === this.selectedRoomId);
-    if (!room?.position) {
+    if (!room?.position || !this.roomSupportsFocus(room)) {
       return null;
     }
 
+    const stationPositions = this.stationsForRoom(room.id)
+      .filter((station): station is PositionedStation => !!station.position)
+      .map((station) => station.position);
+
     return {
       roomPosition: room.position,
-      stationPositions: this.stationsForRoom(room.id)
-        .filter((station): station is PositionedStation => !!station.position)
-        .map((station) => station.position),
+      stationPositions,
       viewportWidth: this.planPreview?.nativeElement.clientWidth ?? 0,
       viewportHeight: this.planPreview?.nativeElement.clientHeight ?? 0,
       stageWidth: this.planStage?.nativeElement.offsetWidth ?? 0,
@@ -995,6 +1032,14 @@ export class PrenotazioniComponent implements OnInit, OnDestroy {
 
     const fallbackByName = this.stanze.filter((stanza) => stanza.tipo === tipo && stanza.nome === room.label);
     return fallbackByName.length === 1 ? fallbackByName[0] : null;
+  }
+
+  private roomSupportsFocus(room: DisplayRoom): boolean {
+    if (this.roomIsMeeting(room)) {
+      return false;
+    }
+
+    return this.stationsForRoom(room.id).some((station) => !!station.position);
   }
 
   private resetPlan(): void {
