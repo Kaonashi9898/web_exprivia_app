@@ -100,8 +100,8 @@ services:
       - "${INFRA_BIND_ADDRESS:-127.0.0.1}:${RABBITMQ_PORT:-13061}:5672"    # Host 13061 → container 5672
       - "${INFRA_BIND_ADDRESS:-127.0.0.1}:${RABBITMQ_MANAGEMENT_PORT:-13060}:15672"  # Host 13060 → container 15672
     environment:
-      RABBITMQ_DEFAULT_USER: guest  # Credenziali di accesso (solo per sviluppo)
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}  # Credenziali di accesso (solo per sviluppo)
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS} 
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 5s

@@ -282,3 +282,20 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 520px) {
+  .plan-panel,
+  .side-panel {
+    min-height: 0;
+  }
+
+  .plan-preview,
+  .empty-plan.inline {
+    min-height: 360px;
+  }
+
+  .status-legend {
+    gap: 0.55rem;
+    font-size: 0.8rem;
+  }
+}
