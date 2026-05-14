@@ -100,8 +100,8 @@ services:
       - "${INFRA_BIND_ADDRESS:-127.0.0.1}:${RABBITMQ_PORT:-13061}:5672"    # Host 13061 → container 5672
       - "${INFRA_BIND_ADDRESS:-127.0.0.1}:${RABBITMQ_MANAGEMENT_PORT:-13060}:15672"  # Host 13060 → container 15672
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}  # Credenziali di accesso (solo per sviluppo)
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}  # Credenziali di accesso (solo per sviluppo)
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 5s
@@ -127,8 +127,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}              # Letto dal file .env — NON committare questo valore
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}  # Default: 86400000 ms = 24 ore
       RABBITMQ_HOST: rabbitmq                # Nome del container RabbitMQ nella rete Docker
-      RABBITMQ_USERNAME: ${RABBITMQ_USER}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASS}
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASS: ${RABBITMQ_PASS:-guest}
       ADMIN_BOOTSTRAP_ENABLED: ${ADMIN_BOOTSTRAP_ENABLED:-false}
       ADMIN_BOOTSTRAP_FULL_NAME: ${ADMIN_BOOTSTRAP_FULL_NAME:-}
       ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
@@ -159,8 +159,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}              # Deve essere la STESSA chiave di utenti-service
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
       RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USERNAME: ${RABBITMQ_USER}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASS}
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASS: ${RABBITMQ_PASS:-guest}
       SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 100MB
       SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 100MB
       SERVER_TOMCAT_MAX_SWALLOW_SIZE: 100MB
@@ -193,8 +193,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
       RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USERNAME: ${RABBITMQ_USER}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASS}
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASS: ${RABBITMQ_PASS:-guest}
       UTENTI_SERVICE_URL: http://utenti-service:8081
       LOCATION_SERVICE_URL: http://location-service:8082
     ports:
