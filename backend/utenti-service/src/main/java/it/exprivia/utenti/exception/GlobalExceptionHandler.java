@@ -1,5 +1,6 @@
 package it.exprivia.utenti.exception;
 
+import it.exprivia.utenti.messaging.EventPublicationException;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +31,14 @@ public class GlobalExceptionHandler {
         HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
         String message = ex.getReason() != null ? ex.getReason() : ex.getMessage();
         return buildResponse(status != null ? status : HttpStatus.INTERNAL_SERVER_ERROR, message);
+    }
+
+    @ExceptionHandler(EventPublicationException.class)
+    public ResponseEntity<ApiErrorResponse> handleEventPublication(EventPublicationException ex) {
+        return buildResponse(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Aggiornamento non completato per un problema temporaneo di sincronizzazione. Nessuna modifica e' stata salvata, riprova tra poco."
+        );
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
