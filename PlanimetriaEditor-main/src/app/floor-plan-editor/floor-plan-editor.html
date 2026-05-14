@@ -7,7 +7,7 @@
 
     <!-- Upload image -->
     <button (click)="fileInput.click()">
-      <img src="/images/file.png" alt="upload file" width="16" height="16">
+      <img src="images/file.png" alt="upload file" width="16" height="16">
       Upload file
     </button>
     <input
@@ -20,7 +20,7 @@
 
     <!-- Import JSON -->
     <button (click)="jsonInput.click()" [disabled]="!hasImage()">
-      <img src="/images/import.png" alt="importJSON" width="16" height="16">
+      <img src="images/import.png" alt="importJSON" width="16" height="16">
       Import from JSON
     </button>
     <input
@@ -32,7 +32,7 @@
     >
 
     <!--<button disabled>
-      <img src="/images/python.png" alt="AnalysePython" width="16" height="16">
+      <img src="images/python.png" alt="AnalysePython" width="16" height="16">
       Analyse
     </button>-->
 
@@ -40,13 +40,13 @@
 
     <!-- Add room -->
     <button [class.active]="isPlacingRoom()" [disabled]="!hasImage()" (click)="toggleRoomMode()">
-      <img src="/images/rounded-rectangle.png" alt="add room" width="16" height="16">
+      <img src="images/rounded-rectangle.png" alt="add room" width="16" height="16">
       Add room
     </button>
 
     <!-- Add meeting room -->
     <button [class.active]="isPlacingMeeting()" [disabled]="!hasImage()" (click)="toggleMeetingMode()">
-      <img src="/images/people.png" alt="add meeting room" width="16" height="16">
+      <img src="images/people.png" alt="add meeting room" width="16" height="16">
       Add meeting room
     </button>
 
@@ -54,26 +54,26 @@
 
     <!-- Zoom out -->
     <button [disabled]="!hasImage()" (click)="zoomOut()" title="Zoom out (scroll down)">
-      <img src="/images/zoom-out.svg" alt="zoom out" width="16" height="16">
+      <img src="images/zoom-out.svg" alt="zoom out" width="16" height="16">
     </button>
 
     <span class="zoom-pct">{{ zoomPercent() }}</span>
 
     <!-- Zoom in -->
     <button [disabled]="!hasImage()" (click)="zoomIn()" title="Zoom in (scroll up)">
-      <img src="/images/zoom-in.svg" alt="zoom in" width="16" height="16">
+      <img src="images/zoom-in.svg" alt="zoom in" width="16" height="16">
     </button>
 
     <!-- Reset view -->
     <button [disabled]="!hasImage()" (click)="resetView()" title="Reset zoom & pan">
-      <img src="/images/refresh.png" alt="reset zoom" width="16" height="16">
+      <img src="images/refresh.png" alt="reset zoom" width="16" height="16">
     </button>
 
     <div class="sep"></div>
 
     <!-- Export JSON -->
     <button [disabled]="!hasImage()" (click)="exportJSON()">
-      <img src="/images/export.png" alt="exportJSON" width="16" height="16">
+      <img src="images/export.png" alt="exportJSON" width="16" height="16">
       Export to JSON
     </button>
 
