@@ -27,11 +27,13 @@
   border-bottom: 1px solid var(--color-border);
   box-shadow: 0 10px 30px rgba(0, 49, 77, 0.06);
   backdrop-filter: blur(14px);
+  min-width: 0;
 }
 
 .logo-link {
   display: inline-flex;
   align-items: center;
+  min-width: 0;
 }
 
 .topbar-logo {
@@ -44,7 +46,15 @@
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+}
+
+.main-nav::-webkit-scrollbar {
+  display: none;
 }
 
 .main-nav a {
@@ -91,6 +101,7 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  min-width: 0;
 }
 
 .user-copy {
@@ -140,6 +151,7 @@
 
 .app-content {
   width: min(1440px, 100%);
+  min-width: 0;
   min-height: calc(100vh - 76px);
   margin: 0 auto;
   padding: clamp(1rem, 3vw, 2rem);
@@ -148,14 +160,50 @@
 @media (max-width: 880px) {
   .topbar {
     grid-template-columns: 1fr auto;
+    gap: 0.65rem;
   }
 
   .main-nav {
     grid-column: 1 / -1;
     order: 3;
+    width: 100%;
   }
 
   .user-copy {
     display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar {
+    min-height: 66px;
+    padding: 0.65rem 0.75rem 0.55rem;
+  }
+
+  .topbar-logo {
+    width: 116px;
+  }
+
+  .main-nav {
+    gap: 0.2rem;
+    padding-bottom: 0.1rem;
+  }
+
+  .main-nav a {
+    padding: 0.55rem 0.62rem;
+    font-size: 0.78rem;
+  }
+
+  .main-nav a.has-badge {
+    padding-right: 1.15rem;
+  }
+
+  .icon-button {
+    width: 38px;
+    height: 38px;
+  }
+
+  .app-content {
+    padding: 0.75rem;
   }
 }

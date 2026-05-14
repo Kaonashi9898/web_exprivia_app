@@ -475,3 +475,29 @@
     min-width: 0;
   }
 }
+
+@media (max-width: 520px) {
+  .management-actions,
+  .room-group-bulk-header,
+  .modal-actions,
+  .stat-line,
+  .seat-state-row,
+  .room-group-summary-card {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .stat-card {
+    padding: 0.95rem;
+  }
+
+  .stat-card strong {
+    font-size: 1.65rem;
+  }
+
+  .booking-row-actions,
+  .room-metrics {
+    justify-content: flex-start;
+  }
+}
