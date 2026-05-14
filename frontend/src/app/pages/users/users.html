@@ -68,7 +68,7 @@
                 />
                 <div class="group-card-actions">
                   <button class="ghost-button" type="button" (click)="saveRenameGroup(group)" [disabled]="groupActionInFlightId === group.id || !renameGroupName.trim()">Salva</button>
-                  <button class="ghost-button" type="button" (click)="cancelRenameGroup()">Annulla</button>
+                  <button class="danger-button" type="button" (click)="cancelRenameGroup()">Annulla</button>
                 </div>
               </div>
             } @else {
@@ -384,7 +384,7 @@
         </div>
 
         <footer class="modal-actions">
-          <button class="ghost-button" type="button" (click)="closePasswordResetModal()" [disabled]="passwordResetActionId !== null">Annulla</button>
+          <button class="danger-button" type="button" (click)="closePasswordResetModal()" [disabled]="passwordResetActionId !== null">Annulla</button>
           <button class="btn btn-primary" type="submit" [disabled]="passwordResetActionId !== null">
             {{ passwordResetActionId !== null ? 'Salvataggio...' : 'Conferma password temporanea' }}
           </button>
@@ -408,7 +408,7 @@
       <p class="modal-copy">{{ confirmActionMessage() }}</p>
 
       <footer class="modal-actions">
-        <button class="ghost-button" type="button" (click)="closeConfirmActionModal()" [disabled]="confirmActionBusy">Annulla</button>
+        <button class="danger-button" type="button" (click)="closeConfirmActionModal()" [disabled]="confirmActionBusy">Annulla</button>
         <button class="danger-button" type="button" (click)="confirmPendingAction()" [disabled]="confirmActionBusy">
           {{ confirmActionBusy ? confirmActionBusyLabel() : confirmActionButtonLabel() }}
         </button>
@@ -490,7 +490,7 @@
         </div>
 
         <footer class="modal-actions">
-          <button class="ghost-button" type="button" (click)="closeCreateUserModal()" [disabled]="saving">Annulla</button>
+          <button class="danger-button" type="button" (click)="closeCreateUserModal()" [disabled]="saving">Annulla</button>
           <button class="btn btn-primary" type="submit" [disabled]="saving">
             {{ saving ? 'Creazione...' : 'Crea utenza' }}
           </button>
@@ -529,7 +529,7 @@
         </div>
 
         <footer class="modal-actions">
-          <button class="ghost-button" type="button" (click)="closeCreateGroupModal()" [disabled]="creatingGroup">Annulla</button>
+          <button class="danger-button" type="button" (click)="closeCreateGroupModal()" [disabled]="creatingGroup">Annulla</button>
           <button class="btn btn-primary" type="submit" [disabled]="creatingGroup || !newGroupName.trim()">
             {{ creatingGroup ? 'Creazione...' : 'Crea gruppo' }}
           </button>

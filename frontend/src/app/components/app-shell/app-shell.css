@@ -181,13 +181,16 @@
   display: grid;
   place-items: center;
   padding: 1rem;
+  overflow: hidden;
   background: rgba(8, 15, 28, 0.45);
+  overscroll-behavior: contain;
 }
 
 .modal-card {
   width: min(960px, 100%);
-  max-height: none;
-  overflow: visible;
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0.9rem 1rem;
   background: #ffffff;
   border: 1px solid var(--color-border);
@@ -371,5 +374,25 @@
 
   .app-content {
     padding: 0.75rem;
+  }
+
+  .modal-backdrop {
+    align-items: start;
+    padding: 0.75rem;
+  }
+
+  .profile-modal-card {
+    width: 100%;
+    max-height: calc(100dvh - 1.5rem);
+    padding: 0.85rem;
+  }
+
+  .profile-section {
+    padding: 0.75rem;
+  }
+
+  .profile-readonly-field {
+    min-height: 0;
+    padding: 0.7rem;
   }
 }

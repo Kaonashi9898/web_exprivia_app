@@ -51,15 +51,15 @@ export function roomZoom(input: RoomZoomInput): RoomZoom | null {
       input.viewportWidth / (boxWidth + padding * 2),
       input.viewportHeight / (boxHeight + padding * 2),
     ),
-    2.35,
-    7.2,
+    1.55,
+    3.8,
   );
 
   const centerX = ((box.minX + box.maxX) / 2 / 100) * input.stageWidth;
   const centerY = ((box.minY + box.maxY) / 2 / 100) * input.stageHeight;
   const translateX = input.viewportWidth / 2 - centerX * scale;
   const translateY = input.viewportHeight / 2 - centerY * scale;
-  const counterScale = clamp(1 / scale, 0.24, 0.72);
+  const counterScale = clamp(1 / scale, 0.42, 0.82);
 
   return {
     translateX,

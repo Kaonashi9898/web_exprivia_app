@@ -48,6 +48,7 @@ export class AppShellComponent implements OnInit, OnDestroy {
   profileMessage = '';
   profileError = '';
   private passwordResetRefreshTimer: number | null = null;
+  private previousBodyOverflow = '';
   private readonly handleWindowFocus = () => this.refreshPasswordResetNotifications();
   private readonly handleVisibilityChange = () => {
     if (!document.hidden) {
@@ -72,6 +73,7 @@ export class AppShellComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopPasswordResetRefresh();
+    this.unlockBodyScroll();
     window.removeEventListener('focus', this.handleWindowFocus);
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
   }
@@ -88,6 +90,7 @@ export class AppShellComponent implements OnInit, OnDestroy {
     }
 
     this.showProfileModal = true;
+    this.lockBodyScroll();
     this.profileFullName = currentUser.fullName;
     this.profileCurrentPassword = '';
     this.profileNewPassword = '';
@@ -124,6 +127,7 @@ export class AppShellComponent implements OnInit, OnDestroy {
     }
 
     this.showProfileModal = false;
+    this.unlockBodyScroll();
     this.profileCurrentPassword = '';
     this.profileNewPassword = '';
     this.profileConfirmPassword = '';
@@ -278,5 +282,14 @@ export class AppShellComponent implements OnInit, OnDestroy {
 
   private refreshView(): void {
     this.cdr.detectChanges();
+  }
+
+  private lockBodyScroll(): void {
+    this.previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }
+
+  private unlockBodyScroll(): void {
+    document.body.style.overflow = this.previousBodyOverflow;
   }
 }
