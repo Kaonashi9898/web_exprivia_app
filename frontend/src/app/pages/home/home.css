@@ -279,6 +279,14 @@
   font-weight: 700;
 }
 
+.danger-action {
+  color: #b42318;
+}
+
+.danger-action:hover {
+  color: #912018;
+}
+
 .forgot-copy,
 .forgot-panel-copy {
   margin: 0;

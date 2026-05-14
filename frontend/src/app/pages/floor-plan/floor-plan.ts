@@ -61,12 +61,14 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
   imagePreviewFile: File | null = null;
   jsonFile: File | null = null;
   message = '';
+  messageAutoDismiss = false;
   error = '';
   sediLoading = false;
   pianiLoading = false;
   planPendingDeletion = false;
   deletingPlan = false;
   readonly editorUrl = environment.floorPlanEditorUrl;
+  private messageDismissTimer: number | null = null;
 
   ngOnInit(): void {
     this.sediLoading = true;
@@ -97,6 +99,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
     this.imageSubscription?.unsubscribe();
     this.layoutSubscription?.unsubscribe();
     this.planStatusSubscription?.unsubscribe();
+    this.clearMessageDismissTimer();
     this.revokeImageUrl();
   }
 
@@ -187,7 +190,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
     }
 
     this.imageSrc = URL.createObjectURL(this.imageFile);
-    this.message = 'Planimetria caricata in anteprima. Premi "Salva planimetria" per salvarla nel database.';
+    this.showSuccess('Planimetria caricata in anteprima. Premi "Salva planimetria" per salvarla nel database.');
     this.refreshView();
   }
 
@@ -210,7 +213,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
         const parsedLayout = JSON.parse(String(reader.result ?? '')) as PlanimetriaLayout;
         this.layout = this.normalizeLayout(parsedLayout);
         this.selectedRoomId = null;
-        this.message = 'Layout caricato in anteprima. Premi "Salva planimetria" per salvarlo nel database.';
+        this.showSuccess('Layout caricato in anteprima. Premi "Salva planimetria" per salvarlo nel database.');
         this.refreshView();
       } catch {
         this.error = 'Import JSON non riuscito.';
@@ -261,7 +264,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
             return;
           }
 
-          this.message = 'Planimetria salvata correttamente.';
+          this.showSuccess('Planimetria salvata correttamente.');
           this.refreshView();
           this.loadPlan(false);
         },
@@ -305,7 +308,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
     this.deletingPlan = true;
     this.deleteSubscription = this.api.deletePlanimetria(this.selectedPianoId).subscribe({
       next: () => {
-        this.message = 'Planimetria eliminata.';
+        this.showSuccess('Planimetria eliminata.');
         this.pianiConPlanimetria.set(this.selectedPianoId!, false);
         this.deletingPlan = false;
         this.planPendingDeletion = false;
@@ -556,7 +559,9 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
   }
 
   private clearMessages(): void {
+    this.clearMessageDismissTimer();
     this.message = '';
+    this.messageAutoDismiss = false;
     this.error = '';
   }
 
@@ -644,7 +649,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
         const previewName = `${this.stripExtension(file.name)}.svg`;
         this.imagePreviewFile = new File([conversion.svgText], previewName, { type: 'image/svg+xml' });
         this.imageSrc = conversion.dataUrl;
-        this.message = 'DXF convertito in anteprima SVG. Premi "Salva planimetria" per salvare originale e anteprima.';
+        this.showSuccess('DXF convertito in anteprima SVG. Premi "Salva planimetria" per salvare originale e anteprima.');
         this.refreshView();
       } catch (err) {
         this.imagePreviewFile = null;
@@ -710,7 +715,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
 
   private saveLayoutAfterImageUpload(pianoId: number): void {
     if (!this.jsonFile) {
-      this.message = 'Planimetria salvata correttamente.';
+      this.showSuccess('Planimetria salvata correttamente.');
       this.refreshView();
       this.loadPlan(false);
       return;
@@ -721,7 +726,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
       next: () => {
         this.imageFile = null;
         this.jsonFile = null;
-        this.message = 'Planimetria e layout salvati correttamente.';
+        this.showSuccess('Planimetria e layout salvati correttamente.');
         this.refreshView();
         this.loadPlan(false);
       },
@@ -749,7 +754,7 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
     this.importSubscription = this.api.importPlanimetriaJson(this.selectedPianoId, this.jsonFile).subscribe({
       next: () => {
         this.jsonFile = null;
-        this.message = 'Planimetria salvata correttamente.';
+        this.showSuccess('Planimetria salvata correttamente.');
         this.refreshView();
         this.loadPlan(false);
       },
@@ -769,5 +774,27 @@ export class FloorPlanComponent implements OnInit, OnDestroy {
 
   private refreshView(): void {
     this.cdr.detectChanges();
+  }
+
+  private showSuccess(message: string): void {
+    this.clearMessageDismissTimer();
+    this.message = message;
+    this.messageAutoDismiss = true;
+    this.error = '';
+    this.messageDismissTimer = window.setTimeout(() => {
+      this.message = '';
+      this.messageAutoDismiss = false;
+      this.messageDismissTimer = null;
+      this.refreshView();
+    }, 5000);
+  }
+
+  private clearMessageDismissTimer(): void {
+    if (this.messageDismissTimer === null) {
+      return;
+    }
+
+    window.clearTimeout(this.messageDismissTimer);
+    this.messageDismissTimer = null;
   }
 }

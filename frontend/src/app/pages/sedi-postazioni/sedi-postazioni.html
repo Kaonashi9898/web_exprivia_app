@@ -278,7 +278,7 @@
       <p class="modal-copy">{{ locationPendingDeletion.message }}</p>
 
       <div class="modal-actions">
-        <button class="ghost-button" type="button" [disabled]="deletingLocation" (click)="closeLocationDeleteModal()">
+        <button class="danger-button" type="button" [disabled]="deletingLocation" (click)="closeLocationDeleteModal()">
           Annulla
         </button>
         <button class="danger-button" type="button" [disabled]="deletingLocation" (click)="confirmLocationDeletion()">
@@ -326,7 +326,7 @@
       </div>
 
       <footer class="modal-actions">
-        <button class="ghost-button" type="button" [disabled]="savingBookingId !== null" (click)="closeEditBookingModal()">
+        <button class="danger-button" type="button" [disabled]="savingBookingId !== null" (click)="closeEditBookingModal()">
           Annulla
         </button>
         <button class="primary-button" type="button" [disabled]="savingBookingId !== null" (click)="saveBookingEdit()">
@@ -355,7 +355,7 @@
       </p>
 
       <footer class="modal-actions">
-        <button class="ghost-button" type="button" [disabled]="deletingBookingId !== null" (click)="closeCancelBookingModal()">
+        <button class="danger-button" type="button" [disabled]="deletingBookingId !== null" (click)="closeCancelBookingModal()">
           Annulla
         </button>
         <button class="danger-button" type="button" [disabled]="deletingBookingId !== null" (click)="cancelBooking()">
@@ -623,7 +623,7 @@
         </div>
 
         <footer class="modal-actions">
-          <button class="ghost-button" type="button" (click)="closeCreateSedeModal()" [disabled]="creatingSede">Annulla</button>
+          <button class="danger-button" type="button" (click)="closeCreateSedeModal()" [disabled]="creatingSede">Annulla</button>
           <button class="primary-button" type="submit" [disabled]="creatingSede">
             {{ creatingSede ? 'Creazione...' : 'Crea sede' }}
           </button>
@@ -650,7 +650,7 @@
         </label>
 
         <footer class="modal-actions">
-          <button class="ghost-button" type="button" (click)="closeCreateEdificioModal()" [disabled]="creatingEdificio">Annulla</button>
+          <button class="danger-button" type="button" (click)="closeCreateEdificioModal()" [disabled]="creatingEdificio">Annulla</button>
           <button class="primary-button" type="submit" [disabled]="creatingEdificio">
             {{ creatingEdificio ? 'Creazione...' : 'Crea edificio' }}
           </button>
@@ -684,7 +684,7 @@
         </label>
 
         <footer class="modal-actions">
-          <button class="ghost-button" type="button" (click)="closeCreatePianoModal()" [disabled]="creatingPiano">Annulla</button>
+          <button class="danger-button" type="button" (click)="closeCreatePianoModal()" [disabled]="creatingPiano">Annulla</button>
           <button class="primary-button" type="submit" [disabled]="creatingPiano">
             {{ creatingPiano ? 'Creazione...' : 'Crea piano' }}
           </button>

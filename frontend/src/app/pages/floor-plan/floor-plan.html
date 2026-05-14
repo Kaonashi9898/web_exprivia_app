@@ -9,7 +9,7 @@
 </section>
 
 @if (message) {
-  <div class="notice success">{{ message }}</div>
+  <div class="notice success" [class.notice-fade-out]="messageAutoDismiss">{{ message }}</div>
 }
 @if (error) {
   <div class="notice error">{{ error }}</div>
@@ -189,7 +189,7 @@
       </p>
 
       <div class="modal-actions">
-        <button class="ghost-button" type="button" [disabled]="deletingPlan" (click)="closeDeletePlanModal()">
+        <button class="danger-button" type="button" [disabled]="deletingPlan" (click)="closeDeletePlanModal()">
           Annulla
         </button>
         <button class="danger-button" type="button" [disabled]="deletingPlan" (click)="confirmDeletePlan()">
